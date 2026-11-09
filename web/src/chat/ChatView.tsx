@@ -7,7 +7,8 @@ import { MAIN_CHAT, type GatewaySnapshot } from "../gateway/model";
 import { useGateway } from "../gateway/registry";
 import type { AccessoryId, PaletteId, SpeciesId, WebAgent } from "../types";
 import { MessageRow, TypingBubble } from "./Bubbles";
-import { dayLabel } from "./format";
+import { canRecord, VoiceRecorder } from "../voice/recorder";
+import { dayLabel, formatClock } from "./format";
 import { Icon } from "./icons";
 import { buildChatRows } from "./rows";
 import { t } from "./strings";
@@ -77,11 +78,63 @@ export function ChatView({ agent, client }: { agent: WebAgent; client: GatewayCl
     return () => observer.disconnect();
   }, []);
 
+  const [notice, setNotice] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+
+  // Un message d'erreur reste quelques secondes au-dessus du champ, puis s'efface.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 5_000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const sendFiles = (files: FileList | File[], caption = ""): void => {
+    [...files].forEach((file, i) => {
+      if (!client.sendFile(file, i === 0 ? caption : "")) setNotice(t.fileTooLarge(file.name || t.file));
+    });
+  };
+
+  const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+
   return (
-    <section class="chat" style={{ ...paletteStyle(look.palette), "--header-h": `${headerHeight}px` }}>
+    <section
+      class="chat"
+      style={{ ...paletteStyle(look.palette), "--header-h": `${headerHeight}px` }}
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current++;
+        setDragging(true);
+      }}
+      onDragOver={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer!.dropEffect = "copy";
+      }}
+      onDragLeave={() => {
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDragging(false);
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        sendFiles(e.dataTransfer!.files);
+      }}
+    >
       <ChatHeader headerRef={header} look={look} looks={looks} client={client} snapshot={snapshot} />
       <Thread key={chatKey} client={client} snapshot={snapshot} look={look} />
-      <Composer key={chatKey} draftKey={chatKey} client={client} name={look.name} />
+      <Composer key={`${chatKey}:composer`} draftKey={chatKey} client={client} name={look.name} notice={notice} setNotice={setNotice} sendFiles={sendFiles} />
+      {dragging && (
+        <div class="drop-overlay" aria-hidden="true">
+          <div class="drop-card">
+            <Icon name="paperclip" size={28} />
+            <span class="t-title-sm">{t.dropHere}</span>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -305,9 +358,93 @@ function Thread({ client, snapshot, look }: { client: GatewayClient; snapshot: G
   );
 }
 
-function Composer({ draftKey, client, name }: { draftKey: string; client: GatewayClient; name: string }) {
+type Recording = { phase: "starting" } | { phase: "recording"; elapsedMs: number; levels: number[] };
+
+function Composer({
+  draftKey,
+  client,
+  name,
+  notice,
+  setNotice,
+  sendFiles,
+}: {
+  draftKey: string;
+  client: GatewayClient;
+  name: string;
+  notice: string | null;
+  setNotice: (notice: string | null) => void;
+  sendFiles: (files: FileList | File[], caption?: string) => void;
+}) {
   const [draft, setDraft] = useState(() => drafts.get(draftKey) ?? "");
   const field = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const recorder = useRef<VoiceRecorder | null>(null);
+  const [recording, setRecording] = useState<Recording | null>(null);
+  const micAvailable = useMemo(canRecord, []);
+
+  // On quitte la conversation (autre dot, autre agent) en plein enregistrement : on l'abandonne.
+  useEffect(() => () => recorder.current?.cancel(), []);
+
+  async function startRecording() {
+    if (recorder.current) return;
+    setNotice(null);
+    const r = new VoiceRecorder();
+    recorder.current = r;
+    setRecording({ phase: "starting" });
+    const error = await r.start(
+      ({ elapsedMs, levels }) => {
+        if (recorder.current === r) setRecording({ phase: "recording", elapsedMs, levels });
+      },
+      () => {
+        setNotice(t.voiceLimit);
+        void finishRecording();
+      },
+    );
+    if (error) {
+      recorder.current = null;
+      setRecording(null);
+      setNotice(error === "denied" ? t.micDenied : error === "unsupported" ? t.micUnavailable : t.micFailed);
+    }
+  }
+
+  async function finishRecording() {
+    const r = recorder.current;
+    if (!r) return;
+    recorder.current = null;
+    setRecording(null);
+    const voice = await r.stop();
+    if (!voice) {
+      setNotice(t.voiceTooShort);
+      return;
+    }
+    if (!client.sendVoice(voice.blob, voice.durationMs, voice.waveform)) setNotice(t.voiceTooLarge);
+  }
+
+  function cancelRecording() {
+    recorder.current?.cancel();
+    recorder.current = null;
+    setRecording(null);
+  }
+
+  // Pendant l'enregistrement : Échap annule, Entrée envoie.
+  useEffect(() => {
+    if (!recording) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cancelRecording();
+      else if (e.key === "Enter" && recording.phase === "recording") {
+        e.preventDefault();
+        void finishRecording();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [recording?.phase]);
+
+  function attach(files: FileList | File[] | null | undefined) {
+    if (!files || files.length === 0) return;
+    sendFiles(files, draft);
+    update("");
+  }
 
   // Hauteur ajustée au contenu, jusqu'à ~8 lignes, puis défilement interne.
   useLayoutEffect(() => {
@@ -333,8 +470,48 @@ function Composer({ draftKey, client, name }: { draftKey: string; client: Gatewa
     update("");
   }
 
+  const hasText = !!draft.trim();
+
+  if (recording) {
+    const live = recording.phase === "recording" ? recording : null;
+    const levels = live ? live.levels : [];
+    return (
+      <div class="composer-zone">
+        {notice && <ComposerNotice text={notice} onClose={() => setNotice(null)} />}
+        <div class="composer is-recording" role="group" aria-label={t.recording}>
+          <button type="button" class="composer-plus" onClick={cancelRecording} title={t.cancelRecording} aria-label={t.cancelRecording}>
+            <Icon name="trash" size={18} />
+          </button>
+          <div class="composer-field recorder">
+            <span class="recorder-dot" aria-hidden="true" />
+            <span class="recorder-time" aria-live="off">
+              {formatClock(live?.elapsedMs ?? 0)}
+            </span>
+            <span class="recorder-wave" aria-hidden="true">
+              {Array.from({ length: LIVE_BARS }, (_, i) => {
+                const v = levels[levels.length - LIVE_BARS + i] ?? 0;
+                return <span key={i} style={{ height: `${Math.max(10, Math.min(1, v) * 100)}%` }} />;
+              })}
+            </span>
+            <button
+              type="button"
+              class="composer-send is-ready"
+              onClick={() => void finishRecording()}
+              disabled={!live}
+              aria-label={t.sendVoice}
+              title={t.sendVoice}
+            >
+              {live ? <Icon name="arrowUp" size={18} /> : <span class="spinner" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div class="composer-zone">
+      {notice && <ComposerNotice text={notice} onClose={() => setNotice(null)} />}
       <form
         class="composer"
         onSubmit={(e) => {
@@ -342,8 +519,19 @@ function Composer({ draftKey, client, name }: { draftKey: string; client: Gatewa
           submit();
         }}
       >
-        <button type="button" class="composer-plus" disabled title={t.attach} aria-label={t.attach}>
-          <Icon name="plus" size={20} />
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            const input = e.target as HTMLInputElement;
+            attach(input.files);
+            input.value = "";
+          }}
+        />
+        <button type="button" class="composer-plus" onClick={() => picker.current?.click()} title={t.attach} aria-label={t.attach}>
+          <Icon name="paperclip" size={19} />
         </button>
         <div class="composer-field">
           <textarea
@@ -353,6 +541,14 @@ function Composer({ draftKey, client, name }: { draftKey: string; client: Gatewa
             placeholder={t.placeholder(name)}
             aria-label={t.placeholder(name)}
             onInput={(e) => update((e.target as HTMLTextAreaElement).value)}
+            onPaste={(e) => {
+              // Capture d'écran ou fichier collé : envoyé avec le texte déjà tapé en légende.
+              const files = e.clipboardData?.files;
+              if (files && files.length > 0) {
+                e.preventDefault();
+                attach(files);
+              }
+            }}
             onKeyDown={(e) => {
               // Entrée envoie, Maj+Entrée revient à la ligne ; jamais pendant une composition (IME).
               if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
@@ -361,11 +557,33 @@ function Composer({ draftKey, client, name }: { draftKey: string; client: Gatewa
               }
             }}
           />
-          <button type="submit" class={`composer-send${draft.trim() ? " is-ready" : ""}`} disabled={!draft.trim()} aria-label={t.send}>
-            <Icon name="arrowUp" size={18} />
-          </button>
+          {hasText || !micAvailable ? (
+            <button type="submit" class={`composer-send${hasText ? " is-ready" : ""}`} disabled={!hasText} aria-label={t.send}>
+              <Icon name="arrowUp" size={18} />
+            </button>
+          ) : (
+            // Champ vide : le bouton d'envoi devient le micro, comme dans l'app.
+            <button type="button" class="composer-send composer-mic" onClick={() => void startRecording()} aria-label={t.record} title={t.record}>
+              <Icon name="mic" size={18} />
+            </button>
+          )}
         </div>
       </form>
+    </div>
+  );
+}
+
+/** Barres de l'onde en direct pendant l'enregistrement. */
+const LIVE_BARS = 32;
+
+function ComposerNotice({ text, onClose }: { text: string; onClose: () => void }) {
+  return (
+    <div class="composer-notice" role="alert">
+      <Icon name="alert" size={16} />
+      <span>{text}</span>
+      <button type="button" class="icon-btn" onClick={onClose} aria-label={t.close}>
+        <Icon name="close" size={14} />
+      </button>
     </div>
   );
 }

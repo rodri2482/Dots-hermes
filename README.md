@@ -2,15 +2,19 @@
   <img src="assets/hero.png" alt="Hermes — your agent, one message away" width="100%">
 </p>
 
-# Hermes
+# Claydot
 
 **A native Android messenger for your [Hermes Agent](https://hermes-agent.nousresearch.com).**
 Chat with your self-hosted agent the way you chat with a friend: voice notes, files, live tool activity,
 approvals straight from a notification, a live view of its browser, and clay mascots you can make your own.
 
-**New: Hermes in your browser at [dots-hermes.vercel.app](https://dots-hermes.vercel.app).** Open it
-on your computer and scan its QR code from the app: your agents and sub-dots show up with the same
-mascots and colours, and the browser talks to your gateway directly. See [Web app](#optional-web-app).
+> Claydot is a fork of [Dots-hermes](https://github.com/Drevero/Dots-hermes) by Drevero, released
+> under the same [GPL-3.0](LICENSE) license. It keeps the original gateway protocol, so the server
+> plugin stays compatible with the upstream project.
+
+**Claydot in your browser.** Deploy the [web app](#optional-web-app) and scan its QR code from the
+phone: your agents and sub-dots show up with the same mascots and colours, and the browser talks to
+your gateway directly. Claydot's web app can also send files and record voice notes.
 
 The project has three parts that work together:
 
@@ -129,8 +133,8 @@ Used daily and tested end to end against Hermes Agent 0.22.
   *Stop* button), its scheduled tasks (pause, resume, run now) and recent exchanges.
 
 **Media**
-- **Voice notes**: record, replay with a waveform, and see what the agent heard (transcribed on your
-  server by Whisper; see [voice notes](#optional-voice-notes)).
+- **Voice notes**: record, replay with a waveform, and see what the agent heard (transcribed by Whisper,
+  locally on your server or through Groq; see [voice notes](#optional-voice-notes)).
 - **Files and photos in both directions**: send a picture or a PDF; receive images, documents or
   audio the agent produces.
 
@@ -154,7 +158,7 @@ These work, but rely on Hermes internals or are recent. Expect rough edges.
 | **Take over the browser** | When a page needs a human (login, 2FA, captcha), the agent hands you its browser; you tap, scroll and type on its page from your phone, then hand it back. Input is validated on Chromium; the agent must call the `browser_request_takeover` tool, which is not guaranteed. What you type goes to the page only, never to the chat or the model. |
 | **Sub-dots** | Extra agents next to your main one, each with its own conversation and Hermes session: **temporary** ones for a single mission, **permanent** ones with their own name, specialty, mascot and colour. Swipe the mascot to switch. |
 | **Group room** | From the *+* menu, invite sub-dots into the current conversation: they debate each of your messages for two rounds, each with its mascot above its bubbles, then the conversation's own dot concludes. Each guest speaks in a separate Hermes session, so its private conversation stays untouched. *Stop* ends the whole debate. |
-| **Web app** | Chat from a computer at [dots-hermes.vercel.app](https://dots-hermes.vercel.app). Pair it by scanning its rotating QR code from the app (agent settings → *Web app* → *Connect a browser*): each browser gets its own token, revocable from the phone, and your `DOTS_TOKEN` never leaves the phone. Covers the main conversation and sub-dots; voice notes and files can be played or downloaded but not sent yet. See [Web app](#optional-web-app). |
+| **Web app** | Chat from a computer at [dots-hermes.vercel.app](https://dots-hermes.vercel.app). Pair it by scanning its rotating QR code from the app (agent settings → *Web app* → *Connect a browser*): each browser gets its own token, revocable from the phone, and your `DOTS_TOKEN` never leaves the phone. Covers the main conversation and sub-dots, including sending files (picker, drag and drop, paste) and recording voice notes. See [Web app](#optional-web-app). |
 | **Several devices at once** | The gateway accepts several connected apps and broadcasts the conversation to all of them. |
 | **Several independent agents** | Pair the app with several Hermes profiles (one gateway each) and switch between them by tapping the agent name at the top of the conversation. Each agent keeps its own conversations, sub-dots, notifications and approvals; isolation is enforced by Hermes, since every agent is a separate profile reached with its own token. See [Several agents](#several-agents). |
 
@@ -182,11 +186,12 @@ Checked items are done; the rest is not built yet.
 - [x] Prebuilt, signed APK attached to GitHub releases, with [in-app updates](#app-updates-from-github-releases)
 - [x] One-command server install script ([`server/install.sh`](server/install.sh))
 - [x] Web app paired by QR code, at [dots-hermes.vercel.app](https://dots-hermes.vercel.app)
-- [ ] Web app: send voice notes and files, Activity view, live browser screen
+- [x] Web app: send voice notes and files
+- [ ] Web app: Activity view, live browser screen
 - [ ] Push notifications for everyone using the prebuilt APK, without sharing a Firebase server key:
   [UnifiedPush](https://unifiedpush.org) (ntfy) first, then possibly an optional hosted FCM relay that
   only sends content-free wake-ups (the app fetches the message from its own gateway)
-- [ ] Protection against token brute force on the gateway
+- [x] Protection against token brute force on the gateway
 - [ ] Spoken replies, then hands-free voice calls with the agent
 - [ ] Local message cache with full-text search
 - [ ] A screen to review and edit what the agent remembers about you
@@ -205,7 +210,7 @@ The whole app interface is translated, demo mode included:
 
 There is no language setting in the app: it **follows your phone's language**. A phone set to French
 shows the app in French; any other language falls back to English. On Android 13 and later you can
-also pick a language for Hermes alone, in *Settings › Apps › Hermes › Language*.
+also pick a language for Claydot alone, in *Settings › Apps › Claydot › Language*.
 
 The agent's own replies are not translated by the app: Hermes answers in whatever language you write
 to it. Tool labels sent by the gateway plugin are shown in the app's language for every tool the app
@@ -284,7 +289,7 @@ another installation.
 ```bash
 # 1. Copy the plugin into your Hermes plugins folder
 mkdir -p ~/.hermes/plugins/dots
-cp server/hermes-plugin-dots/{plugin.yaml,__init__.py,adapter.py} ~/.hermes/plugins/dots/
+cp server/hermes-plugin-dots/{plugin.yaml,__init__.py,adapter.py,guard.py} ~/.hermes/plugins/dots/
 
 # 2. Enable it (plugins are opt-in)
 hermes plugins enable dots-platform
@@ -362,7 +367,7 @@ Your gateway address is then `wss://hermes.example.com/dots/ws`.
 ### Download a release
 
 Every push to `main` builds an APK and publishes it on the repository's **Releases** page
-(`hermes-<version>.apk`, with its SHA-256). Open the page on your phone, download the APK and allow
+(`claydot-<version>.apk`, with its SHA-256). Open the page on your phone, download the APK and allow
 installation from your browser when Android asks.
 
 > [!NOTE]
@@ -400,7 +405,7 @@ You can also open the project in Android Studio and press **Run**.
 
 ## 4. Connect the app to your gateway
 
-1. Open **Hermes** on your phone.
+1. Open **Claydot** on your phone.
 2. In **Gateway**, enter your address: `wss://hermes.example.com/dots/ws`.
 3. In **Jeton** (token), paste the value of `DOTS_TOKEN`.
 4. Tap **Se connecter**.
@@ -446,7 +451,7 @@ Notifications use **Firebase Cloud Messaging**. The gateway sends data-only mess
 the notification itself (conversation style, quick reply, approval buttons).
 
 1. Create a project in the [Firebase console](https://console.firebase.google.com) and add an
-   **Android app** with the package name `app.dotshermes`.
+   **Android app** with the package name `app.claydot`.
 2. Download `google-services.json` into `app/` and rebuild the app.
 3. In Google Cloud, create a **service account** with the role *Firebase Cloud Messaging API Admin*
    (`roles/firebasecloudmessaging.admin`) and download a JSON key.
@@ -478,8 +483,14 @@ Analytics in *Firebase console → Project settings → Integrations*. An APK bu
 
 ## Optional: voice notes
 
-Voice notes are transcribed **on your server** by Hermes' own speech-to-text pipeline, with a local
-Whisper model. No audio leaves the server.
+Voice notes are transcribed by Hermes' own speech-to-text pipeline. Pick one of two engines:
+
+| Engine | Pros | Cons |
+|---|---|---|
+| **Local Whisper** (`--voice`) | No audio leaves your server, free | ~700 MB of RAM while transcribing, slower on a small VPS |
+| **Groq** (`--stt groq`) | Fast, nothing to install, fits a tiny server | Audio is sent to Groq; needs a `GROQ_API_KEY` |
+
+### Local Whisper
 
 ```bash
 bash server/install.sh --voice small --stt-language fr
@@ -496,6 +507,26 @@ systemctl --user restart hermes-gateway
 
 `small` needs roughly 700 MB of RAM while transcribing (about 4 s for a 6 s clip on 2 vCPUs).
 On a tight server, use `base`, or add some swap.
+
+### Groq
+
+Create a key at [console.groq.com](https://console.groq.com) (*API Keys*), then pass it through the
+environment, never as an argument. The leading space keeps the line out of your shell history in
+most setups; without the variable, the installer asks for the key with hidden input:
+
+```bash
+ GROQ_API_KEY=gsk_... bash server/install.sh --stt groq --stt-language fr
+```
+
+or by hand: add `GROQ_API_KEY=gsk_...` to `~/.hermes/.env`, then
+
+```bash
+hermes config set stt.provider groq   # model: whisper-large-v3-turbo
+hermes config set stt.language fr
+systemctl --user restart hermes-gateway
+```
+
+The key stays in `~/.hermes/.env` on the server: never put it in the app or the web app.
 
 ---
 
@@ -542,9 +573,11 @@ cd web && npm install && npm run dev
 `npm run dev` also serves an in-memory relay, so pairing works without Upstash (allow
 `http://localhost:5173` on a test gateway). The web app covers the main conversation and the
 sub-dots (switch between them from the row of mascots under the header): streaming replies, tool
-steps, approvals, clarifying questions, reactions, files and voice notes to download or play.
-Creating sub-dots, group rooms, the Activity view, the live screen and sending voice notes or files
-are still phone-only.
+steps, approvals, clarifying questions, reactions, files and voice notes. Attach files with the
+paperclip, by dragging them onto the conversation or by pasting them (20 MB max; the text already
+typed becomes the caption), and record a voice note with the microphone button (5 min max; WebM/Opus
+or Ogg/Opus on Chrome and Firefox, MP4/AAC on Safari, all transcribed by the gateway's Whisper).
+Creating sub-dots, group rooms, the Activity view and the live screen are still phone-only.
 
 ---
 
@@ -562,12 +595,12 @@ The plugin migrates its own data (history and sub-dots live in `~/.hermes/platfo
 
 ### App updates from GitHub releases
 
-An APK installed from [Releases](https://github.com/Drevero/Dots-hermes/releases) **updates itself**, no store needed:
+An APK installed from [Releases](https://github.com/rodri2482/Dots-hermes/releases) **updates itself**, no store needed:
 
 - It checks the repository's latest release when it opens and twice a day in the background, and
   sends a notification when a new version is out.
 - One tap downloads the APK, checks it against the SHA-256 published with the release, and hands it to
-  Android. The first time, Android asks you to allow Hermes to install apps; after that, each update
+  Android. The first time, Android asks you to allow Claydot to install apps; after that, each update
   is a single confirmation. On Android 12+, once Hermes has updated itself once, later updates may
   install without any prompt.
 - Your conversations and settings stay: it installs over the current version.
@@ -632,14 +665,17 @@ Keep `release.jks` and its passwords safe: losing them means every user must rei
 | Tool steps appear as text bubbles | Run `hermes config set display.platforms.dots.tool_progress off` and restart. |
 | Changes to the plugin are ignored | A copy of the plugin sits elsewhere in `~/.hermes/plugins/`; remove it. |
 | No notifications | Check for `(push on)` in the gateway log, the notification permission on the phone, and that the app was built with *your* `google-services.json`. |
-| Voice notes are not understood | `hermes pm install --extra stt-whisper` was not run, or the STT language is wrong. |
+| Voice notes are not understood | Local: `hermes pm install --extra stt-whisper` was not run. Groq: `GROQ_API_KEY` missing from `~/.hermes/.env` (the gateway log says so). Or the STT language is wrong. |
 | The live screen stays empty | The agent has no open browser right now. Hermes closes its browser at the end of each turn. |
 
 ---
 
 ## Security notes
 
-- The **token is the only credential**: use a long random value, and never commit it.
+- The **token is the only credential**: use a long random value, and never commit it. After 10 refused
+  tokens in 10 minutes, an address is blocked for 15 minutes (HTTP 429; the app keeps its pairing and
+  retries). Behind a reverse proxy, the client address comes from `X-Forwarded-For`, which Caddy sets
+  by default; a local connection without it is never blocked, so make sure your proxy forwards it.
 - The plugin binds to `127.0.0.1`; only the reverse proxy should be reachable from outside, and it
   should expose nothing but `/dots/ws`.
 - Approvals and browser takeover keep **you** in the loop. Text typed during a takeover goes straight

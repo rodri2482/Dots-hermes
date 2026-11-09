@@ -39,12 +39,13 @@ export function MessageRow({
   return (
     <div class={`row ${fromUser ? "is-user" : "is-agent"}${tight ? " is-tight" : ""}`}>
       {body}
-      {row.showReceipt && <div class="receipt">{receiptLabel(message)}</div>}
+      {row.showReceipt && <div class={`receipt${message.failed ? " is-failed" : ""}`}>{receiptLabel(message)}</div>}
     </div>
   );
 }
 
 function receiptLabel(message: ChatMessage): string {
+  if (message.failed) return t.notSent;
   if (message.delivery === "sending") return t.sending;
   if (message.delivery === "sent") return t.sent;
   return t.read(formatTime(message.ts));
@@ -103,6 +104,8 @@ function useAttachment(client: GatewayClient, message: ChatMessage, kind: "file"
   const url = useRef<string | null>(null);
   useEffect(() => () => void (url.current && URL.revokeObjectURL(url.current)), []);
   async function load(): Promise<string | null> {
+    // Envoyé depuis cet onglet : le contenu est déjà là (et le client libère l'URL à la fermeture).
+    if (message.localUrl) return message.localUrl;
     if (url.current) return url.current;
     if (!message.id) return null;
     setState("loading");
@@ -140,6 +143,9 @@ function FileBubble({ message, client }: { message: ChatMessage; client: Gateway
 
   return (
     <div class={`attachment ${fromUser ? "is-user" : "is-agent"}`}>
+      {isImage && message.localUrl && (
+        <img class={`attachment-image${message.delivery === "sending" ? " is-sending" : ""}`} src={message.localUrl} alt={name} />
+      )}
       <button type="button" class="file-card" onClick={download} disabled={state === "loading"} title={t.download}>
         <span class="file-icon">{isImage ? <Icon name="image" size={18} /> : ext ? <b>{ext}</b> : <Icon name="read" size={18} />}</span>
         <span class="file-meta">
@@ -186,7 +192,11 @@ function VoiceBubble({ message, client }: { message: ChatMessage; client: Gatewa
       const src = await load();
       if (!src) return;
       const el = new Audio(src);
-      el.ontimeupdate = () => setProgress(el.duration ? el.currentTime / el.duration : 0);
+      el.ontimeupdate = () => {
+        // Un WebM de MediaRecorder n'annonce pas sa durée (Infinity) : on prend celle du message.
+        const total = isFinite(el.duration) && el.duration > 0 ? el.duration : duration / 1000;
+        setProgress(total > 0 ? Math.min(1, el.currentTime / total) : 0);
+      };
       el.onplay = () => setPlaying(true);
       el.onpause = () => setPlaying(false);
       el.onended = () => {

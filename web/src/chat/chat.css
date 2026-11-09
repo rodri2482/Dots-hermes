@@ -1011,8 +1011,102 @@
   transition: background 0.15s, transform 0.15s var(--ease);
 }
 .composer-send.is-ready { background: var(--dot-base); color: var(--dot-on-base); }
+.composer-send.composer-mic { background: transparent; color: var(--ink-secondary); }
+.composer-send.composer-mic:hover { background: var(--ink-separator); color: var(--ink-primary); }
 .composer-send.is-ready:active { transform: scale(0.92); }
 .composer-send:disabled { cursor: default; }
+.composer-send .spinner { width: 14px; height: 14px; }
+
+/* Enregistrement d'un vocal : le champ devient chrono + onde en direct. */
+.recorder {
+  align-items: center;
+  gap: 10px;
+}
+.recorder-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ink-danger);
+  animation: recorder-pulse 1.2s ease-in-out infinite;
+}
+@keyframes recorder-pulse { 50% { opacity: 0.3; } }
+.recorder-time {
+  flex: none;
+  min-width: 36px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-primary);
+}
+.recorder-wave {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 2px;
+  height: 24px;
+  min-width: 0;
+  color: var(--dot-base);
+}
+.recorder-wave span {
+  flex: 1;
+  min-width: 2px;
+  max-width: 4px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: height 0.06s linear;
+}
+
+.composer-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 760px;
+  margin: 0 auto 8px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ink-warning) 14%, var(--ink-surface));
+  color: var(--ink-primary);
+  font-size: 13px;
+  line-height: 18px;
+}
+.composer-notice > svg { flex: none; color: var(--ink-warning); }
+.composer-notice > span { flex: 1; min-width: 0; }
+.composer-notice .icon-btn { flex: none; width: 28px; height: 28px; border: 0; background: transparent; }
+
+.receipt.is-failed { color: var(--ink-danger); }
+
+.attachment-image {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  border-radius: 18px;
+  object-fit: cover;
+}
+.attachment-image.is-sending { opacity: 0.7; }
+
+/* Fichiers glissés sur la conversation. */
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--ink-surface) 78%, transparent);
+  pointer-events: none;
+}
+.drop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 40px;
+  border: 2px dashed var(--dot-base);
+  border-radius: 24px;
+  background: var(--ink-raised);
+  color: var(--dot-deep);
+}
 
 /* -- Écran d'appairage par-dessus le chat -------------------------------------------------------- */
 

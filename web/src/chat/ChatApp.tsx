@@ -188,11 +188,11 @@ function AgentItem({
   );
 }
 
-/** « (3) Hermes » dans l'onglet quand des messages attendent. */
+/** « (3) Claydot » dans l'onglet quand des messages attendent. */
 function useUnreadTitle(agents: WebAgent[]) {
   useEffect(() => {
     const clients = agents.map(getClient).filter((c): c is GatewayClient => !!c);
-    const base = "Hermes";
+    const base = "Claydot";
     const update = () => {
       const total = clients.reduce((sum, c) => sum + c.getSnapshot().unread, 0);
       document.title = total > 0 ? `(${total}) ${base}` : base;

@@ -183,7 +183,7 @@ class AppUpdater(
 
     private fun download(release: Release): File {
         val dir = File(context.cacheDir, "updates").apply { deleteRecursively(); mkdirs() }
-        val target = File(dir, "hermes-${release.version}.apk")
+        val target = File(dir, "claydot-${release.version}.apk")
         val digest = MessageDigest.getInstance("SHA-256")
         client.newCall(Request.Builder().url(release.apkUrl).build()).execute().use { response ->
             if (!response.isSuccessful) throw IOException(context.getString(R.string.update_error_download))

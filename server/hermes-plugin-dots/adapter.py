@@ -46,6 +46,8 @@ from gateway.platforms.event import MessageEvent, MessageType
 from gateway.platforms.helpers import MessageDeduplicator
 from hermes_constants import get_hermes_home
 
+from .guard import MIN_TOKEN_LENGTH, AuthGuard, client_key
+
 logger = logging.getLogger(__name__)
 
 OWNER = "owner"
@@ -616,6 +618,8 @@ class DotsAdapter(BasePlatformAdapter):
         super().__init__(config=config, platform=Platform("dots"))
         extra = config.extra or {}
         self._token = _token(extra)
+        # Jetons refusés : une adresse trop insistante est bloquée un moment (voir guard.py).
+        self._guard = AuthGuard()
         self._web_origins = _web_origins(extra)
         self._agent_id, self._agent_name = _agent_identity(extra)
         self._host, self._port = _parse_bind(_extra_or_secret(extra, "bind", "DOTS_BIND", DEFAULT_BIND))
@@ -694,6 +698,9 @@ class DotsAdapter(BasePlatformAdapter):
         self._usage_task = asyncio.create_task(self._usage_loop())
         logger.info("[%s] Listening on %s:%d%s as agent %r (%s, push %s)", self.name, self._host, self._port, WS_PATH,
                     self._agent_name, self._agent_id, "on" if self._push_sender.enabled else "off")
+        if len(self._token) < MIN_TOKEN_LENGTH:
+            logger.warning("[%s] DOTS_TOKEN is only %d characters: generate a long one with "
+                           "`bash server/install.sh --rotate-token`", self.name, len(self._token))
         return True
 
     async def disconnect(self) -> None:
@@ -733,13 +740,25 @@ class DotsAdapter(BasePlatformAdapter):
         if origin is not None and _origin(origin) not in self._web_origins:
             logger.warning("[%s] Refused socket from origin %r (see DOTS_WEB_ORIGINS)", self.name, origin)
             return web.json_response({"type": "error", "code": "origin_not_allowed"}, status=403)
+        # Trop d'essais ratés depuis cette adresse : 429 sans examiner le jeton. L'app le prend pour un
+        # gateway injoignable et réessaie plus tard, sans oublier son appairage.
+        peer = client_key(request.remote, request.headers)
+        wait = self._guard.retry_after(peer)
+        if wait:
+            return web.json_response({"type": "error", "code": "rate_limited", "retry_after": wait},
+                                     status=429, headers={"Retry-After": str(wait)})
         web_token = self._offered_web_token(request)
         web_session: Optional[str] = None
         if web_token is None:
             if not self._authorized(request):
+                self._refused(peer)
                 return web.json_response({"type": "error", "code": "unauthorized"}, status=401)
         else:
             web_session = self._web_tokens.check(web_token)
+            if web_session is None:
+                self._refused(peer)
+        if web_token is None or web_session is not None:
+            self._guard.success(peer)
         ws = web.WebSocketResponse(heartbeat=30.0, max_msg_size=MAX_FILE_BYTES * 4 // 3 + (64 << 10),
                                    protocols=(WEB_SUBPROTOCOL,) if web_token is not None else ())
         await ws.prepare(request)
@@ -763,6 +782,11 @@ class DotsAdapter(BasePlatformAdapter):
             self._clients.pop(ws, None)
             logger.info("[%s] App disconnected (%d open)", self.name, len(self._clients))
         return ws
+
+    def _refused(self, peer: Optional[str]) -> None:
+        """Compte un jeton refusé ; prévient dans le journal quand l'adresse se fait bloquer."""
+        if self._guard.failure(peer):
+            logger.warning("[%s] Too many refused tokens from %s: blocked for %d s", self.name, peer, int(self._guard.block))
 
     async def _handle_local_send(self, request: "web.Request") -> "web.Response":
         """Loopback endpoint used by the out-of-process cron sender."""

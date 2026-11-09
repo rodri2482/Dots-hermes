@@ -43,6 +43,11 @@ const CLOSE_UNAUTHORIZED = 4401;
 const PAGE_SIZE = 80;
 const MAX_PAGE = 200;
 const FETCH_TIMEOUT_MS = 60_000;
+/** Limites du plugin (adapter.py MAX_FILE_BYTES, MAX_VOICE_BYTES), vérifiées avant l'envoi. */
+export const MAX_FILE_BYTES = 20 * 1024 * 1024;
+export const MAX_VOICE_BYTES = 6 * 1024 * 1024;
+/** Types d'audio que le plugin accepte pour un vocal (adapter.py VOICE_TYPES). */
+const VOICE_MIMES = ["audio/mp4", "audio/aac", "audio/ogg", "audio/webm"];
 
 type Json = Record<string, any>;
 /** `first` : la page la plus récente d'une conversation qu'on ouvre pour la première fois. */
@@ -83,6 +88,11 @@ export class GatewayClient {
   /** Demandes `history_page` en vol, par conversation : le gateway répond dans l'ordre. */
   private readonly pageQueues = new Map<string, PageMode[]>();
   private readonly fetches = new Map<string, PendingFetch>();
+  /**
+   * Trames `voice` et `file` pas encore confirmées par un `ack`, par client_id : leur contenu
+   * (base64) n'est pas dans le message affiché, il faut pouvoir les renvoyer après une coupure.
+   */
+  private readonly outbox = new Map<string, Json>();
 
   private foreground = false;
   private active = false;
@@ -161,6 +171,8 @@ export class GatewayClient {
       f.reject(new Error("closed"));
     });
     this.fetches.clear();
+    this.outbox.clear();
+    for (const c of this.chats.values()) for (const m of c.messages) if (m.localUrl) URL.revokeObjectURL(m.localUrl);
     const ws = this.ws;
     this.ws = null;
     if (ws && ws.readyState <= WebSocket.OPEN) ws.close(1000);
@@ -326,6 +338,7 @@ export class GatewayClient {
         return this.onHistoryPage(frame);
       case "ack": {
         this.bumpSeq(frame);
+        this.outbox.delete(String(frame.client_id));
         // `ack` d'un vocal ou d'un fichier : pas de `chat` ; on cherche le client_id partout.
         return this.updateMessages(
           (m) => m.key === frame.client_id && m.id == null,
@@ -396,6 +409,8 @@ export class GatewayClient {
         return this.onFileData(frame);
       case "error":
         console.warn(`[dots] ${this.agent.name}: gateway error`, frame.code);
+        // `bad_voice` / `bad_file` : refus définitif d'un envoi précis (trop lourd, illisible).
+        if (frame.client_id) this.markFailed(String(frame.client_id));
         return;
       default:
       // Écran, vue Activité… : hors du périmètre de cette version.
@@ -531,9 +546,11 @@ export class GatewayClient {
       let messages = c.messages;
       let unread = c.unread;
       let index = messages.findIndex((m) => m.id === incoming.id);
-      if (index < 0 && incoming.role === "user" && incoming.kind === "text") {
-        // Un message tapé ici dont l'ack s'est perdu revient dans l'historique : on le reconnaît à son texte.
-        index = messages.findIndex((m) => m.role === "user" && m.id == null && m.text.trim() === incoming.text.trim());
+      if (index < 0 && incoming.role === "user") {
+        // Un message envoyé d'ici dont l'ack s'est perdu revient dans l'historique : on le reconnaît
+        // à son texte, à son nom et sa taille (fichier) ou à sa durée (vocal).
+        index = messages.findIndex((m) => m.role === "user" && m.id == null && sameUpload(m, incoming));
+        if (index >= 0) this.outbox.delete(messages[index].key);
       }
       if (index < 0) {
         const answer = incoming.clarify ? clarifyAnswers.get(incoming.id!) : undefined;
@@ -547,6 +564,7 @@ export class GatewayClient {
           reactions: { ...existing.reactions, ...incoming.reactions },
           delivery: incoming.role === "user" ? maxDelivery(existing.delivery, incoming.delivery) : incoming.delivery,
           transcript: incoming.transcript ?? existing.transcript,
+          localUrl: existing.localUrl,
           clarify: incoming.clarify ? { ...incoming.clarify, answer: existing.clarify?.answer ?? null } : undefined,
           approval:
             incoming.approval && existing.approval
@@ -600,15 +618,48 @@ export class GatewayClient {
     return true;
   }
 
-  /** Renvoie ce qui a été tapé pendant la coupure ; le plugin déduplique par client_id. */
+  /** Renvoie ce qui a été tapé ou enregistré pendant la coupure ; le plugin déduplique par client_id. */
   private flushUnsent(): void {
     for (const [chat, c] of this.chats) {
       for (const m of c.messages) {
-        if (m.role === "user" && m.id == null && m.kind === "text") {
+        if (m.role !== "user" || m.id != null || m.failed) continue;
+        if (m.kind === "text") {
           this.sendFrame({ type: "message", client_id: m.key, text: m.text, chat });
+        } else {
+          const frame = this.outbox.get(m.key);
+          if (frame) this.sendFrame(frame);
         }
       }
     }
+  }
+
+  private markFailed(clientId: string): void {
+    this.outbox.delete(clientId);
+    this.updateMessages(
+      (m) => m.key === clientId && m.id == null,
+      (m) => ({ ...m, failed: true }),
+    );
+  }
+
+  /**
+   * Bulle locale d'un vocal ou d'un fichier, puis envoi de sa trame (tout de suite si la socket est
+   * prête, sinon au prochain `welcome`). Le contenu est encodé en base64 hors du fil principal du rendu.
+   */
+  private async sendUpload(message: ChatMessage, blob: Blob, build: (data: string) => Json): Promise<void> {
+    const chat = this.activeChat;
+    this.patchChat(chat, { messages: [...this.chat(chat).messages, message] });
+    this.publish();
+    let data: string;
+    try {
+      data = await toBase64(blob);
+    } catch {
+      this.markFailed(message.key);
+      return;
+    }
+    if (this.disposed) return;
+    const frame = { ...build(data), client_id: message.key, chat };
+    this.outbox.set(message.key, frame);
+    if (this.ready) this.sendFrame(frame);
   }
 
   private findMessage(key: string): ChatMessage | undefined {
@@ -643,6 +694,50 @@ export class GatewayClient {
     this.patchChat(chat, { messages: [...this.chat(chat).messages, message] });
     this.publish();
     if (this.ready) this.sendFrame({ type: "message", client_id: message.key, text: trimmed, chat });
+  }
+
+  /**
+   * Photo ou document choisi (ou glissé) dans le navigateur, avec le texte du champ en légende,
+   * comme sur l'app. `false` : trop lourd ou vide, rien n'est envoyé.
+   */
+  sendFile(file: File, caption = ""): boolean {
+    if (file.size === 0 || file.size > MAX_FILE_BYTES) return false;
+    const mime = file.type || "application/octet-stream";
+    const name = file.name || "file";
+    const message: ChatMessage = {
+      ...localMessage("file"),
+      text: caption.trim(),
+      name,
+      mime,
+      size: file.size,
+      localUrl: URL.createObjectURL(file),
+    };
+    void this.sendUpload(message, file, (data) => ({ type: "file", name, mime, caption: message.text, data }));
+    return true;
+  }
+
+  /**
+   * Vocal enregistré au micro : audio (WebM/Opus, Ogg ou MP4 selon le navigateur), durée et
+   * enveloppe de 40 barres. Le gateway le fait transcrire par Whisper, comme ceux du téléphone.
+   */
+  sendVoice(blob: Blob, durationMs: number, waveform: number[]): boolean {
+    const mime = baseMime(blob.type);
+    if (blob.size === 0 || blob.size > MAX_VOICE_BYTES || !VOICE_MIMES.includes(mime)) return false;
+    const message: ChatMessage = {
+      ...localMessage("voice"),
+      mime,
+      durationMs: Math.round(durationMs),
+      waveform,
+      localUrl: URL.createObjectURL(blob),
+    };
+    void this.sendUpload(message, blob, (audio) => ({
+      type: "voice",
+      mime,
+      duration_ms: message.durationMs,
+      waveform,
+      audio,
+    }));
+    return true;
   }
 
   /** Double-clic sur une bulle : pose ou retire la réaction de l'utilisateur. */
@@ -766,6 +861,57 @@ function sortMessages(messages: ChatMessage[]): ChatMessage[] {
     if (a.seq) return -1;
     if (b.seq) return 1;
     return a.ts - b.ts;
+  });
+}
+
+/** Bulle « Envoi… » d'un vocal ou d'un fichier, avant son `ack`. */
+function localMessage(kind: "voice" | "file"): ChatMessage {
+  return {
+    key: newClientId(),
+    id: null,
+    type: "message",
+    role: "user",
+    kind,
+    text: "",
+    ts: Date.now(),
+    seq: 0,
+    turn: null,
+    final: true,
+    delivery: "sending",
+    reactions: {},
+  };
+}
+
+/** Le même envoi, revenu de l'historique sans que son `ack` soit arrivé ici. */
+function sameUpload(local: ChatMessage, stored: ChatMessage): boolean {
+  if (local.kind !== stored.kind) return false;
+  switch (local.kind) {
+    case "text":
+      return local.text.trim() === stored.text.trim();
+    case "file":
+      return local.name === stored.name && local.size === stored.size;
+    case "voice":
+      return local.durationMs === stored.durationMs;
+    default:
+      return false;
+  }
+}
+
+/** `audio/webm;codecs=opus` → `audio/webm` : le plugin compare le type sans paramètres. */
+function baseMime(type: string): string {
+  return type.split(";")[0].trim().toLowerCase();
+}
+
+/** Contenu d'un Blob en base64, sans le préfixe `data:…;base64,`. */
+function toBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result);
+      resolve(url.slice(url.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("read"));
+    reader.readAsDataURL(blob);
   });
 }
 

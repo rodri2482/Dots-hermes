@@ -52,7 +52,7 @@ export function buildChatRows(messages: ChatMessage[], tools: ToolCall[], activi
       message,
       groupedWithPrev: !toolsRow && !!previous && sameGroup(previous, message),
       groupedWithNext: !!next && sameGroup(message, next) && trail.isEmptyBefore(next.turn, next.ts),
-      showReceipt: message.key === lastUserKey,
+      showReceipt: message.key === lastUserKey || !!message.failed,
       afterTools: !!toolsRow,
     });
   });

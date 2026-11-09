@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Textes de l'interface en anglais (langue par défaut). Traduction française : values-fr/strings.xml. -->
 <resources>
-    <string name="app_name" translatable="false">Hermes</string>
+    <string name="app_name" translatable="false">Claydot</string>
     <color name="ic_launcher_background">#FFFFEDE0</color>
 
     <!-- Profil de l'agent -->
@@ -330,15 +330,15 @@
     <string name="settings_app">App</string>
     <string name="settings_version">Version %1$s</string>
     <string name="update_channel_name">App updates</string>
-    <string name="update_channel_description">When a new version of Hermes is available</string>
-    <string name="update_notif_available_title">Hermes %1$s is available</string>
+    <string name="update_channel_description">When a new version of Claydot is available</string>
+    <string name="update_notif_available_title">Claydot %1$s is available</string>
     <string name="update_notif_available_text">Tap to install the update.</string>
-    <string name="update_notif_updated_title">Hermes updated to %1$s</string>
+    <string name="update_notif_updated_title">Claydot updated to %1$s</string>
     <string name="update_notif_updated_text">Tap to open the app.</string>
     <string name="update_title">Update available</string>
     <string name="update_available_text">Version %1$s is ready (you have %2$s). It installs over this one: your conversations and settings stay.</string>
     <string name="update_permission_title">One more step</string>
-    <string name="update_permission_text">Android needs your OK once: allow Hermes to install apps, then come back here. The update will continue on its own.</string>
+    <string name="update_permission_text">Android needs your OK once: allow Claydot to install apps, then come back here. The update will continue on its own.</string>
     <string name="update_downloading">Downloading… %1$d %%</string>
     <string name="update_installing">Installing… Android may ask you to confirm.</string>
     <string name="update_failed_title">Update failed</string>
@@ -414,12 +414,12 @@
     <string name="web_scan_title">Connect a browser</string>
     <string name="web_scan_hint">Open the Dots web app on your computer and point the camera at the QR code it shows.</string>
     <string name="web_camera_title">Scan the web app\'s QR code</string>
-    <string name="web_camera_rationale">Hermes needs the camera only to read the QR code shown by the web app. Nothing is recorded or sent.</string>
-    <string name="web_camera_blocked">Camera access is turned off for Hermes. Allow it in the app settings to scan the QR code.</string>
+    <string name="web_camera_rationale">Claydot needs the camera only to read the QR code shown by the web app. Nothing is recorded or sent.</string>
+    <string name="web_camera_blocked">Camera access is turned off for Claydot. Allow it in the app settings to scan the QR code.</string>
     <string name="web_camera_allow">Allow the camera</string>
     <string name="web_camera_settings">Open settings</string>
     <string name="web_qr_not_pairing">This QR code doesn\'t come from the Dots web app.</string>
-    <string name="web_qr_unsupported">This QR code comes from a newer web app: update Hermes first.</string>
+    <string name="web_qr_unsupported">This QR code comes from a newer web app: update Claydot first.</string>
     <string name="web_qr_insecure">Refused: the web app must be served over https.</string>
     <string name="web_qr_malformed">Unreadable QR code. Reload the web app page and scan again.</string>
     <string name="web_confirm_title">Connect a browser on %1$s?</string>

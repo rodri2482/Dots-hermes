@@ -21,7 +21,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "app.dotshermes"
+        // Identité de Claydot (fork de Dots-hermes) : le paquet Android diffère du namespace Kotlin, gardé
+        // à app.dotshermes pour rester fusionnable avec le projet d'origine.
+        applicationId = "app.claydot"
         minSdk = 26
         targetSdk = 36
         // La CI fournit un numéro croissant et un nom de version suffixé par le numéro de build.

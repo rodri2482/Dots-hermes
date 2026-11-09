@@ -68,6 +68,13 @@ export interface ChatMessage {
   durationMs?: number;
   waveform?: number[];
   transcript?: string;
+  /**
+   * Vocal ou fichier envoyé depuis ce navigateur : `blob:` local, lu ou téléchargé sans `file_get`.
+   * Gardé jusqu'au rechargement de la page ; ensuite le contenu vient du gateway, comme les autres.
+   */
+  localUrl?: string;
+  /** Refusé par le gateway (`bad_voice`, `bad_file`) ou trop lourd : il ne repartira pas. */
+  failed?: boolean;
   // Prise en main : `pending`, `done` ou `expired`
   status?: string;
   approval?: Approval;

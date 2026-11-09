@@ -24,6 +24,10 @@
 #   --domain NAME        domaine public du gateway : affiche l'adresse wss:// et un Caddyfile prêt à l'emploi
 #   --bind HOST:PORT     adresse d'écoute locale du plugin (défaut : 127.0.0.1:8787)
 #   --voice [MODEL]      installe la transcription locale (faster-whisper) ; modèle : tiny|base|small (défaut : small)
+#   --stt PROVIDER       moteur de transcription : local (faster-whisper, comme --voice) ou groq
+#                        (API Whisper de Groq : rapide, rien à installer, mais l'audio quitte le serveur).
+#                        La clé Groq n'est jamais passée en argument : exporte GROQ_API_KEY avant de lancer
+#                        le script, ou saisis-la à l'invite (masquée) ; une clé déjà dans .env est gardée.
 #   --stt-language LANG  langue de la transcription (défaut : fr ; "" = détection automatique)
 #   --fcm-key FILE       clé JSON du compte de service Firebase, pour les notifications push
 #   --web-origin URL     autre origine de l'app web à autoriser, en plus de https://dots-hermes.vercel.app
@@ -38,7 +42,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_SRC="$SCRIPT_DIR/hermes-plugin-dots"
-PLUGIN_FILES=(plugin.yaml __init__.py adapter.py)
+PLUGIN_FILES=(plugin.yaml __init__.py adapter.py guard.py)
 TESTED_HERMES="0.22"
 
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
@@ -49,6 +53,7 @@ DOMAIN=""
 BIND="127.0.0.1:8787"
 BIND_GIVEN=0
 VOICE_MODEL=""
+STT_PROVIDER=""
 STT_LANGUAGE="fr"
 FCM_KEY=""
 WEB_ORIGINS=""
@@ -88,6 +93,7 @@ while [ $# -gt 0 ]; do
         --voice)
             if [ $# -gt 1 ] && [[ "$2" =~ ^(tiny|base|small|medium)$ ]]; then VOICE_MODEL="$2"; shift 2
             else VOICE_MODEL="small"; shift; fi ;;
+        --stt) STT_PROVIDER="${2:?--stt attend local ou groq}"; shift 2 ;;
         --stt-language) STT_LANGUAGE="${2-}"; shift 2 ;;
         --fcm-key) FCM_KEY="${2:?--fcm-key attend un fichier}"; shift 2 ;;
         --web-origin) WEB_ORIGINS="${WEB_ORIGINS:+$WEB_ORIGINS,}${2:?--web-origin attend une URL https://…}"; shift 2 ;;
@@ -134,6 +140,11 @@ else
     ok "Hermes $version"
 fi
 [[ "$BIND" =~ ^[^:]+:[0-9]+$ ]] || die "--bind doit être de la forme HOST:PORT (reçu : $BIND)."
+case "$STT_PROVIDER" in
+    ""|groq) ;;
+    local) VOICE_MODEL="${VOICE_MODEL:-small}" ;;
+    *) die "--stt : local ou groq (reçu : $STT_PROVIDER)." ;;
+esac
 [ -z "$FCM_KEY" ] || [ -f "$FCM_KEY" ] || die "Clé Firebase introuvable : $FCM_KEY"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -241,6 +252,35 @@ if [ -n "$VOICE_MODEL" ]; then
     run hermes config set stt.language "$STT_LANGUAGE" >/dev/null
     ok "faster-whisper « $VOICE_MODEL », langue « ${STT_LANGUAGE:-auto} »"
     [ "$VOICE_MODEL" = small ] && warn "Le modèle small demande ~700 Mo de RAM pendant une transcription ; sur un petit serveur, prends base ou ajoute du swap."
+fi
+
+if [ "$STT_PROVIDER" = groq ]; then
+    step "Messages vocaux (transcription Groq)"
+    # Ordre : variable exportée pour ce lancement > clé déjà dans .env > saisie masquée. Jamais affichée.
+    GROQ_KEY="${GROQ_API_KEY:-}"
+    if [ -n "$GROQ_KEY" ]; then
+        env_set GROQ_API_KEY "$GROQ_KEY"
+        ok "clé Groq enregistrée dans $ENV_FILE (depuis la variable GROQ_API_KEY)"
+    elif [ -n "$(env_get GROQ_API_KEY)" ]; then
+        GROQ_KEY="$(env_get GROQ_API_KEY)"
+        ok "clé Groq existante conservée"
+    elif [ -t 0 ] && [ "$DRY_RUN" = 0 ]; then
+        read -rsp "  Clé API Groq (console.groq.com → API Keys ; la saisie reste masquée) : " GROQ_KEY; echo
+        [ -n "$GROQ_KEY" ] || die "Aucune clé saisie."
+        env_set GROQ_API_KEY "$GROQ_KEY"
+        ok "clé Groq enregistrée dans $ENV_FILE"
+    elif [ "$DRY_RUN" = 1 ]; then
+        printf '  %s[dry-run]%s GROQ_API_KEY=… (demandée à l'"'"'installation réelle)
+' "$DIM" "$RESET"
+    else
+        die "Clé Groq introuvable : lance « GROQ_API_KEY=gsk_… bash server/install.sh --stt groq » (avec une espace devant pour l'exclure de l'historique), ou ajoute-la dans $ENV_FILE."
+    fi
+    [ -z "$GROQ_KEY" ] || [[ "$GROQ_KEY" == gsk_* ]] || warn "La clé ne commence pas par « gsk_ » : vérifie qu'il s'agit bien d'une clé API Groq."
+    run chmod 600 "$ENV_FILE"
+    run hermes config set stt.provider groq >/dev/null
+    run hermes config set stt.language "$STT_LANGUAGE" >/dev/null
+    ok "transcription par Groq (whisper-large-v3-turbo), langue « ${STT_LANGUAGE:-auto} »"
+    warn "Les vocaux sont envoyés à Groq pour être transcrits : ils ne restent plus seulement sur ce serveur."
 fi
 
 if [ -n "$FCM_KEY" ]; then
