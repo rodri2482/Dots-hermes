@@ -14,6 +14,7 @@
     <string name="gateway_error_token_refused">Jeton refusé par le gateway.</string>
     <string name="gateway_error_not_found">Aucun gateway Dots à cette adresse.</string>
     <string name="gateway_error_unreachable">Gateway injoignable (%1$s).</string>
+    <string name="gateway_error_rate_limited">Trop de tentatives : le gateway limite cette adresse pendant %1$d s.</string>
     <string name="gateway_error_closed">Connexion fermée par le gateway.</string>
 
     <!-- Libellés des outils de l'agent -->

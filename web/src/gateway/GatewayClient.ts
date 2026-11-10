@@ -303,6 +303,9 @@ export class GatewayClient {
   }
 
   private scheduleRetry(): void {
+    // Contrairement à l'app Android, on ne peut pas lire le statut d'une poignée de main refusée
+    // (l'event `error` n'expose rien) : un 429 du guard.py est donc suivi du backoff habituel, sans
+    // honorer le Retry-After. C'est accepté — le serveur ignore ces essais sans les compter.
     const wait = BACKOFF_MS[Math.min(this.attempt, BACKOFF_MS.length - 1)];
     this.attempt++;
     this.retryTimer = window.setTimeout(() => {

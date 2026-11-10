@@ -17,6 +17,7 @@
     <string name="gateway_error_token_refused">Token refused by the gateway.</string>
     <string name="gateway_error_not_found">No Dots gateway at this address.</string>
     <string name="gateway_error_unreachable">Gateway unreachable (%1$s).</string>
+    <string name="gateway_error_rate_limited">Too many attempts: the gateway rate-limits this address for %1$d s.</string>
     <string name="gateway_error_closed">Connection closed by the gateway.</string>
 
     <!-- Libellés des outils de l'agent -->

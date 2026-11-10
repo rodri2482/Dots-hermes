@@ -59,6 +59,14 @@ import java.util.concurrent.TimeUnit
 private const val TAG = "GatewayChat"
 private val ReconnectBackoffMs = longArrayOf(1_000, 2_000, 5_000, 10_000, 30_000)
 
+/** Patience demandée par un 429 (en-tête `Retry-After`, en secondes — guard.py) ; 0 si absente ou illisible. */
+internal fun retryAfterSeconds(response: Response?): Long =
+    response?.header("Retry-After")?.trim()?.toLongOrNull()?.takeIf { it > 0 } ?: 0L
+
+/** Délai avant la prochaine tentative : backoff habituel, sauf un `Retry-After` plus long (429 du guard.py). */
+internal fun reconnectDelayMs(attempt: Int, retryAfterSeconds: Long = 0): Long =
+    maxOf(ReconnectBackoffMs[minOf(attempt, ReconnectBackoffMs.lastIndex)], retryAfterSeconds * 1000)
+
 /** L'agent servi par un gateway : identifiant stable (routage des push) et nom de son profil Hermes. */
 data class ServerAgent(val id: String, val name: String)
 
@@ -521,17 +529,22 @@ class GatewayChatRepository(
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             if (webSocket !== socket) return
-            val reason = when (response?.code) {
+            val code = response?.code
+            // Un 429 (garde-fou anti force-brute, guard.py) n'est pas un gateway injoignable : le token est
+            // bon, l'appairage reste, et la prochaine tentative attend au moins le Retry-After demandé.
+            val retryAfter = retryAfterSeconds(response)
+            val reason = when (code) {
                 401 -> context.getString(R.string.gateway_error_token_refused)
                 404 -> context.getString(R.string.gateway_error_not_found)
+                429 -> context.getString(R.string.gateway_error_rate_limited, retryAfter)
                 else -> context.getString(R.string.gateway_error_unreachable, t.message ?: t.javaClass.simpleName)
             }
-            onDropped(reason, tokenRefused = response?.code == 401)
+            onDropped(reason, tokenRefused = code == 401, retryAfterSeconds = retryAfter)
         }
     }
 
     /** Coupure : échec de la première connexion, ou reconnexion avec backoff sans quitter le chat. */
-    private fun onDropped(reason: String?, tokenRefused: Boolean = false) {
+    private fun onDropped(reason: String?, tokenRefused: Boolean = false, retryAfterSeconds: Long = 0) {
         socket = null
         firstOutcome?.let { pending ->
             pending.complete(reason ?: context.getString(R.string.gateway_error_closed))
@@ -545,7 +558,7 @@ class GatewayChatRepository(
             return
         }
         (_connection.value as? ConnectionState.Connected)?.let { _connection.value = it.copy(online = false) }
-        val wait = ReconnectBackoffMs[minOf(attempt, ReconnectBackoffMs.lastIndex)]
+        val wait = reconnectDelayMs(attempt, retryAfterSeconds)
         attempt++
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
