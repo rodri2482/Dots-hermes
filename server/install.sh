@@ -30,14 +30,15 @@
 #                        le script, ou saisis-la à l'invite (masquée) ; une clé déjà dans .env est gardée.
 #   --stt-language LANG  langue de la transcription (défaut : fr ; "" = détection automatique)
 #   --fcm-key FILE       clé JSON du compte de service Firebase, pour les notifications push
-#   --web-origin URL     autre origine de l'app web à autoriser, en plus de https://dots-hermes.vercel.app
-#                        (toujours autorisée) ; répétable
+#   --default-web-origin URL  origine principale de l'app web (prioritaire sur CLAYDOT_WEB_ORIGIN)
+#   --web-origin URL     autre origine de l'app web à autoriser, en plus de l'origine principale ; répétable
 #   --rotate-token       génère un nouveau jeton même s'il en existe déjà un (l'app devra être ré-appairée)
 #   --no-restart         ne redémarre pas le gateway (à faire soi-même ensuite)
 #   --dry-run            affiche ce qui serait fait, sans rien modifier
 #   -h, --help           cette aide
 #
 # Variables : HERMES_HOME (défaut ~/.hermes), HERMES_BIN (défaut : « hermes » dans le PATH).
+#             CLAYDOT_WEB_ORIGIN (défaut : https://dots-hermes.vercel.app).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,8 +58,8 @@ STT_PROVIDER=""
 STT_LANGUAGE="fr"
 FCM_KEY=""
 WEB_ORIGINS=""
-# App web officielle, toujours autorisée (voir web/ et docs/appairage-web.md).
-DEFAULT_WEB_ORIGIN="https://dots-hermes.vercel.app"
+# Origine principale ; repli sur l'app amont tant que le propriétaire n'a pas fourni son URL.
+DEFAULT_WEB_ORIGIN="${CLAYDOT_WEB_ORIGIN:-https://dots-hermes.vercel.app}"
 ROTATE_TOKEN=0
 RESTART=1
 DRY_RUN=0
@@ -96,6 +97,7 @@ while [ $# -gt 0 ]; do
         --stt) STT_PROVIDER="${2:?--stt attend local ou groq}"; shift 2 ;;
         --stt-language) STT_LANGUAGE="${2-}"; shift 2 ;;
         --fcm-key) FCM_KEY="${2:?--fcm-key attend un fichier}"; shift 2 ;;
+        --default-web-origin) DEFAULT_WEB_ORIGIN="${2:?--default-web-origin attend une URL}"; shift 2 ;;
         --web-origin) WEB_ORIGINS="${WEB_ORIGINS:+$WEB_ORIGINS,}${2:?--web-origin attend une URL https://…}"; shift 2 ;;
         --rotate-token) ROTATE_TOKEN=1; shift ;;
         --no-restart) RESTART=0; shift ;;
@@ -104,6 +106,11 @@ while [ $# -gt 0 ]; do
         *) die "Option inconnue : $1 (voir --help)" ;;
     esac
 done
+
+# Même normalisation que la liste autorisée, y compris pour l'URL du résumé final.
+DEFAULT_WEB_ORIGIN="$(printf '%s' "$DEFAULT_WEB_ORIGIN" \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#/*$##' | tr '[:upper:]' '[:lower:]')"
+[ -n "$DEFAULT_WEB_ORIGIN" ] || die "L'origine principale de l'app web ne peut pas être vide."
 
 # -- Profil ------------------------------------------------------------------------------------------
 
@@ -227,7 +234,7 @@ fi
 [ -n "$(env_get DOTS_HOME_CHANNEL)" ] || env_set DOTS_HOME_CHANNEL owner
 [ -z "$AGENT_NAME" ] || env_set DOTS_AGENT_NAME "$AGENT_NAME"
 # App web (appairage par QR) : le gateway refuse tout navigateur dont l'origine n'est pas listée.
-# L'app web officielle est toujours autorisée ; s'y ajoutent les origines déjà configurées et les
+# L'origine principale est toujours autorisée ; s'y ajoutent les origines déjà configurées et les
 # --web-origin, normalisées (minuscules, sans « / » final) et sans doublon.
 ALL_ORIGINS="$(printf '%s\n' "$DEFAULT_WEB_ORIGIN" "$(env_get DOTS_WEB_ORIGINS)" "$WEB_ORIGINS" \
     | tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#/*$##' | tr '[:upper:]' '[:lower:]' \

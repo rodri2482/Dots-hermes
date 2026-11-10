@@ -537,8 +537,12 @@ Chat with your agents from a computer, with the same mascots and colours, at
 ~60 KB gzipped) with **no backend of its own**: the browser opens a WebSocket straight to each of
 your gateways.
 
-`install.sh` always allows `https://dots-hermes.vercel.app` on the gateway (`DOTS_WEB_ORIGINS`), so
-after installing or updating the plugin, open the site and scan its QR code from the phone app.
+`install.sh` defaults to `https://dots-hermes.vercel.app` until you configure your own deployment.
+Choose the main web app with `--default-web-origin URL` or the `CLAYDOT_WEB_ORIGIN` environment
+variable; the command-line option takes precedence. The installer allows that origin on the gateway
+(`DOTS_WEB_ORIGINS`) and prints the effective URL in its final summary. Existing allowed origins
+are preserved. After installing or updating the plugin, open that URL and scan its QR code from
+the phone app.
 
 **Pairing by QR code.** The page shows a QR code that rotates every 30 seconds. Scan it from the
 phone app: the phone asks each gateway for a token dedicated to this browser, encrypts the list of
@@ -553,13 +557,17 @@ Upstash Redis key, kept 120 s and erased when read). The relay only ever sees ci
    `web/vercel.json` adds the SPA rewrite and a strict Content-Security-Policy.
 2. In *Storage* → *Marketplace*, add **Upstash Redis** (free tier) to the project: it injects
    `KV_REST_API_URL` and `KV_REST_API_TOKEN`, which the relay (`web/api/pair.ts`) reads.
-3. On each gateway, allow your copy's origin too (it is added next to the official one), then
-   restart the gateway:
+3. On each gateway, select your copy as the main web app, then restart the gateway:
 
 ```bash
-bash server/install.sh --web-origin https://your-app.vercel.app
+bash server/install.sh --default-web-origin https://your-app.vercel.app
+# Or supply the default through the environment:
+CLAYDOT_WEB_ORIGIN=https://your-app.vercel.app bash server/install.sh
 ```
 
+   Use repeatable `--web-origin URL` options to allow additional sites alongside the selected default.
+   Origins are normalized to lowercase without trailing slashes and deduplicated; selecting a new
+   default does not remove entries already saved in `DOTS_WEB_ORIGINS`.
    The gateway checks the `Origin` header of each WebSocket: a browser on an origin missing from
    `DOTS_WEB_ORIGINS` is refused.
 4. Open the site, then scan its QR code from the phone app.
