@@ -180,7 +180,7 @@ function AgentItem({
         <span class={`agent-presence is-${status}`} />
       </span>
       <span class="agent-text dot-scope">
-        <span class="agent-name">{agent.name || snapshot?.serverName || "Hermes"}</span>
+        <span class="agent-name">{agent.name || snapshot?.serverName || "Claydot"}</span>
         <span class={`agent-sub${busy ? " is-busy" : ""}`}>{label}</span>
       </span>
       {unread > 0 && <span class="agent-unread">{unread > 99 ? "99+" : unread}</span>}

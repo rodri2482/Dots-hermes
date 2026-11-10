@@ -48,7 +48,7 @@
     <string name="demo_mode">Mode démo</string>
     <string name="demo_connect_step_1">Recherche du gateway…</string>
     <string name="demo_connect_step_2">Poignée de main sécurisée…</string>
-    <string name="demo_connect_step_3">Appairage avec Hermes…</string>
+    <string name="demo_connect_step_3">Appairage avec Claydot…</string>
     <string name="demo_greeting">Re ! Le gateway est connecté, je suis là 👋</string>
     <string name="demo_voice_transcript">(démo) Vocal de %1$d s bien reçu</string>
 
@@ -60,7 +60,7 @@
 
     <!-- Mode démo : historique de départ -->
     <string name="demo_seed_watching">Je surveille le serveur cette nuit. Je te préviens s\'il se passe quoi que ce soit.</string>
-    <string name="demo_seed_thanks">Parfait, merci Hermes !</string>
+    <string name="demo_seed_thanks">Parfait, merci Claydot !</string>
     <string name="demo_seed_good_evening">Bonne soirée 🌙</string>
     <string name="demo_seed_task_title">Rapport du matin</string>
     <string name="demo_seed_task_step_1">Vérifier l\'état des services</string>
@@ -79,8 +79,8 @@
     <string name="demo_fallback_2">Bonne idée. Je m\'en occupe en arrière-plan, tu n\'as rien à suivre.</string>
     <string name="demo_fallback_3">Je regarde ça de plus près et je reviens vers toi avec une proposition.</string>
     <string name="demo_fallback_4">C\'est dans ma liste. Je te préviens dès que c\'est prêt à relire.</string>
-    <string name="demo_reply_file">Fichier bien reçu ! Connecté au gateway, Hermes peut le lire, l\'analyser ou le transformer.</string>
-    <string name="demo_reply_voice">Bien reçu ton vocal ! En mode démo je ne l\'écoute pas vraiment, mais connecté au gateway, Hermes le transcrit avant de répondre.</string>
+    <string name="demo_reply_file">Fichier bien reçu ! Connecté au gateway, Claydot peut le lire, l\'analyser ou le transformer.</string>
+    <string name="demo_reply_voice">Bien reçu ton vocal ! En mode démo je ne l\'écoute pas vraiment, mais connecté au gateway, Claydot le transcrit avant de répondre.</string>
     <string name="demo_reply_thanks">Avec plaisir ! 🙌</string>
     <string name="demo_reply_hello">Salut ! Je suis là. Tout tourne bien côté serveur — tu veux un point rapide sur la nuit ?</string>
     <string name="demo_reply_deploy">Je lance ça tout de suite.</string>
@@ -263,11 +263,11 @@
     <string name="agents_title">Agents</string>
     <string name="agents_add_row">Ajouter un agent</string>
     <string name="agents_add_title">Nouvel agent</string>
-    <string name="agents_add_tagline">Un autre agent Hermes, avec son propre gateway.\nSes conversations, sa mémoire et ses outils restent à part.</string>
+    <string name="agents_add_tagline">Un autre agent Claydot, avec son propre gateway.\nSes conversations, sa mémoire et ses outils restent à part.</string>
     <string name="agents_add_cancel">Annuler</string>
     <string name="agents_switch_to">Ou ouvrir un autre agent :</string>
     <string name="agents_remove">Retirer cet agent</string>
-    <string name="agents_add_hint">Pour un agent Hermes dont le gateway est déjà installé (un autre profil Hermes, avec sa mémoire, ses outils et ses clés). Pour répartir le travail d\'un même agent, crée plutôt un sous-dot depuis « Mes dots ».</string>
+    <string name="agents_add_hint">Pour un agent Claydot dont le gateway est déjà installé (un autre profil Hermes, avec sa mémoire, ses outils et ses clés). Pour répartir le travail d\'un même agent, crée plutôt un sous-dot depuis « Mes dots ».</string>
     <string name="agents_busy">Au travail…</string>
     <string name="cd_switch_agent">Changer d\'agent</string>
     <string name="theme_auto">Auto</string>
@@ -312,7 +312,7 @@
     <string name="dot_close_confirm">Fermer le dot</string>
 
     <!-- Notifications -->
-    <string name="notif_channel_name">Messages de Hermes</string>
+    <string name="notif_channel_name">Messages de Claydot</string>
     <string name="notif_channel_description">Réponses, questions et demandes de feu vert de ton agent</string>
     <string name="notif_me">Moi</string>
     <string name="notif_reply_not_sent">%1$s  (non envoyé — ouvre l\'app)</string>
@@ -390,7 +390,7 @@
         <item>Qu\'as-tu fait cette nuit ?</item>
         <item>Qu\'est-ce qui m\'attend aujourd\'hui ?</item>
         <item>Résume mes derniers messages</item>
-        <item>Merci Hermes !</item>
+        <item>Merci Claydot !</item>
     </string-array>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

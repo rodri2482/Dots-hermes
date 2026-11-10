@@ -45,7 +45,7 @@ export interface DotLook {
 function looksOf(agent: WebAgent, snapshot: GatewaySnapshot): DotLook[] {
   const main: DotLook = {
     chat: MAIN_CHAT,
-    name: agent.name || snapshot.serverName || "Hermes",
+    name: agent.name || snapshot.serverName || "Claydot",
     species: agent.species,
     palette: agent.palette,
     accessory: agent.accessory,

@@ -146,7 +146,7 @@ function validAgent(a: unknown): WebAgent {
     token: o.token,
     session_id: o.session_id,
     agent_id: typeof o.agent_id === "string" && o.agent_id ? o.agent_id : null,
-    name: name || "Hermes",
+    name: name || "Claydot",
     species: pick(o.species, SPECIES, "galet"),
     palette: pick(o.palette, PALETTES, "tangerine"),
     accessory: pick(o.accessory, ACCESSORIES, "winged_cap"),
