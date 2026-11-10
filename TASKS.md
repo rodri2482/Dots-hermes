@@ -11,6 +11,9 @@ task 1 `af797b4` · 2 `534fa61` · 3 `544ede2` · 4 `c3b9da1` · 5 `452eeee` · 
 7a (protocol docs in English) `06d363a` · 7b (UnifiedPush design) `d531fba`.
 Task 7c (R8/minify) is **prepared but not merged**: branch `task/7c-r8-minify` (`28e7ec7`,
 release APK 35.65 → 23.89 MB) — merge after the on-device test pass it requires.
+Security review of the server surfaces (gateway WS, local send, token/medium stores, installer,
+pairing relay): no trust-boundary violation found; hardening merged as `f21f156` (push tokens,
+stored media and the `.env` backup are owner-only regardless of the service's umask).
 The owner-only steps are written up in [docs/owner-setup.md](docs/owner-setup.md).
 
 ## Done (all merged)
