@@ -108,5 +108,54 @@ class InstallerOriginTest(unittest.TestCase):
         self.assert_origins(self.run_installer(), UPSTREAM)
 
 
+@unittest.skipUnless(BASH, "bash absent")
+class InstallerRealRunTest(unittest.TestCase):
+    """Installation réelle (sans --dry-run) : les fichiers à jeton naissent 600, sauvegarde comprise."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="claydot-install-real-")
+        self.addCleanup(self.temp.cleanup)
+        self.home = pathlib.Path(self.temp.name) / "fake-hermes"
+        self.home.mkdir()
+        self.env_file = self.home / ".env"
+        # Ce jeton est un simple marqueur de test, jamais un identifiant réel.
+        self.env_file.write_text(
+            "DOTS_TOKEN=fixture-not-a-real-gateway-token\n"
+            "DOTS_BIND=127.0.0.1:8787\n"
+            "DOTS_ALLOWED_USERS=owner\n"
+            "DOTS_HOME_CHANNEL=owner\n",
+            encoding="utf-8", newline="\n")
+        self.hermes = pathlib.Path(self.temp.name) / "hermes-stub"
+        # Les trois seules invocations d'une installation réelle sans option : version, activation
+        # du plugin, réglage d'affichage. Toute autre action doit échouer bruyamment.
+        self.hermes.write_text(
+            "#!/usr/bin/env bash\n"
+            "if [ \"$1\" = --version ]; then printf 'Hermes 0.22.2\\n';\n"
+            "elif [ \"$1\" = plugins ] && [ \"$2\" = enable ] && [ \"$3\" = dots-platform ]; then exit 0;\n"
+            "elif [ \"$1\" = config ] && [ \"$2\" = set ]; then exit 0;\n"
+            "else printf 'Unexpected Hermes action: %s\\n' \"$*\" >&2; exit 97; fi\n",
+            encoding="utf-8", newline="\n")
+        self.hermes.chmod(0o755)
+        self.env = os.environ.copy()
+        self.env.pop("CLAYDOT_WEB_ORIGIN", None)
+        self.env["HERMES_HOME"] = self.home.as_posix()
+        self.env["HERMES_BIN"] = self.hermes.as_posix()
+
+    def test_real_run_leaves_token_files_owner_only(self):
+        result = subprocess.run(
+            [BASH, INSTALLER.as_posix(), "--no-restart"],
+            env=self.env, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # Le .env est re-chmod 600 ; sa sauvegarde aussi — « cp -p » copie sinon les permissions
+        # du .env préexistant (644 sous umask 022), jeton compris.
+        self.assertEqual(len(list((self.home / "plugins").glob("*"))), 1, "plugin installé")
+        if os.name != "nt":  # modes POSIX seulement : git-bash sur Windows les émule mal
+            self.assertEqual(self.env_file.stat().st_mode & 0o077, 0, ".env doit être 600")
+            backups = list((self.home / "backups").glob("env.*"))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].stat().st_mode & 0o077, 0, "la sauvegarde du .env doit être 600")
+
+
 if __name__ == "__main__":
     unittest.main()

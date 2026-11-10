@@ -1,5 +1,6 @@
 """Trames réelles sur une socket aiohttp, avec seulement l'interface Hermes simulée."""
 import base64
+import os
 import pathlib
 import sys
 import tempfile
@@ -118,6 +119,32 @@ class GatewayProtocolTest(unittest.IsolatedAsyncioTestCase):
     async def test_duplicate_voice_is_reacknowledged_and_stored_once(self):
         await self.assert_duplicate("voice", {"mime": "audio/webm", "audio": "aGk=", "duration_ms": 500})
         self.assertEqual([p.read_bytes() for p in self.adapter._voice_dir.iterdir()], [b"hi"])
+
+    async def test_stored_media_is_owner_only(self):
+        # Le service tourne souvent sous umask 022 (systemd) : médias du propriétaire écrits
+        # lisibles du propriétaire seul, quel que soit l'umask (régression umask 022).
+        await self.ws.send_json({"type": "file", "client_id": "perm-file", "name": "note.txt",
+                                 "mime": "text/plain", "data": "aGk="})
+        self.assertEqual((await self.ws.receive_json(timeout=2))["type"], "ack")
+        await self.ws.send_json({"type": "voice", "client_id": "perm-voice", "mime": "audio/webm",
+                                 "audio": "aGk=", "duration_ms": 500})
+        self.assertEqual((await self.ws.receive_json(timeout=2))["type"], "ack")
+        stored = list(self.adapter._files_dir.iterdir()) + list(self.adapter._voice_dir.iterdir())
+        self.assertEqual(len(stored), 2)
+        self.assertEqual({p.read_bytes() for p in stored}, {b"hi"})
+        if os.name != "nt":  # modes POSIX seulement : Windows ignore chmod
+            for path in stored:
+                self.assertEqual(path.stat().st_mode & 0o077, 0, f"{path.name} doit être 600")
+
+    async def test_push_token_store_is_owner_only(self):
+        # Jetons FCM = capacité d'envoi de notifications : mêmes 600 que web_tokens.json.
+        store = self.home / "push_tokens.json"
+        push = self.mod._Push(self.home / "absent.json", store)
+        push.register("tok-1")
+        push.register("tok-2")
+        self.assertEqual(push.tokens, ["tok-1", "tok-2"])
+        if os.name != "nt":  # modes POSIX seulement : Windows ignore chmod
+            self.assertEqual(store.stat().st_mode & 0o077, 0, "push_tokens.json doit être 600")
 
     async def test_refused_origin_does_not_consume_the_authentication_budget(self):
         peer = {"Origin": "https://untrusted.invalid", "X-Forwarded-For": "198.51.100.9"}

@@ -41,6 +41,10 @@
 #             CLAYDOT_WEB_ORIGIN (défaut : https://dots-hermes.vercel.app).
 set -euo pipefail
 
+# Fichiers créés privés dès la création : l'.env contient DOTS_TOKEN (et la clé Groq), les
+# sauvegardes le copient. Les copies du plugin repassent en 644 explicite via « install -m ».
+umask 077
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_SRC="$SCRIPT_DIR/hermes-plugin-dots"
 PLUGIN_FILES=(plugin.yaml __init__.py adapter.py guard.py)
@@ -189,6 +193,7 @@ ENV_FILE="$HERMES_HOME/.env"
 if [ -f "$ENV_FILE" ]; then
     run mkdir -p "$BACKUPS"
     run cp -p "$ENV_FILE" "$BACKUPS/env.$STAMP"
+    run chmod 600 "$BACKUPS/env.$STAMP"
     ok "sauvegarde : $BACKUPS/env.$STAMP"
 else
     run touch "$ENV_FILE"

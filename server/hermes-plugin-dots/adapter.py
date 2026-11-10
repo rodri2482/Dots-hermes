@@ -571,7 +571,13 @@ class _Push:
         if not token or (self.tokens and self.tokens[-1] == token):
             return
         self.tokens = [t for t in self.tokens if t != token][-(MAX_PUSH_TOKENS - 1):] + [token]
+        # Jetons FCM = capacité d'envoi de notifications : lisible du propriétaire seul,
+        # comme web_tokens.json (l'umask du service ne garantit rien).
         self._store.write_text(json.dumps(self.tokens), encoding="utf-8")
+        try:
+            self._store.chmod(0o600)
+        except OSError:
+            pass
 
     def _access_token(self) -> str:
         from google.auth.transport.requests import Request
@@ -608,6 +614,10 @@ class _Push:
         if stale:
             self.tokens = [t for t in self.tokens if t not in stale]
             self._store.write_text(json.dumps(self.tokens), encoding="utf-8")
+            try:
+                self._store.chmod(0o600)
+            except OSError:
+                pass
 
 
 class DotsAdapter(BasePlatformAdapter):
@@ -1226,7 +1236,7 @@ class DotsAdapter(BasePlatformAdapter):
         chat = self._chat_of(frame)
         event_id = uuid.uuid4().hex
         path = self._voice_dir / f"{event_id}{VOICE_TYPES[mime]}"
-        path.write_bytes(data)
+        await self._store_private(path, data)
         event = self._history.add({
             "type": "message", "id": event_id, "role": "user", "kind": "voice", "text": "", "ts": _now_ms(), "chat": chat,
             "final": True, "audio": path.name, "mime": mime, "duration_ms": duration_ms,
@@ -1239,6 +1249,17 @@ class DotsAdapter(BasePlatformAdapter):
             text="", message_type=MessageType.VOICE, source=self._source(chat, event_id), message_id=event_id,
             media_urls=[str(path)], media_types=[mime], raw_message={"type": "voice"},
             timestamp=datetime.now(tz=UTC), channel_prompt=self._channel_prompt(chat)))
+
+    async def _store_private(self, path: Path, data: bytes) -> None:
+        """Média du propriétaire écrit lisible du propriétaire seul : l'umask du service ne garantit
+        rien (022 par défaut sous systemd) et ces fichiers ne regardent personne d'autre."""
+        def write() -> None:
+            path.write_bytes(data)
+            try:
+                path.chmod(0o600)
+            except OSError:
+                pass
+        await asyncio.to_thread(write)
 
     def _stored_path(self, event: dict[str, Any]) -> Optional[Path]:
         """File behind a voice note or attachment event, confined to the plugin's own folders."""
@@ -1284,7 +1305,7 @@ class DotsAdapter(BasePlatformAdapter):
         chat = self._chat_of(frame)
         event_id = uuid.uuid4().hex
         stored = self._files_dir / f"{event_id}{Path(name).suffix[:10]}"
-        await asyncio.to_thread(stored.write_bytes, data)
+        await self._store_private(stored, data)
         event = self._history.add({
             "type": "message", "id": event_id, "role": "user", "kind": "file", "text": caption, "ts": _now_ms(), "chat": chat,
             "final": True, "file": stored.name, "name": name, "mime": cached.media_type or mime,
@@ -1318,7 +1339,7 @@ class DotsAdapter(BasePlatformAdapter):
         else:
             stored = self._files_dir / f"{event_id}{Path(name).suffix[:10]}"
             fields = {"kind": "file", "file": stored.name, "media": mime.split("/")[0], "size": len(data)}
-        await asyncio.to_thread(stored.write_bytes, data)
+        await self._store_private(stored, data)
         event = self._history.add({
             "type": "message", "id": event_id, "role": "agent", "turn": self._turns.get(chat), "chat": chat, "text": caption or "",
             "ts": _now_ms(), "final": True, "name": name, "mime": mime, **fields,
