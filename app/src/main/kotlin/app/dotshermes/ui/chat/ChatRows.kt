@@ -66,6 +66,8 @@ fun buildChatRows(
     hasOlder: Boolean? = null,
     /** Salon : le sous-dot qui parle en ce moment, montré dans la bulle « écrit… ». */
     speaker: String? = null,
+    /** Compte direct : la réponse s'affiche mot à mot, la bulle « écrit… » ferait doublon. */
+    streamsInPlace: Boolean = false,
 ): List<ChatRow> {
     val rows = ArrayList<ChatRow>(messages.size + 8)
     // null : pas d'historique paginé (démo) ; sinon, une ligne de tête pour charger ou dire « début ».
@@ -103,7 +105,8 @@ fun buildChatRows(
     }
     trail.remaining().forEach(rows::add)
     // En salon, la mascotte de qui parle « écrit » dès qu'il réfléchit : on le regarde prendre la parole.
-    if (activity == AgentActivity.Typing || (speaker != null && activity != AgentActivity.Idle)) rows += ChatRow.Typing(speaker)
+    val streaming = streamsInPlace && messages.lastOrNull()?.sender == Sender.Agent
+    if ((activity == AgentActivity.Typing && !streaming) || (speaker != null && activity != AgentActivity.Idle)) rows += ChatRow.Typing(speaker)
     return rows.asReversed()
 }
 

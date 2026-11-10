@@ -410,8 +410,8 @@ Colle une clé API Groq pour commencer.</string>
     <string name="companion_personality">Personnalité</string>
     <string name="companion_voice">Voix</string>
     <string name="companion_speak">Lire les réponses à voix haute</string>
-    <string name="companion_speak_hint">Chaque réponse est dite avec ta voix Fish Audio.</string>
-    <string name="companion_speak_setup">Ajoute une clé Fish Audio et un identifiant de voix ci-dessous.</string>
+    <string name="companion_speak_hint">Chaque réponse est dite avec la voix choisie ci-dessous.</string>
+    <string name="companion_speak_setup">Ajoute ta clé Fish Audio ci-dessous. La voix se change quand tu veux.</string>
     <string name="companion_voice_id">Voix</string>
     <string name="companion_voice_id_hint">Identifiant de voix Fish Audio</string>
     <string name="companion_fish_key">Clé Fish</string>
@@ -426,6 +426,11 @@ Colle une clé API Groq pour commencer.</string>
     <string name="personality_playful_hint">Un peu d\'humour, des mots simples, un émoji de temps en temps.</string>
     <string name="personality_cheeky_hint">Te taquine un peu. Les réponses restent tout aussi justes.</string>
     <string name="chat_listen">Écouter</string>
+    <string name="chat_clear">Effacer la conversation</string>
+    <string name="chat_clear_title">Effacer cette conversation ?</string>
+    <string name="chat_clear_warning">Tous les messages de cette conversation sont supprimés de ce téléphone. Ta clé et tes réglages restent.</string>
+    <string name="chat_clear_confirm">Effacer</string>
+    <string name="chat_empty">Salut, moi c’est %s ! Demande-moi ce que tu veux, ou touche le micro pour parler.</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

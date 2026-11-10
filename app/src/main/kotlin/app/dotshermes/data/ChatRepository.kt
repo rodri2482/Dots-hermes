@@ -37,6 +37,8 @@ interface ChatRepository {
     val directUsage: StateFlow<app.dotshermes.data.direct.DirectApiUsage?> get() = NoDirectUsage
     val requestIssue: StateFlow<app.dotshermes.data.direct.DirectRequestIssue?> get() = NoRequestIssue
     fun retryRequest() {}
+    /** Efface le fil enregistré sur le téléphone (comptes directs) ; sans effet ailleurs. */
+    fun clearHistory() {}
     fun setShown(shown: Boolean) {}
     val profile: StateFlow<AgentProfile>
     val connection: StateFlow<ConnectionState>

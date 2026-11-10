@@ -136,6 +136,11 @@ class HermesViewModel(
     fun forgetFishKey() { viewModelScope.launch { companion?.forgetFishKey() } }
     fun stopSpeaking() = companion?.stop()
     fun listen(text: String) { companion?.speak(text, force = true) }
+    fun clearConversation() {
+        companion?.stop()
+        val target = repository.currentTarget()
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { target.clearHistory() }
+    }
 
     val connection: StateFlow<ConnectionState> = repository.connection
     val profile: StateFlow<AgentProfile> = repository.profile
@@ -237,7 +242,8 @@ class HermesViewModel(
             ChatUiState(
                 agentName = appearance.displayName,
                 activity = shown,
-                rows = buildChatRows(messages, activity, tools = tools, hasOlder = hasOlder, speaker = room.speaker),
+                rows = buildChatRows(messages, activity, tools = tools, hasOlder = hasOlder, speaker = room.speaker,
+                    streamsInPlace = !repository.gatewayFeatures.value),
                 messageCount = messages.size,
                 room = room.invited,
                 roomCandidates = room.candidates,

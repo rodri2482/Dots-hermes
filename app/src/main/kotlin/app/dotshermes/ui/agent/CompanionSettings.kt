@@ -1,7 +1,11 @@
 package app.dotshermes.ui.agent
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,6 +46,7 @@ import app.dotshermes.voice.CompanionState
 import app.dotshermes.voice.CompanionVoice
 import app.dotshermes.voice.Personality
 import app.dotshermes.voice.SpeechStatus
+import app.dotshermes.voice.VoicePresets
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -57,6 +62,7 @@ class CompanionControls(
 )
 
 /** Personnalité (Calme / Joueur / Taquin) puis voix : lire les réponses avec une voix Fish Audio. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CompanionSettings(controls: CompanionControls) {
     val state = controls.state
@@ -103,6 +109,24 @@ fun CompanionSettings(controls: CompanionControls) {
                 Spacer(Modifier.width(8.dp))
                 Switch(checked = state.speakReplies && ready, enabled = ready, onCheckedChange = controls.onSpeak,
                     colors = SwitchDefaults.colors(checkedTrackColor = palette.base, checkedThumbColor = Color.White))
+            }
+            Hairline()
+            // Voix officielles de Fish Audio ; un appui long ouvre sa fiche pour l'écouter.
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                VoicePresets.forEach { preset ->
+                    val on = preset.id == state.voiceId
+                    Text(
+                        preset.name,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (on) palette.onBase else palette.deep,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) palette.base else palette.light)
+                            .combinedClickable(onLongClick = { uri.openUri(CompanionVoice.voicePage(preset.id)) }) { controls.onVoiceId(preset.id) }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                    )
+                }
             }
             Hairline()
             FieldRow(stringResource(R.string.companion_voice_id), state.voiceId, controls.onVoiceId, enabled = true,

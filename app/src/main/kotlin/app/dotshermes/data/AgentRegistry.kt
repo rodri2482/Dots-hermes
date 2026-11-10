@@ -149,7 +149,7 @@ class AgentRegistry(
     private fun create(id: String): ChatRepository {
         val link = store.get(id)
         if (link?.provider != null) {
-            appearance(id).adoptServerName(link.provider.title)
+            appearance(id).adoptServerName(COMPANION_NAME)
             return DirectChatRepository(id, link.provider, link.model, scope, apiStorage, providerClient,
                 persona = { persona(appearance(id).state.value.displayName) }).apply { setShown(id == _activeId.value) }
         }
@@ -310,7 +310,7 @@ class AgentRegistry(
                     drop(id)
                     direct.setShown(true)
                     repos[id] = direct
-                    appearance(id).adoptServerName(provider.title)
+                    appearance(id).adoptServerName(COMPANION_NAME)
                     store.upsert(AgentLink(id, "", "", provider = provider, model = model.trim()))
                     repoRevision.update { it + 1 }
                     pendingBefore?.let(::drop)
@@ -366,5 +366,7 @@ class AgentRegistry(
 
     private companion object {
         const val UNPAIRED = "unpaired"
+        /** Nom d'un compte direct tant qu'on ne l'a pas renommé : le personnage, pas le fournisseur. */
+        const val COMPANION_NAME = "Claydot"
     }
 }

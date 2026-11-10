@@ -83,6 +83,8 @@ fun AgentSettings(
     onEditDirect: () -> Unit = {},
     /** Compte API direct : personnalité et voix (Fish Audio). */
     companion: CompanionControls? = null,
+    /** Compte direct : effacer la conversation (après confirmation) ; null = ligne masquée. */
+    onClearConversation: (() -> Unit)? = null,
     /** App web : scanner le QR code d'un navigateur, et la liste des navigateurs appairés (null : section masquée). */
     onConnectBrowser: (() -> Unit)? = null,
     onBrowserSessions: (() -> Unit)? = null,
@@ -121,7 +123,14 @@ fun AgentSettings(
             }
 
             if (!gatewayFeatures) {
-                GroupedCard { LinkRow(stringResource(R.string.api_edit_account), onEditDirect) }
+                GroupedCard {
+                    LinkRow(stringResource(R.string.api_edit_account), onEditDirect)
+                    onClearConversation?.let {
+                        Hairline()
+                        Text(stringResource(R.string.chat_clear), style = MaterialTheme.typography.bodyLarge, color = Ink.Danger,
+                            modifier = Modifier.fillMaxWidth().clickable(onClick = it).padding(horizontal = 16.dp, vertical = 13.dp))
+                    }
+                }
                 companion?.let { CompanionSettings(it) }
             }
 

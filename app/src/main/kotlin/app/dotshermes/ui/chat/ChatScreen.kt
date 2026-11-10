@@ -282,6 +282,14 @@ fun ChatScreen(
                 onOpenAgents = onOpenAgents,
                 otherAgentsUnread = otherAgentsUnread,
             )
+            // Fil vide (premier message, ou conversation effacée) : un mot d'accueil plutôt qu'un écran blanc.
+            if (state.rows.isEmpty()) {
+                Text(
+                    stringResource(R.string.chat_empty, state.agentName),
+                    style = MaterialTheme.typography.bodyLarge, color = Ink.Secondary, textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 40.dp),
+                )
+            }
             BrowsingPill(
                 visible = browsing && screen.hasFrame,
                 agentName = state.agentName,
@@ -517,6 +525,21 @@ private fun Composer(
     val suggestions = stringArrayResource(if (mediaEnabled) R.array.chat_suggestions else R.array.chat_suggestions_direct)
 
     Column(Modifier.fillMaxWidth().background(Ink.Surface).navigationBarsPadding()) {
+        // Réponse en cours (ou lue à voix haute) : une petite pastille « Arrêter » au-dessus du champ ;
+        // le bouton d'envoi, lui, ne change jamais de rôle.
+        AnimatedVisibility(visible = busy, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically(),
+            modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            Row(
+                Modifier.padding(top = 8.dp).clip(CircleShape).background(Ink.Raised).border(0.5.dp, Ink.Separator, CircleShape)
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onStop)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Stop, null, tint = palette.deep, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.api_stop), style = MaterialTheme.typography.labelLarge, color = Ink.Primary)
+            }
+        }
         AnimatedVisibility(
             visible = suggestionsOpen,
             enter = expandVertically() + fadeIn(),
@@ -597,7 +620,6 @@ private fun Composer(
                 }
                 // Une seule commande, cible de 44 dp : Arrêter pendant la réponse, Envoyer dès qu'il y a du texte, sinon le micro.
                 val action = when {
-                    busy -> ComposerAction.Stop
                     draft.isNotBlank() -> ComposerAction.Send
                     voiceEnabled && sendingEnabled -> ComposerAction.Mic
                     else -> ComposerAction.Idle
@@ -608,7 +630,6 @@ private fun Composer(
                     label = "composer-action",
                 ) { shown ->
                     when (shown) {
-                        ComposerAction.Stop -> ComposerButton(Icons.Rounded.Stop, stringResource(R.string.api_stop), filled = true, onClick = onStop)
                         // Envoi impossible (délai d'attente du fournisseur) : le bouton s'efface au lieu de rester muet.
                         ComposerAction.Send -> ComposerButton(Icons.Rounded.ArrowUpward, stringResource(R.string.cd_send), filled = true,
                             enabled = sendingEnabled) { onSend(draft) }
@@ -621,7 +642,7 @@ private fun Composer(
     }
 }
 
-private enum class ComposerAction { Stop, Send, Mic, Idle }
+private enum class ComposerAction { Send, Mic, Idle }
 
 /** Bouton rond du champ de saisie : pastille de 34 dp dans une zone tactile de 44 dp. */
 @Composable

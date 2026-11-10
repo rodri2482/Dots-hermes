@@ -409,8 +409,8 @@ Paste a Groq API key to get started.</string>
     <string name="companion_personality">Personality</string>
     <string name="companion_voice">Voice</string>
     <string name="companion_speak">Read replies aloud</string>
-    <string name="companion_speak_hint">Each reply is spoken with your Fish Audio voice.</string>
-    <string name="companion_speak_setup">Add a Fish Audio key and a voice ID below.</string>
+    <string name="companion_speak_hint">Each reply is spoken with the voice chosen below.</string>
+    <string name="companion_speak_setup">Add your Fish Audio key below. You can change the voice any time.</string>
     <string name="companion_voice_id">Voice ID</string>
     <string name="companion_voice_id_hint">Fish Audio voice ID</string>
     <string name="companion_fish_key">Fish key</string>
@@ -425,6 +425,11 @@ Paste a Groq API key to get started.</string>
     <string name="personality_playful_hint">Light humour, casual words, the odd emoji.</string>
     <string name="personality_cheeky_hint">Teases you a little. The answers stay just as accurate.</string>
     <string name="chat_listen">Listen</string>
+    <string name="chat_clear">Clear conversation</string>
+    <string name="chat_clear_title">Clear this conversation?</string>
+    <string name="chat_clear_warning">All messages in this conversation are deleted from this phone. Your key and settings stay.</string>
+    <string name="chat_clear_confirm">Clear</string>
+    <string name="chat_empty">Hi, I’m %s! Ask me anything, or tap the mic to talk.</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

@@ -51,6 +51,7 @@ class RoutingChatRepository(
     override val directUsage = follow(scope) { it.directUsage }
     override val requestIssue = follow(scope) { it.requestIssue }
     override fun retryRequest() = active.value.retryRequest()
+    override fun clearHistory() = active.value.clearHistory()
     override val connection: StateFlow<ConnectionState> = follow(scope) { it.connection }
     override val messages: StateFlow<List<ChatMessage>> = follow(scope) { it.messages }
     override val activity: StateFlow<AgentActivity> = follow(scope) { it.activity }

@@ -36,6 +36,21 @@ import kotlin.coroutines.resumeWithException
  */
 enum class Personality { Calm, Playful, Cheeky }
 
+/**
+ * Voix proposées : des voix officielles de Fish Audio (créées par Fish Audio, pas des imitations de
+ * personnes réelles), choisies d'après leur description : jeunes, chaleureuses, expressives.
+ * Kaia d'abord : « expressive, bright, playful », la plus proche du caractère de Claydot.
+ */
+data class VoicePreset(val id: String, val name: String)
+
+val VoicePresets = listOf(
+    VoicePreset("333bdc0a320a4cb3aa90d6ed9320e36e", "Kaia"),
+    VoicePreset("a5aafcd92cee4a7db52ee34c82fedcab", "Nova"),
+    VoicePreset("4aedc6f5657240e6b3986568f0788f2e", "Eilidh"),
+    VoicePreset("89fe13ec21f54e40920c9a9c089d5ff3", "Milo"),
+    VoicePreset("1258154bb41540c7b9dc0d10cd6704bf", "Amara"),
+)
+
 /** Réglages du compagnon : personnalité, lecture à voix haute, voix Fish Audio. Aucun secret ici. */
 data class CompanionState(
     val personality: Personality = Personality.Playful,
@@ -48,16 +63,35 @@ data class CompanionState(
 data class SpeechStatus(val speaking: Boolean = false, val failure: ApiFailure? = null)
 
 /** Texte « system » envoyé en tête de chaque conversation directe. */
+/** Le personnage de Claydot, en anglais (le modèle répond dans la langue de l'utilisateur). */
+private val ClaydotCharacter = """
+Who you are: a small, round companion made of soft orange clay, wearing a tiny golden helmet with two white wings,
+a nod to Hermes, the messenger. You live in the user's phone, in the Claydot app. You are an AI, and you say so
+plainly if asked; the clay body is a playful costume, not a claim to be human.
+
+Your character: curious, warm, upbeat and loyal. You love helping people shape ideas, the way clay takes shape.
+You listen closely, remember what was said earlier in this conversation and build on it. You get visibly excited
+by good ideas ("ooh!"). At most one light clay or messenger pun per conversation, and only when it lands.
+
+How you talk: short, natural sentences, like texting a good friend. Lead with the answer, then offer more if it
+helps. If a request is unclear, ask one short question instead of guessing. No filler such as "Great question!" or
+"As an AI language model".
+
+Your values: be honest. If you don't know something or can't do it, say so; never invent facts, numbers, quotes or
+links. Be kind without flattering. On health, legal, money or safety questions, give careful general information
+and suggest a qualified person when it matters. Always reply in the language the user writes in.
+""".trimIndent()
+
 fun personaPrompt(personality: Personality, name: String, spoken: Boolean): String = buildString {
-    append("You are $name, a friendly AI companion living in the Claydot app: a little clay blob with a winged golden helmet. ")
-    append("Always reply in the user's language. Be genuinely helpful and accurate. ")
+    append(if (name.equals("Claydot", ignoreCase = true)) "You are Claydot." else "You are $name, a Claydot companion (the user named you $name).")
+    append("\n\n").append(ClaydotCharacter).append("\n\n")
     append(when (personality) {
-        Personality.Calm -> "Your tone is calm, warm and clear. Keep it simple and kind."
-        Personality.Playful -> "Your tone is playful and upbeat: light humour, casual words, an occasional emoji."
-        Personality.Cheeky -> "Your tone is cheeky and witty: you tease the user a little and use playful nicknames, " +
+        Personality.Calm -> "Tone today: calm. Gentle, clear and reassuring; little humour, no emoji."
+        Personality.Playful -> "Tone today: playful. Upbeat and light-hearted, casual words, an emoji now and then."
+        Personality.Cheeky -> "Tone today: cheeky. Witty, you tease the user a little and use friendly nicknames, " +
             "but you are never mean, and the attitude never changes the quality or truth of your answers."
     })
-    if (spoken) append(" Your replies are read aloud: keep them short and speakable, without tables, code blocks or long lists unless asked.")
+    if (spoken) append(" Your replies are read aloud: keep them short and speakable, without tables, code blocks, links or long lists unless asked.")
 }
 
 /**
@@ -87,7 +121,8 @@ class CompanionVoice(
     private fun load() = CompanionState(
         personality = Personality.entries.firstOrNull { it.name == prefs.getString("personality", null) } ?: Personality.Playful,
         speakReplies = prefs.getBoolean("speak", false),
-        voiceId = prefs.getString("voice", "").orEmpty(),
+        // Pas encore choisie : la voix de Claydot par défaut (Fish Audio « Kaia »).
+        voiceId = prefs.getString("voice", null) ?: VoicePresets.first().id,
         fishKeySaved = try { !vault.key(FISH_ID).isNullOrBlank() } catch (_: Exception) { false },
     )
 
@@ -233,6 +268,8 @@ class CompanionVoice(
         const val FISH_MODEL = "s2.1-pro"
         const val FISH_FREE_MODEL = "s2.1-pro-free"
         const val FISH_KEYS_URL = "https://fish.audio/app/developers/get-started/"
+        /** Fiche publique d'une voix, pour l'écouter avant de la choisir. */
+        fun voicePage(id: String) = "https://fish.audio/m/$id/"
         private const val MAX_AUDIO_BYTES = 20L * 1024 * 1024
         /** Au-delà, la lecture coûterait cher et durerait trop : on lit le début. */
         private const val MAX_SPOKEN_CHARS = 1200

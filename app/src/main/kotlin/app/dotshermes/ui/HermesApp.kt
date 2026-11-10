@@ -105,6 +105,7 @@ fun HermesApp(
     val addingAgent by viewModel.addingAgent.collectAsStateWithLifecycle()
     val otherAgentsUnread by viewModel.otherAgentsUnread.collectAsStateWithLifecycle()
     var deletingAccount by remember { mutableStateOf<String?>(null) }
+    var clearingChat by remember { mutableStateOf(false) }
     val demo = (connection as? ConnectionState.Connected)?.demo == true
     var creatingDot by rememberSaveable { mutableStateOf(false) }
     // Apparence saisie dans l'éditeur d'un sous-dot (ou du nouveau) : le carrousel l'affiche en direct.
@@ -255,6 +256,19 @@ fun HermesApp(
                 } },
             )
         }
+        if (clearingChat) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { clearingChat = false },
+                title = { androidx.compose.material3.Text(stringResource(R.string.chat_clear_title)) },
+                text = { androidx.compose.material3.Text(stringResource(R.string.chat_clear_warning)) },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = {
+                    clearingChat = false; agentSheetOpen = false; viewModel.clearConversation()
+                }) { androidx.compose.material3.Text(stringResource(R.string.chat_clear_confirm)) } },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { clearingChat = false }) {
+                    androidx.compose.material3.Text(stringResource(android.R.string.cancel))
+                } },
+            )
+        }
         accountFailure?.let { failure ->
             androidx.compose.material3.AlertDialog(onDismissRequest = viewModel::clearAccountFailure,
                 text = { androidx.compose.material3.Text(stringResource(app.dotshermes.ui.connect.apiFailureMessage(failure))) },
@@ -339,6 +353,7 @@ fun HermesApp(
                     else -> AgentSettings(
                         gatewayFeatures = gatewayFeatures,
                         onEditDirect = { agentSheetOpen = false; viewModel.editDirectAccount() },
+                        onClearConversation = if (!gatewayFeatures) ({ clearingChat = true }) else null,
                         companion = app.dotshermes.ui.agent.CompanionControls(
                             state = companion, status = speech,
                             onPersonality = { viewModel.setPersonality(it) }, onSpeak = { viewModel.setSpeakReplies(it) },

@@ -127,3 +127,16 @@ class ChatRowsTest {
     }
 
 }
+
+class StreamingTypingTest {
+    private fun msg(id: String, sender: app.dotshermes.data.model.Sender) = app.dotshermes.data.model.ChatMessage(
+        id = id, sender = sender, content = app.dotshermes.data.model.MessageContent.Text("x"), sentAt = java.time.Instant.now())
+
+    @Test fun `no typing bubble under a reply that streams in place`() {
+        val messages = listOf(msg("u", app.dotshermes.data.model.Sender.User), msg("a", app.dotshermes.data.model.Sender.Agent))
+        val rows = buildChatRows(messages, app.dotshermes.data.model.AgentActivity.Typing, streamsInPlace = true)
+        org.junit.Assert.assertTrue(rows.none { it is ChatRow.Typing })
+        val gateway = buildChatRows(messages, app.dotshermes.data.model.AgentActivity.Typing)
+        org.junit.Assert.assertTrue(gateway.any { it is ChatRow.Typing })
+    }
+}

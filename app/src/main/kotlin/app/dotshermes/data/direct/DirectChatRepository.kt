@@ -232,6 +232,22 @@ class DirectChatRepository(
         }
     }
 
+    /**
+     * Efface la conversation : messages, reprise et erreur. Les limites et le délai d'attente du
+     * fournisseur restent (ils ne dépendent pas du fil), comme la clé.
+     */
+    override fun clearHistory() {
+        stopTurn()
+        synchronized(lock) {
+            if (!ready) return
+            try {
+                commit(transcript.copy(messages = emptyList(), retryUserId = null, failure = null))
+                _failure.value = ApiFailure.RateLimited.takeIf { transcript.cooldownUntilMs > clockMs() }?.let { issue(it, cooldownOnly = true) }
+            } catch (_: Exception) { _failure.value = issue(ApiFailure.Storage) }
+            _unread.value = emptyMap()
+        }
+    }
+
     override fun disconnect() {
         stopTurn()
         synchronized(lock) { generation++; ready = false; _connection.value = ConnectionState.Disconnected }
