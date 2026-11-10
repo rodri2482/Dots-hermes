@@ -28,11 +28,12 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Typecheck and build
+      - name: Typecheck, tests and build
         working-directory: web
         run: |
           npm ci
           npm run typecheck
+          npm test
           npm run build
 
   server:

@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "sync-dots": "node scripts/sync-dots.mjs"
+    "sync-dots": "node scripts/sync-dots.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "dompurify": "3.4.17",
@@ -18,7 +19,9 @@
   },
   "devDependencies": {
     "@preact/preset-vite": "2.10.5",
+    "happy-dom": "21.0.4",
     "typescript": "5.9.3",
-    "vite": "6.4.5"
+    "vite": "6.4.5",
+    "vitest": "5.1.0"
   }
 }

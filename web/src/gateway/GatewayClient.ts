@@ -920,7 +920,7 @@ function localMessage(kind: "voice" | "file"): ChatMessage {
 }
 
 /** Le même envoi, revenu de l'historique sans que son `ack` soit arrivé ici. */
-function sameUpload(local: ChatMessage, stored: ChatMessage): boolean {
+export function sameUpload(local: ChatMessage, stored: ChatMessage): boolean {
   if (local.kind !== stored.kind) return false;
   switch (local.kind) {
     case "text":
@@ -935,7 +935,7 @@ function sameUpload(local: ChatMessage, stored: ChatMessage): boolean {
 }
 
 /** `audio/webm;codecs=opus` → `audio/webm` : le plugin compare le type sans paramètres. */
-function baseMime(type: string): string {
+export function baseMime(type: string): string {
   return type.split(";")[0].trim().toLowerCase();
 }
 
