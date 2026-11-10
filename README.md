@@ -728,8 +728,14 @@ Run the unit tests with:
 ## Documentation
 
 - [Gateway protocol](docs/protocole-gateway.md): every frame, history, attachments, live screen,
-  takeover, sub-dots, group room, push (French).
-- [Web pairing](docs/appairage-web.md): QR code, encryption, relay, web sessions (French).
+  takeover, sub-dots, group room, push (French; English translation in
+  [docs/gateway-protocol.md](docs/gateway-protocol.md)).
+- [Web pairing](docs/appairage-web.md): QR code, encryption, relay, web sessions (French; English
+  translation in [docs/web-pairing.md](docs/web-pairing.md)).
+- [Owner setup](docs/owner-setup.md): signing key, first release push, Vercel, Firebase,
+  real-server test, artwork (English).
+- [UnifiedPush](docs/unifiedpush-design.md): proposal for notifications without Firebase
+  (English; implementation awaits approval).
 
 ---
 

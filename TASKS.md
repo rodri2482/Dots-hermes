@@ -4,7 +4,16 @@ Read [AGENTS.md](AGENTS.md) first. Do tasks **one at a time, in order**, each on
 (`git switch -c <branch> main` once the current work is merged). For each task: make the change, run the
 listed checks, and report what you ran and what you could not run. Don't commit or push unless asked.
 
-## Done (branch `feat/web-voice-files`, not yet merged)
+## Status (10 November 2026)
+
+All agent-reachable tasks are done and merged to `main`, one branch each, linear history:
+task 1 `af797b4` · 2 `534fa61` · 3 `544ede2` · 4 `c3b9da1` · 5 `452eeee` · 6 `bd48b78` ·
+7a (protocol docs in English) `06d363a` · 7b (UnifiedPush design) `d531fba`.
+Task 7c (R8/minify) is **prepared but not merged**: branch `task/7c-r8-minify` (`28e7ec7`,
+release APK 35.65 → 23.89 MB) — merge after the on-device test pass it requires.
+The owner-only steps are written up in [docs/owner-setup.md](docs/owner-setup.md).
+
+## Done (all merged)
 
 - Web app sends files (picker, drag and drop, paste; caption = typed text; 20 MB cap) and records
   voice notes (WebM/Opus, Ogg/Opus or MP4; live waveform; 5 min cap). Outbox resends after a drop.
