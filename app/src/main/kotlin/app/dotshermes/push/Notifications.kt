@@ -3,6 +3,7 @@ package app.dotshermes.push
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -108,7 +109,7 @@ object Notifications {
             .addAction(answer(true))
             .setAutoCancel(false)
             .build()
-        NotificationManagerCompat.from(context).notify(approvalNotificationId(approvalId), notification)
+        notifySafely(context, approvalNotificationId(approvalId), notification)
     }
 
     /** Juste après l'appui : les boutons disparaissent pendant l'envoi (pas de double réponse). */
@@ -122,7 +123,7 @@ object Notifications {
             .setOnlyAlertOnce(true)
             .setProgress(0, 0, true)
             .build()
-        NotificationManagerCompat.from(context).notify(approvalNotificationId(approvalId), notification)
+        notifySafely(context, approvalNotificationId(approvalId), notification)
     }
 
     /** Résultat : confirmation qui s'efface seule, ou invitation à ouvrir l'app si l'envoi a échoué. */
@@ -137,7 +138,7 @@ object Notifications {
         } else {
             approvalBuilder(context, agent, context.getString(R.string.notif_approval_not_sent), context.getString(R.string.notif_approval_not_sent_text))
         }
-        NotificationManagerCompat.from(context).notify(approvalNotificationId(approvalId), builder.setOnlyAlertOnce(true).build())
+        notifySafely(context, approvalNotificationId(approvalId), builder.setOnlyAlertOnce(true).build())
     }
 
     /** Réglé ailleurs (dans l'app, sur un autre appareil) : la notification n'a plus lieu d'être. */
@@ -157,6 +158,17 @@ object Notifications {
 
     private fun canNotify(context: Context) = Build.VERSION.SDK_INT < 33 ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    private fun notifySafely(context: Context, id: Int, notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+        try {
+            NotificationManagerCompat.from(context).notify(id, notification)
+        } catch (_: SecurityException) {
+            // La permission peut être révoquée entre le contrôle et l'appel au système.
+        }
+    }
 
     /** Ouvre l'app sur l'agent qui demande le feu vert (code de requête propre à l'agent). */
     private fun openApp(context: Context, agent: String) = PendingIntent.getActivity(
@@ -204,7 +216,7 @@ object Notifications {
             .setAutoCancel(true)
             .setOnlyAlertOnce(!alert)
             .build()
-        NotificationManagerCompat.from(context).notify(id, notification)
+        notifySafely(context, id, notification)
     }
 
     /** Reprend le fil déjà affiché de cet agent pour y empiler le nouveau message. */

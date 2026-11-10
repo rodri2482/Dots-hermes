@@ -20,6 +20,7 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import re
 import secrets
 import threading
@@ -240,6 +241,9 @@ class _History:
         # One conversation per dot: rows carry their chat (the main dot is ``owner``).
         if "chat" not in [r[1] for r in self._db.execute("PRAGMA table_info(events)")]:
             self._db.execute(f"ALTER TABLE events ADD COLUMN chat TEXT NOT NULL DEFAULT '{OWNER}'")
+        if "client_id" not in [r[1] for r in self._db.execute("PRAGMA table_info(events)")]:
+            self._db.execute("ALTER TABLE events ADD COLUMN client_id TEXT")
+        self._db.execute("CREATE INDEX IF NOT EXISTS events_client_id ON events(client_id)")
         self._db.execute("CREATE INDEX IF NOT EXISTS events_id ON events(id)")
         self._db.execute("CREATE INDEX IF NOT EXISTS events_chat ON events(chat, seq)")
         self._migrate_jsonl(path.with_name("history.jsonl"))
@@ -265,12 +269,16 @@ class _History:
     def add(self, event: dict[str, Any]) -> dict[str, Any]:
         self.seq += 1
         event = self.route({**event, "seq": self.seq, "chat": event.get("chat") or OWNER})
-        self._db.execute("INSERT INTO events (seq, id, data, chat) VALUES (?, ?, ?, ?)",
-                         (self.seq, event.get("id"), json.dumps(event, ensure_ascii=False), event["chat"]))
+        self._db.execute("INSERT INTO events (seq, id, data, chat, client_id) VALUES (?, ?, ?, ?, ?)",
+                         (self.seq, event.get("id"), json.dumps(event, ensure_ascii=False), event["chat"], event.get("client_id")))
         return event
 
     def get(self, event_id: str) -> Optional[dict[str, Any]]:
         row = self._db.execute("SELECT data FROM events WHERE id = ? ORDER BY seq DESC LIMIT 1", (event_id,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def by_client_id(self, client_id: str) -> Optional[dict[str, Any]]:
+        row = self._db.execute("SELECT data FROM events WHERE client_id = ? ORDER BY seq LIMIT 1", (client_id,)).fetchone()
         return json.loads(row[0]) if row else None
 
     def update(self, event_id: str, **fields: Any) -> Optional[dict[str, Any]]:
@@ -777,6 +785,9 @@ class DotsAdapter(BasePlatformAdapter):
                 except json.JSONDecodeError:
                     await self._push({"type": "error", "code": "bad_json"}, ws)
                     continue
+                if not isinstance(frame, dict):
+                    await self._push({"type": "error", "code": "bad_frame"}, ws)
+                    continue
                 await self._on_frame(frame, ws)
         finally:
             self._clients.pop(ws, None)
@@ -821,6 +832,7 @@ class DotsAdapter(BasePlatformAdapter):
                 logger.debug("[%s] Push failed: %s", self.name, exc)
 
     async def _ack(self, frame: dict[str, Any], ws: "web.WebSocketResponse") -> None:
+        # Mémorise aussi les refus définitifs d'envoi : après une coupure, le client doit les revoir.
         self._acks[frame["client_id"]] = frame
         if len(self._acks) > 1000:
             self._acks.pop(next(iter(self._acks)))
@@ -828,6 +840,17 @@ class DotsAdapter(BasePlatformAdapter):
 
     async def _is_duplicate(self, client_id: str, ws: "web.WebSocketResponse") -> bool:
         """A message already received (retry after a lost ack): send its ack again, don't handle it twice."""
+        if client_id in self._acks:
+            await self._push(self._acks[client_id], ws)
+            return True
+        # La déduplication mémoire expire et disparaît au redémarrage ; l'historique fait foi ensuite.
+        stored = self._history.by_client_id(client_id)
+        if stored is not None:
+            reply = {"type": "ack", "client_id": client_id, "id": stored["id"], "seq": stored["seq"], "ts": stored["ts"]}
+            if stored.get("kind") not in ("voice", "file"):
+                reply["chat"] = stored.get("chat", OWNER)
+            await self._ack(reply, ws)
+            return True
         if not self._dedup.is_duplicate(client_id):
             return False
         if client_id in self._acks:
@@ -844,12 +867,18 @@ class DotsAdapter(BasePlatformAdapter):
     async def _on_frame(self, frame: dict[str, Any], ws: "web.WebSocketResponse") -> None:
         kind = frame.get("type")
         if kind == "hello":
+            try:
+                last_seq = int(frame.get("last_seq") or 0)
+                if not 0 <= last_seq < 2 ** 63:
+                    raise ValueError("last_seq outside SQLite range")
+            except (ValueError, TypeError, OverflowError):
+                await self._push({"type": "error", "code": "bad_frame"}, ws)
+                return
             self._clients[ws]["foreground"] = bool(frame.get("foreground", True))
             if frame.get("lang"):
                 self._set_language(frame["lang"])
             if frame.get("push_token") and self._clients[ws].get("web") is None:
                 self._push_sender.register(str(frame["push_token"]))
-            last_seq = int(frame.get("last_seq") or 0)
             if last_seq > 0:
                 history, reset = self._history.since(last_seq)
                 has_more = reset
@@ -1028,7 +1057,7 @@ class DotsAdapter(BasePlatformAdapter):
         chat = self._chat_of(frame)
         speakers = self._room_speakers(chat, frame.get("room"))
         event = self._history.add({
-            "type": "message", "id": uuid.uuid4().hex, "role": "user", "text": text, "ts": _now_ms(), "final": True, "chat": chat,
+            "type": "message", "id": uuid.uuid4().hex, "client_id": client_id, "role": "user", "text": text, "ts": _now_ms(), "final": True, "chat": chat,
             **({"room": [d["id"] for d in speakers]} if speakers else {}),
         })
         await self._ack({"type": "ack", "client_id": client_id, "id": event["id"], "seq": event["seq"], "ts": event["ts"], "chat": chat}, ws)
@@ -1198,16 +1227,30 @@ class DotsAdapter(BasePlatformAdapter):
         except (ValueError, TypeError):
             data = b""
         if not data or len(data) > MAX_VOICE_BYTES:
-            await self._push({"type": "error", "code": "bad_voice", "client_id": client_id}, ws)
+            await self._ack({"type": "error", "code": "bad_voice", "client_id": client_id}, ws)
+            return
+        # Valider les métadonnées avant de créer le fichier : aucun audio orphelin en cas de refus.
+        try:
+            raw_waveform = frame.get("waveform") or []
+            if not isinstance(raw_waveform, list):
+                raise ValueError("waveform must be a list")
+            values = [float(v) for v in raw_waveform[:64]]
+            if not all(math.isfinite(v) for v in values):
+                raise ValueError("waveform must be finite")
+            waveform = [round(min(max(v, 0.0), 1.0), 3) for v in values]
+            duration_ms = int(frame.get("duration_ms") or 0)
+            if duration_ms < 0:
+                raise ValueError("duration must be nonnegative")
+        except (ValueError, TypeError, OverflowError):
+            await self._ack({"type": "error", "code": "bad_voice", "client_id": client_id}, ws)
             return
         chat = self._chat_of(frame)
         event_id = uuid.uuid4().hex
         path = self._voice_dir / f"{event_id}{VOICE_TYPES[mime]}"
         path.write_bytes(data)
-        waveform = [round(min(max(float(v), 0.0), 1.0), 3) for v in (frame.get("waveform") or [])[:64]]
         event = self._history.add({
-            "type": "message", "id": event_id, "role": "user", "kind": "voice", "text": "", "ts": _now_ms(), "chat": chat,
-            "final": True, "audio": path.name, "mime": mime, "duration_ms": int(frame.get("duration_ms") or 0),
+            "type": "message", "id": event_id, "client_id": client_id, "role": "user", "kind": "voice", "text": "", "ts": _now_ms(), "chat": chat,
+            "final": True, "audio": path.name, "mime": mime, "duration_ms": duration_ms,
             "waveform": waveform,
         })
         await self._ack({"type": "ack", "client_id": client_id, "id": event_id, "seq": event["seq"], "ts": event["ts"]}, ws)
@@ -1252,11 +1295,11 @@ class DotsAdapter(BasePlatformAdapter):
         except (ValueError, TypeError):
             data = b""
         if not data or len(data) > MAX_FILE_BYTES:
-            await self._push({"type": "error", "code": "bad_file", "client_id": client_id}, ws)
+            await self._ack({"type": "error", "code": "bad_file", "client_id": client_id}, ws)
             return
         cached = await asyncio.to_thread(cache_media_bytes, data, filename=name, mime_type=mime)
         if cached is None:  # an image Hermes refuses (corrupt / unsupported)
-            await self._push({"type": "error", "code": "bad_file", "client_id": client_id}, ws)
+            await self._ack({"type": "error", "code": "bad_file", "client_id": client_id}, ws)
             return
         caption = str(frame.get("caption") or "").strip()
         chat = self._chat_of(frame)
@@ -1264,7 +1307,7 @@ class DotsAdapter(BasePlatformAdapter):
         stored = self._files_dir / f"{event_id}{Path(name).suffix[:10]}"
         await asyncio.to_thread(stored.write_bytes, data)
         event = self._history.add({
-            "type": "message", "id": event_id, "role": "user", "kind": "file", "text": caption, "ts": _now_ms(), "chat": chat,
+            "type": "message", "id": event_id, "client_id": client_id, "role": "user", "kind": "file", "text": caption, "ts": _now_ms(), "chat": chat,
             "final": True, "file": stored.name, "name": name, "mime": cached.media_type or mime,
             "media": cached.kind, "size": len(data),
         })

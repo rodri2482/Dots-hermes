@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import android.net.Uri
 import app.dotshermes.attach.Attachments
 import app.dotshermes.data.model.ActivitySnapshot
@@ -78,11 +79,13 @@ class HermesViewModel(
     private val recorder: VoiceRecorder,
     private val player: VoicePlayer,
     private val attachments: Attachments,
+    private val companion: app.dotshermes.voice.CompanionVoice? = null,
 ) : ViewModel() {
 
     val screen: StateFlow<ScreenState> = repository.screen
     val activitySnapshot: StateFlow<ActivitySnapshot?> = repository.activitySnapshot
     val usage: StateFlow<UsageWindow?> = repository.usage
+    val directUsage = repository.directUsage
 
     /** Les derniers échanges et le travail qu'ils ont déclenché, pour la vue Activité. */
     val turns: StateFlow<List<TurnSummary>> = combine(repository.messages, repository.tools) { messages, tools ->
@@ -104,10 +107,67 @@ class HermesViewModel(
     init {
         // Agents mémorisés : chacun se reconnecte au lancement, en parallèle.
         agents.connectAll()
+        // Compte direct : une réponse terminée sans erreur est lue à voix haute (si la voix est réglée).
+        companion?.let { voice ->
+            viewModelScope.launch {
+                var previous: AgentActivity = AgentActivity.Idle
+                var lastSpoken: String? = repository.messages.value.lastOrNull()?.id
+                repository.activity.collect { now ->
+                    val finished = previous != AgentActivity.Idle && now == AgentActivity.Idle
+                    previous = now
+                    if (!finished || repository.gatewayFeatures.value || repository.requestIssue.value != null) return@collect
+                    val reply = repository.messages.value.lastOrNull() ?: return@collect
+                    val text = (reply.content as? MessageContent.Text)?.text ?: return@collect
+                    if (reply.sender != app.dotshermes.data.model.Sender.Agent || reply.id == lastSpoken) return@collect
+                    lastSpoken = reply.id
+                    voice.speak(text)
+                }
+            }
+        }
     }
+
+    // -- Personnalité et voix ------------------------------------------------------------------------
+    val companionState = companion?.state
+    val speech = companion?.status
+    fun setPersonality(value: app.dotshermes.voice.Personality) = companion?.setPersonality(value)
+    fun setSpeakReplies(on: Boolean) = companion?.setSpeakReplies(on)
+    fun setVoiceId(id: String) = companion?.setVoiceId(id)
+    suspend fun saveFishKey(key: String) { companion?.saveFishKey(key) }
+    fun forgetFishKey() { viewModelScope.launch { companion?.forgetFishKey() } }
+    fun stopSpeaking() = companion?.stop()
+    fun listen(text: String) { companion?.speak(text, force = true) }
 
     val connection: StateFlow<ConnectionState> = repository.connection
     val profile: StateFlow<AgentProfile> = repository.profile
+    private val _accountFailure = kotlinx.coroutines.flow.MutableStateFlow<app.dotshermes.data.direct.ApiFailure?>(null)
+    val accountFailure: StateFlow<app.dotshermes.data.direct.ApiFailure?> = _accountFailure
+    fun clearAccountFailure() { _accountFailure.value = null }
+    fun editDirectAccount() { val target = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { target.disconnect() } }
+    /** Retour depuis l'écran de modification sans rien changer : le compte direct se rouvre avec sa clé enregistrée. */
+    fun cancelEditDirect() { agents.activeId.value?.let { id -> viewModelScope.launch { agents.resumeDirect(id) } } }
+    val gatewayFeatures = repository.gatewayFeatures
+    val voiceInput = repository.voiceInput
+    val requestIssue = repository.requestIssue
+    fun retryRequest() { val target = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { target.retryRequest() } }
+    suspend fun availableModels(provider: app.dotshermes.data.direct.ApiProvider, key: String) = agents.availableModels(provider, key)
+    suspend fun connectApi(editorKey: String, provider: app.dotshermes.data.direct.ApiProvider, model: String, key: String): app.dotshermes.data.direct.ApiFailure? {
+        if (agents.connectionEditor.value.key != editorKey) return app.dotshermes.data.direct.ApiFailure.Cancelled
+        val target = agents.directTarget()
+        repository.leaveDemo()
+        return viewModelScope.async(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            // Modèle laissé vide (Groq) : on prend le meilleur modèle de conversation que ce compte propose.
+            val chosen = model.trim().ifEmpty {
+                app.dotshermes.data.direct.defaultModel(provider, agents.availableModels(provider, key))
+                    ?: return@async app.dotshermes.data.direct.ApiFailure.ModelUnavailable
+            }
+            if (agents.connectDirect(provider, chosen, key, target)) null else app.dotshermes.data.direct.ApiFailure.Storage
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: app.dotshermes.data.direct.ApiException) { e.failure }
+        catch (_: Exception) { app.dotshermes.data.direct.ApiFailure.Storage }
+    }.await()
+    }
+    val connectionEditor = agents.connectionEditor
     /** Apparence de l'agent affiché (son dot principal) ; le thème est commun à tous. */
     val appearance: StateFlow<DotAppearance> = agents.activeAppearance
 
@@ -193,9 +253,10 @@ class HermesViewModel(
      * Appairage depuis l'écran de connexion : la démo ; un agent de plus (ou le premier) ; ou un
      * nouvel appairage de l'agent affiché (jeton changé), qui garde ses conversations et ses réglages.
      */
-    fun connect(url: String, token: String) {
+    fun connect(url: String, token: String, editorKey: String) {
         val config = GatewayConfig(url.trim(), token.trim())
         viewModelScope.launch {
+            if (agents.connectionEditor.value.key != editorKey) return@launch
             if (config.isDemo) {
                 repository.connect(config)
                 return@launch
@@ -203,7 +264,8 @@ class HermesViewModel(
             repository.leaveDemo()
             val active = agents.activeId.value
             if (agents.pending.value != null || active == null || agents.store.get(active) == null) agents.connectNew(config)
-            else agents.reconnect(active, config)
+            else if (agents.store.get(active)?.provider == null) agents.reconnect(active, config)
+            else { agents.beginAdd(preserveEditor = true); agents.connectNew(config) }
         }
     }
 
@@ -216,16 +278,28 @@ class HermesViewModel(
             repository.leaveDemo()
             return
         }
-        agents.activeId.value?.let(agents::remove)
+        agents.activeId.value?.let { id -> viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try { agents.remove(id) } catch (_: Exception) { _accountFailure.value = app.dotshermes.data.direct.ApiFailure.Storage }
+        } }
     }
 
+    fun hasGatewayAccounts(): Boolean = agents.store.agents.value.any { it.provider == null }
+    fun isDirectAccount(): Boolean = agents.activeId.value?.let(agents.store::get)?.provider != null
+    fun removeAccount(id: String) { viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        try { agents.remove(id) }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { _accountFailure.value = app.dotshermes.data.direct.ApiFailure.Storage }
+    } }
+
     fun send(text: String) {
+        companion?.stop()
         if (text.isNotBlank()) repository.send(text.trim())
     }
 
     /** Micro : la permission est demandée par l'écran avant l'appel. */
     fun startRecording(): Boolean {
         player.stop()
+        companion?.stop()
         return recorder.start()
     }
 
@@ -250,8 +324,10 @@ class HermesViewModel(
 
     /** Fichier choisi sur le téléphone : copié en privé puis envoyé, avec le brouillon comme légende. */
     fun sendAttachment(uri: Uri, caption: String, onTooBig: () -> Unit) {
+        val target = repository.currentTarget()
+        if (!target.gatewayFeatures.value) return
         viewModelScope.launch {
-            attachments.import(uri, onTooBig)?.let { repository.sendFile(it.file, it.name, it.mime, caption.trim()) }
+            attachments.import(uri, onTooBig)?.let { target.sendFile(it.file, it.name, it.mime, caption.trim()) }
         }
     }
 
@@ -291,7 +367,7 @@ class HermesViewModel(
 
     fun cronAction(id: String, action: CronAction) = repository.cronAction(id, action)
 
-    fun stopTurn() = repository.stopTurn()
+    fun stopTurn() { val target = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { target.stopTurn() } }
 
     fun loadOlder() = repository.loadOlder()
 

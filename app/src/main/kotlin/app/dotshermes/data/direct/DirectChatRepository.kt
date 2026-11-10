@@ -1,0 +1,317 @@
+package app.dotshermes.data.direct
+
+import app.dotshermes.data.ChatRepository
+import app.dotshermes.data.model.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
+import java.io.File
+import java.time.Instant
+import java.util.UUID
+
+data class DirectRequestIssue(val failure: ApiFailure, val canRetry: Boolean, val waitSeconds: Long = 0, val retryAtMs: Long = 0, val cooldownOnly: Boolean = false)
+
+/** Un compte, un fil et une requête à la fois. Aucun renvoi payant automatique après erreur ou reprise. */
+class DirectChatRepository(
+    private val accountId: String,
+    private val provider: ApiProvider,
+    private val model: String,
+    private val scope: CoroutineScope,
+    private val storage: DirectAccountStorage,
+    private val client: ProviderClient,
+    private val clockMs: () -> Long = System::currentTimeMillis,
+    inheritedCooldownUntilMs: Long = 0,
+    /** Personnalité choisie dans les réglages (texte « system »), relue à chaque message. */
+    private val persona: () -> String = { "" },
+) : ChatRepository {
+    private val lock = Any()
+    private var transcript = DirectTranscript()
+    private var generation = 0L
+    private var job: Job? = null
+    private var busy = false
+    private var ready = false
+    private var memoryCooldownUntilMs = inheritedCooldownUntilMs
+    private var loadedQuotaScope: String? = null
+    private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    override val messages = _messages.asStateFlow()
+    private val _activity = MutableStateFlow<AgentActivity>(AgentActivity.Idle)
+    override val activity = _activity.asStateFlow()
+    // « Connecting » jusqu'à la lecture du coffre : l'app attend sur un fond neutre au lieu de
+    // montrer l'écran de connexion une fraction de seconde à chaque lancement.
+    private val _connection = MutableStateFlow<ConnectionState>(ConnectionState.Connecting(""))
+    override val connection = _connection.asStateFlow()
+    private val _failure = MutableStateFlow<DirectRequestIssue?>(null)
+    val failure = _failure.asStateFlow()
+    private val _directUsage = MutableStateFlow(DirectApiUsage(provider, model, null, 0))
+    override val directUsage = _directUsage.asStateFlow()
+    override val requestIssue get() = failure
+    override val gatewayFeatures = MutableStateFlow(false).asStateFlow()
+    /** Micro : Groq transcrit les vocaux (Whisper) ; les autres fournisseurs restent en texte. */
+    override val voiceInput = MutableStateFlow(provider == ApiProvider.Groq).asStateFlow()
+    override fun retryRequest() = retry()
+    override val profile = MutableStateFlow(AgentProfile(name = provider.title, tagline = model)).asStateFlow()
+    override val tools = MutableStateFlow<List<ToolCall>>(emptyList()).asStateFlow()
+    override val screen = MutableStateFlow(ScreenState()).asStateFlow()
+    override val activitySnapshot = MutableStateFlow<ActivitySnapshot?>(null).asStateFlow()
+    override val hasOlder = MutableStateFlow(false).asStateFlow()
+    override val dots = MutableStateFlow<List<SubDot>>(emptyList()).asStateFlow()
+    override val activeChat = MutableStateFlow(MAIN_CHAT).asStateFlow()
+    override val chatActivity = activity.map { mapOf(MAIN_CHAT to it) }.stateIn(scope, SharingStarted.Eagerly, mapOf(MAIN_CHAT to AgentActivity.Idle))
+    private val _unread = MutableStateFlow<Map<String, Int>>(emptyMap())
+    override val unread = _unread.asStateFlow()
+    @Volatile private var shown = false
+    override fun setShown(shown: Boolean) { this.shown = shown; if (shown) _unread.value = emptyMap() }
+
+    suspend fun restore() = withContext(Dispatchers.IO) {
+        synchronized(lock) {
+            generation++; job?.cancel(); busy = false; ready = false
+            try {
+                val key = storage.key(accountId)?.takeIf { it.isNotBlank() } ?: throw ApiException(ApiFailure.MissingKey)
+                val scopeId = quotaScope(provider, model, key)
+                val saved = storage.load(accountId)
+                if (loadedQuotaScope != null && loadedQuotaScope != scopeId) memoryCooldownUntilMs = 0
+                loadedQuotaScope = scopeId
+                val scoped = if (saved.quotaScope == scopeId) saved else saved.copy(
+                    limits = null, cooldownUntilMs = 0, quotaScope = scopeId,
+                    failure = saved.failure?.takeUnless { it in setOf(ApiFailure.RateLimited, ApiFailure.Quota) })
+                memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, scoped.cooldownUntilMs)
+                val restored = scoped.copy(cooldownUntilMs = memoryCooldownUntilMs)
+                val interrupted = restored.messages.any { it.state == DirectEntryState.Pending || it.state == DirectEntryState.Streaming }
+                val normalized = if (interrupted) restored.copy(
+                    messages = restored.messages.map { if (it.state in setOf(DirectEntryState.Pending, DirectEntryState.Streaming)) it.copy(state = DirectEntryState.Failed) else it },
+                    failure = ApiFailure.Interrupted,
+                ) else restored
+                commit(normalized)
+                _failure.value = normalized.failure?.let { issue(it) }
+                    ?: ApiFailure.RateLimited.takeIf { normalized.cooldownUntilMs > clockMs() }?.let { issue(it, cooldownOnly = true) }
+                _connection.value = ConnectionState.Connected(provider.title, 0)
+                ready = true
+            } catch (e: Exception) {
+                _failure.value = issue((e as? ApiException)?.failure ?: ApiFailure.Storage)
+                _connection.value = ConnectionState.Disconnected
+            }
+            _activity.value = AgentActivity.Idle
+        }
+    }
+
+    /** Une reprise avec la même clé/modèle ne perd pas un délai dont l'écriture a échoué. */
+    fun cooldownFor(provider: ApiProvider, model: String, key: String): Long = synchronized(lock) {
+        if (loadedQuotaScope == quotaScope(provider, model, key)) maxOf(memoryCooldownUntilMs, transcript.cooldownUntilMs) else 0
+    }
+
+    // Le paramètre historique appartient au contrat commun ; aucune adresse/token Hermes n'est utilisé ici.
+    override suspend fun connect(config: GatewayConfig) = restore()
+
+    override fun send(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        begin(trimmed, null)
+    }
+
+    fun retry() {
+        synchronized(lock) {
+            val id = transcript.retryUserId ?: return
+            if (_failure.value?.canRetry != true) return
+            begin(null, id)
+        }
+    }
+
+    private fun begin(text: String?, retryId: String?) {
+        synchronized(lock) {
+            if (!ready || busy) return
+            if (maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs) > clockMs()) {
+                _failure.value = issue(transcript.failure ?: ApiFailure.RateLimited, cooldownOnly = transcript.failure == null)
+                return
+            }
+            memoryCooldownUntilMs = 0
+            busy = true
+            val token = ++generation
+            _failure.value = null
+            _activity.value = AgentActivity.Thinking
+            job = scope.launch(Dispatchers.IO) { runTurn(token, text, retryId) }
+        }
+    }
+
+    private suspend fun runTurn(token: Long, text: String?, retryId: String?) {
+        var userId: String? = retryId
+        var answerId: String? = null
+        try {
+            val turns = synchronized(lock) {
+                if (token != generation) return
+                val previous = transcript.messages
+                val user = if (retryId != null) previous.first { it.id == retryId && it.role == "user" }
+                    else DirectEntry(UUID.randomUUID().toString(), "user", requireNotNull(text), System.currentTimeMillis(), DirectEntryState.Pending)
+                userId = user.id
+                val retained = if (retryId == null) previous else previous.filterNot { it.id == retryId || it.replyTo == retryId }
+                val answer = DirectEntry(UUID.randomUUID().toString(), "assistant", "", System.currentTimeMillis(), DirectEntryState.Streaming, user.id)
+                answerId = answer.id
+                commit(transcript.copy(messages = retained + user.copy(state = DirectEntryState.Pending) + answer, retryUserId = user.id, failure = null, cooldownUntilMs = 0))
+                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it) }) +
+                    completedContext(retained) + ApiTurn("user", user.text)
+            }
+            val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
+            client.streamWithUsage(provider, key, model, turns, { limits ->
+                synchronized(lock) {
+                    if (token == generation) {
+                        memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, limits.exhaustedUntilMs())
+                        commit(transcript.copy(limits = limits, cooldownUntilMs = memoryCooldownUntilMs))
+                    }
+                }
+            }) { delta ->
+                synchronized(lock) {
+                    if (token == generation) {
+                        commit(transcript.copy(messages = transcript.messages.map {
+                            when (it.id) {
+                                answerId -> it.copy(text = it.text + delta)
+                                userId -> it.copy(state = DirectEntryState.Complete)
+                                else -> it
+                            }
+                        }))
+                        _activity.value = AgentActivity.Typing
+                    }
+                }
+            }
+            synchronized(lock) {
+                if (token == generation) {
+                    val doneAt = System.currentTimeMillis()
+                    commit(transcript.copy(messages = transcript.messages.map {
+                        when (it.id) {
+                            answerId -> it.copy(state = DirectEntryState.Complete, durationMs = (doneAt - it.timestampMs).coerceAtLeast(0))
+                            userId -> it.copy(state = DirectEntryState.Complete)
+                            else -> it
+                        }
+                    }, retryUserId = null, failure = null))
+                    if (transcript.cooldownUntilMs > clockMs()) _failure.value = issue(ApiFailure.RateLimited, cooldownOnly = true)
+                    if (!shown) _unread.value = mapOf(MAIN_CHAT to ((_unread.value[MAIN_CHAT] ?: 0) + 1))
+                }
+            }
+        } catch (_: CancellationException) {
+            // stopTurn/disconnect ont déjà figé le fil et invalidé les callbacks de cette génération.
+        } catch (e: Exception) {
+            synchronized(lock) {
+                if (token == generation) {
+                    val problem = (e as? ApiException) ?: ApiException(ApiFailure.InvalidResponse)
+                    val waitMs = problem.retryAfterSeconds.coerceIn(0, MAX_COOLDOWN_MS / 1000) * 1000
+                    val until = maxOf(memoryCooldownUntilMs, transcript.cooldownUntilMs, if (waitMs > 0) clockMs() + waitMs else 0)
+                        .let { if (problem.failure == ApiFailure.RateLimited && it <= clockMs()) clockMs() + 60_000 else it }
+                    memoryCooldownUntilMs = until
+                    val failed = transcript.copy(messages = transcript.messages.map {
+                        if (it.id == answerId || it.id == userId) it.copy(state = DirectEntryState.Failed) else it
+                    }, retryUserId = userId?.takeIf { id -> transcript.messages.any { it.id == id && it.role == "user" } }, failure = problem.failure, cooldownUntilMs = until)
+                    try { commit(failed) } catch (_: Exception) {
+                        ready = false
+                        _connection.value = ConnectionState.Disconnected
+                        _directUsage.value = _directUsage.value.copy(cooldownUntilMs = until)
+                        _failure.value = issue(ApiFailure.Storage)
+                    }
+                    if (_failure.value == null) _failure.value = issue(problem.failure)
+                }
+            }
+        } finally {
+            synchronized(lock) { if (token == generation) { busy = false; _activity.value = AgentActivity.Idle; job = null } }
+        }
+    }
+
+    override fun stopTurn() {
+        synchronized(lock) {
+            if (!busy) return
+            generation++; job?.cancel(); job = null; busy = false
+            val stopped = transcript.copy(messages = transcript.messages.map {
+                when (it.state) {
+                    DirectEntryState.Streaming -> it.copy(state = DirectEntryState.Stopped)
+                    DirectEntryState.Pending -> it.copy(state = DirectEntryState.Failed)
+                    else -> it
+                }
+            }, failure = ApiFailure.Cancelled)
+            try { commit(stopped); _failure.value = issue(ApiFailure.Cancelled) }
+            catch (_: Exception) { _failure.value = issue(ApiFailure.Storage) }
+            _activity.value = AgentActivity.Idle
+        }
+    }
+
+    override fun disconnect() {
+        stopTurn()
+        synchronized(lock) { generation++; ready = false; _connection.value = ConnectionState.Disconnected }
+    }
+
+    private fun commit(value: DirectTranscript) {
+        storage.save(accountId, value)
+        transcript = value
+        memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, value.cooldownUntilMs)
+        _directUsage.value = DirectApiUsage(provider, model, value.limits, value.cooldownUntilMs)
+        val newestDone = value.messages.lastOrNull { it.role == "assistant" && it.state == DirectEntryState.Complete && it.durationMs != null }?.id
+        _messages.value = value.messages.map { entry -> ChatMessage(
+            id = entry.id, sender = if (entry.role == "user") Sender.User else Sender.Agent,
+            content = MessageContent.Text(entry.text), sentAt = Instant.ofEpochMilli(entry.timestampMs),
+            delivery = if (entry.role == "user") Delivery.Sent else Delivery.Read,
+            remoteId = entry.id, turn = entry.replyTo, failed = entry.role == "user" && entry.state == DirectEntryState.Failed,
+            footer = if (entry.id == newestDone) replyFooter(model, entry.durationMs ?: 0) else null,
+        ) }
+    }
+
+    private fun issue(failure: ApiFailure, cooldownOnly: Boolean = false) = DirectRequestIssue(failure,
+        !cooldownOnly && transcript.retryUserId != null && failure in setOf(ApiFailure.Network, ApiFailure.Interrupted,
+            ApiFailure.Unavailable, ApiFailure.RateLimited, ApiFailure.Quota, ApiFailure.Cancelled),
+        cooldownSeconds(maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs), clockMs()),
+        maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs), cooldownOnly)
+
+    override fun toggleReaction(messageId: String, emoji: String) {}
+    override fun answerApproval(messageId: String, approved: Boolean) {}
+    override fun answerClarify(messageId: String, response: String) {}
+    /**
+     * Vocal : transcrit par Groq, puis envoyé comme un message écrit (la bulle montre le texte). Le
+     * fichier est effacé dans tous les cas ; un échec s'affiche sans bouton Réessayer (rien n'est parti).
+     */
+    override fun sendVoice(file: File, durationMs: Long, waveform: List<Float>) {
+        synchronized(lock) {
+            if (!ready || busy || provider != ApiProvider.Groq) { file.delete(); return }
+            if (maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs) > clockMs()) {
+                file.delete()
+                _failure.value = issue(ApiFailure.RateLimited, cooldownOnly = true)
+                return
+            }
+            busy = true
+            _failure.value = null
+            _activity.value = AgentActivity.Working(VOICE_LABEL)
+        }
+        scope.launch(Dispatchers.IO) {
+            val text = try {
+                val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
+                client.transcribe(provider, key, file)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                val failure = (e as? ApiException)?.failure ?: ApiFailure.Network
+                synchronized(lock) { _failure.value = DirectRequestIssue(failure, canRetry = false) }
+                null
+            } finally {
+                file.delete()
+                synchronized(lock) { busy = false; _activity.value = AgentActivity.Idle }
+            }
+            if (!text.isNullOrBlank()) send(text)
+        }
+    }
+    override fun sendFile(file: File, name: String, mime: String, caption: String) {}
+    override suspend fun attachmentFile(messageId: String): File? = null
+}
+
+/** « gpt-oss-120b · 1.4 s » : le modèle sans son préfixe d'éditeur, et la durée de la réponse. */
+internal fun replyFooter(model: String, durationMs: Long): String {
+    val name = model.substringAfterLast('/')
+    val seconds = durationMs / 1000.0
+    val time = if (seconds < 10) String.format(java.util.Locale.ROOT, "%.1f s", seconds) else "${Math.round(seconds)} s"
+    return "$name · $time"
+}
+
+/** Libellé de l'en-tête pendant la transcription ; neutre, pour les deux langues. */
+private const val VOICE_LABEL = "🎙…"
+
+/** Seuls les tours complets sont rejoués ; un prompt arrêté/interrompu ne repart pas implicitement. */
+internal fun completedContext(entries: List<DirectEntry>): List<ApiTurn> {
+    val completeReplies = entries.filter { it.role == "assistant" && it.state == DirectEntryState.Complete }.associateBy { it.replyTo }
+    return entries.filter { it.role == "user" && it.state == DirectEntryState.Complete }.flatMap { user ->
+        completeReplies[user.id]?.let { listOf(ApiTurn("user", user.text), ApiTurn("assistant", it.text)) } ?: emptyList()
+    }
+}

@@ -81,18 +81,18 @@ class WebPairViewModel(private val agents: AgentRegistry, private val pairer: We
 
     // -- Sessions web ------------------------------------------------------------------------------
 
-    fun sessions(agentId: String): StateFlow<List<WebSession>?> = agents.repo(agentId).webSessions
+    fun sessions(agentId: String): StateFlow<List<WebSession>?> = agents.gatewayRepo(agentId)?.webSessions ?: kotlinx.coroutines.flow.MutableStateFlow(null)
 
     /** Redemande la liste à chaque agent connecté. */
     fun refreshSessions() {
         agents.store.agents.value.forEach { link ->
-            val repo = agents.repo(link.id)
+            val repo = agents.gatewayRepo(link.id) ?: return@forEach
             if (repo.connection.value is ConnectionState.Connected) repo.requestWebSessions()
         }
     }
 
     fun revoke(agentId: String, sessionId: String) {
-        agents.repo(agentId).revokeWebSession(sessionId)
+        agents.gatewayRepo(agentId)?.revokeWebSession(sessionId)
     }
 
     override fun onCleared() {

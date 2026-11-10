@@ -71,9 +71,9 @@ class WebPairer(
 
     suspend fun pair(qr: PairQr): PairReport = coroutineScope {
         val label = label(qr)
-        val results = agents.store.agents.value.map { link ->
+        val results = agents.store.agents.value.filter { it.provider == null }.map { link ->
             async {
-                val repo = agents.repo(link.id)
+                val repo = requireNotNull(agents.gatewayRepo(link.id))
                 val look = agents.appearance(link.id).state.value
                 val name = look.displayName
                 if (repo.connection.value !is ConnectionState.Connected) return@async AgentResult(issue = AgentIssue.Offline(name))
@@ -95,7 +95,7 @@ class WebPairer(
         val failure = post(qr, deposit)
         if (failure != null) {
             // Le navigateur ne recevra jamais ces jetons : on ne laisse pas de sessions orphelines sur les gateways.
-            granted.forEach { agents.repo(it.agentId).revokeWebSession(it.sessionId) }
+            granted.forEach { agents.gatewayRepo(it.agentId)?.revokeWebSession(it.sessionId) }
         }
         PairReport(granted.map { it.look.displayName }, issues, failure)
     }

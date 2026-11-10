@@ -46,6 +46,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -163,6 +164,17 @@ fun ChatScreen(
     onSwitchDot: (String) -> Unit = {},
     onSendFile: (uri: Uri, caption: String, onTooBig: () -> Unit) -> Unit = { _, _, _ -> },
     attachments: AttachmentControls? = null,
+    gatewayFeatures: Boolean = true,
+    /** Micro affiché : Hermes, ou un compte Groq (vocal transcrit en texte). */
+    voiceInput: Boolean = gatewayFeatures,
+    /** Une réponse est lue à voix haute : le bouton Arrêter la coupe. */
+    speaking: Boolean = false,
+    onStopSpeaking: () -> Unit = {},
+    /** Voix Fish Audio prête : « Écouter » sous la dernière réponse ; null = pas de lien. */
+    onListen: ((String) -> Unit)? = null,
+    requestIssue: app.dotshermes.data.direct.DirectRequestIssue? = null,
+    onRetryRequest: () -> Unit = {},
+    onStopRequest: () -> Unit = {},
     /** Salon de groupe : invite ces sous-dots dans la conversation affichée (liste vide : salon fermé). */
     onSetRoom: (List<String>) -> Unit = {},
     /** Plusieurs agents Hermes : le nom de l'en-tête ouvre leur menu ; null avec un seul agent (en-tête d'avant). */
@@ -176,6 +188,14 @@ fun ChatScreen(
     var suggestionsOpen by rememberSaveable { mutableStateOf(false) }
     var roomSheetOpen by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    var cooldownRemaining by remember(requestIssue) { mutableStateOf(
+        app.dotshermes.data.direct.cooldownSeconds(requestIssue?.retryAtMs ?: 0, System.currentTimeMillis())) }
+    LaunchedEffect(requestIssue) {
+        do {
+            cooldownRemaining = app.dotshermes.data.direct.cooldownSeconds(requestIssue?.retryAtMs ?: 0, System.currentTimeMillis())
+            if (cooldownRemaining > 0) kotlinx.coroutines.delay(250)
+        } while (cooldownRemaining > 0)
+    }
 
     /** Qui parle dans un salon : un sous-dot invité, ou le dot de la conversation ; un sous-dot fermé depuis garde son nom. */
     fun lookFor(message: ChatMessage): DotAppearance {
@@ -193,12 +213,14 @@ fun ChatScreen(
     val newestToolsKey = state.rows.firstOrNull { it is ChatRow.Tools }?.key
 
     fun attach(uri: Uri) {
+        if (!gatewayFeatures) return
         onSendFile(uri, draft) { Toast.makeText(context, R.string.chat_file_too_big, Toast.LENGTH_SHORT).show() }
         draft = ""
         suggestionsOpen = false
     }
 
     fun submit(text: String) {
+        if (!gatewayFeatures && (state.activity != AgentActivity.Idle || cooldownRemaining > 0)) return
         onSend(text)
         draft = ""
         suggestionsOpen = false
@@ -224,6 +246,7 @@ fun ChatScreen(
                             is ChatRow.Day -> DaySeparator(dayLabel(row))
                             is ChatRow.Bubble -> MessageRow(
                                 row = row,
+                                reactionsEnabled = gatewayFeatures,
                                 speakerLook = if (row.showSpeaker) lookFor(row.message) else null,
                                 onReact = { emoji -> onReact(row.message.id, emoji) },
                                 onApproval = { approved -> onApproval(row.message.id, approved) },
@@ -233,6 +256,7 @@ fun ChatScreen(
                                 onSeekVoice = { fraction -> voice.onSeek(row.message.id, fraction) },
                                 attachments = attachments,
                                 onTakeover = onTakeover,
+                                onListen = onListen?.let { listen -> (row.message.content as? app.dotshermes.data.model.MessageContent.Text)?.let { { listen(it.text) } } },
                             )
                             is ChatRow.Tools -> ToolTrail(
                                 row,
@@ -249,6 +273,7 @@ fun ChatScreen(
                 state.agentName, state.activity, connection, appearance, onOpenAgent,
                 Modifier.onSizeChanged { headerHeightPx = it.height },
                 onOpenActivity = onOpenActivity,
+                gatewayFeatures = gatewayFeatures,
                 otherUnread = otherUnread,
                 heroDots = heroDots,
                 activeChat = activeChat,
@@ -264,7 +289,27 @@ fun ChatScreen(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
             )
           }
+            if (!gatewayFeatures) {
+                requestIssue?.takeUnless { it.cooldownOnly && cooldownRemaining == 0L }?.let { issue ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(app.dotshermes.ui.connect.apiFailureMessage(issue.failure)),
+                            color = Ink.Secondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        if (issue.canRetry) androidx.compose.material3.TextButton(onClick = onRetryRequest, enabled = cooldownRemaining == 0L) {
+                            Text(if (cooldownRemaining > 0) stringResource(R.string.api_retry_wait, cooldownRemaining) else stringResource(R.string.api_retry))
+                        } else if (cooldownRemaining > 0) {
+                            Text(stringResource(R.string.api_retry_wait, cooldownRemaining),
+                                style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                        }
+                    }
+                }
+            }
             Composer(
+                mediaEnabled = gatewayFeatures,
+                voiceEnabled = voiceInput,
+                // Compte direct : pendant la réponse, le bouton d'envoi devient « Arrêter ».
+                busy = speaking || (!gatewayFeatures && state.activity != AgentActivity.Idle),
+                onStop = { if (speaking && state.activity == AgentActivity.Idle) onStopSpeaking() else onStopRequest() },
+                sendingEnabled = gatewayFeatures || (state.activity == AgentActivity.Idle && cooldownRemaining == 0L),
                 draft = draft,
                 onDraftChange = { draft = it },
                 agentName = state.agentName,
@@ -317,6 +362,7 @@ private fun ChatHeader(
     speakingName: String? = null,
     onOpenAgents: (() -> Unit)? = null,
     otherAgentsUnread: Int = 0,
+    gatewayFeatures: Boolean = true,
 ) {
     val palette = LocalDotPalette.current
     Column(
@@ -331,7 +377,7 @@ private fun ChatHeader(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { ConnectionPill(connection) }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { ConnectionPill(connection, gatewayFeatures) }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -366,7 +412,7 @@ private fun ChatHeader(
             }
             AnimatedContent(
                 // En plein débat, l'en-tête annonce qui a la parole ; le dot de la conversation reste au centre.
-                targetState = speakingName?.let { stringResource(R.string.room_speaking, it) } ?: activity.statusLabel(),
+                targetState = speakingName?.let { stringResource(R.string.room_speaking, it) } ?: if (!gatewayFeatures && activity == AgentActivity.Idle) stringResource(R.string.api_ready) else activity.statusLabel(),
                 transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
                 label = "status",
             ) { label ->
@@ -392,7 +438,7 @@ private fun ChatHeader(
 }
 
 @Composable
-private fun ConnectionPill(connection: ConnectionState.Connected?) {
+private fun ConnectionPill(connection: ConnectionState.Connected?, gatewayFeatures: Boolean = true) {
     val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
         initialValue = 0.35f,
         targetValue = 1f,
@@ -412,8 +458,9 @@ private fun ConnectionPill(connection: ConnectionState.Connected?) {
         Spacer(Modifier.width(6.dp))
         val label = when {
             connection == null -> stringResource(R.string.conn_offline)
-            !connection.online -> stringResource(R.string.conn_reconnecting)
+            !connection.online -> connection.reconnectReason ?: stringResource(R.string.conn_reconnecting)
             connection.demo -> stringResource(R.string.conn_demo)
+            !gatewayFeatures -> stringResource(R.string.api_direct_status)
             else -> stringResource(R.string.latency_ms, connection.latencyMs)
         }
         Text(label, style = MaterialTheme.typography.labelMedium, color = Ink.Primary)
@@ -434,6 +481,11 @@ private fun DaySeparator(label: String) {
 @Composable
 private fun Composer(
     draft: String,
+    mediaEnabled: Boolean = true,
+    voiceEnabled: Boolean = mediaEnabled,
+    sendingEnabled: Boolean = true,
+    busy: Boolean = false,
+    onStop: () -> Unit = {},
     onDraftChange: (String) -> Unit,
     agentName: String,
     suggestionsOpen: Boolean,
@@ -461,7 +513,8 @@ private fun Composer(
         }
     }
     val plusRotation by animateFloatAsState(if (suggestionsOpen) 45f else 0f, label = "plus-rotation")
-    val suggestions = stringArrayResource(R.array.chat_suggestions)
+    // Les amorces Hermes (« Qu'as-tu fait cette nuit ? ») n'ont pas de sens pour un compte API direct.
+    val suggestions = stringArrayResource(if (mediaEnabled) R.array.chat_suggestions else R.array.chat_suggestions_direct)
 
     Column(Modifier.fillMaxWidth().background(Ink.Surface).navigationBarsPadding()) {
         AnimatedVisibility(
@@ -474,12 +527,12 @@ private fun Composer(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 10.dp),
             ) {
-                item {
+                if (mediaEnabled) item {
                     AttachChip(Icons.Rounded.PhotoLibrary, stringResource(R.string.attach_photo)) {
                         pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
                     }
                 }
-                item { AttachChip(Icons.Rounded.AttachFile, stringResource(R.string.attach_file)) { pickDocument.launch(arrayOf("*/*")) } }
+                if (mediaEnabled) item { AttachChip(Icons.Rounded.AttachFile, stringResource(R.string.attach_file)) { pickDocument.launch(arrayOf("*/*")) } }
                 if (canOpenRoom) item { AttachChip(Icons.Rounded.Groups, stringResource(R.string.room_chip), onClick = onOpenRoom) }
                 items(suggestions) { suggestion ->
                     Text(
@@ -489,7 +542,8 @@ private fun Composer(
                         modifier = Modifier
                             .clip(CircleShape)
                             .background(palette.light)
-                            .clickable { onSend(suggestion) }
+                            // Compte direct : l'amorce se place dans le champ, à compléter ; rien ne part (ni n'est facturé) sans envoi.
+                            .clickable { if (mediaEnabled) onSend(suggestion) else { onDraftChange("$suggestion "); onToggleSuggestions() } }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     )
                 }
@@ -512,20 +566,20 @@ private fun Composer(
                 icon = Icons.Rounded.Add,
                 contentDescription = stringResource(R.string.cd_suggestions),
                 onClick = onToggleSuggestions,
-                size = 40.dp,
+                size = 44.dp,
                 modifier = Modifier.graphicsLayer { rotationZ = plusRotation },
             )
             Spacer(Modifier.width(8.dp))
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 40.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(22.dp))
                     .background(Ink.Fill)
-                    .padding(start = 16.dp, end = 4.dp),
+                    .padding(start = 16.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                Box(Modifier.weight(1f).padding(vertical = 9.dp)) {
+                Box(Modifier.weight(1f).padding(vertical = 11.dp)) {
                     if (draft.isEmpty()) {
                         Text(
                             if (room.isEmpty()) stringResource(R.string.composer_placeholder, agentName) else stringResource(R.string.room_placeholder),
@@ -541,30 +595,49 @@ private fun Composer(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                Box(Modifier.padding(bottom = 4.dp).size(32.dp), contentAlignment = Alignment.Center) {
-                    AnimatedContent(
-                        targetState = draft.isNotBlank(),
-                        transitionSpec = { (scaleIn(initialScale = 0.6f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.6f) + fadeOut()) },
-                        label = "send-or-mic",
-                    ) { canSend ->
-                        if (canSend) {
-                            Box(
-                                Modifier.size(32.dp).clip(CircleShape).background(palette.base).clickable { onSend(draft) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(Icons.Rounded.ArrowUpward, stringResource(R.string.cd_send), tint = palette.onBase, modifier = Modifier.size(18.dp))
-                            }
-                        } else {
-                            Box(
-                                Modifier.size(32.dp).clip(CircleShape).clickable(onClick = ::startRecording),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(Icons.Rounded.Mic, stringResource(R.string.cd_record_voice), tint = palette.deep, modifier = Modifier.size(22.dp))
-                            }
-                        }
+                // Une seule commande, cible de 44 dp : Arrêter pendant la réponse, Envoyer dès qu'il y a du texte, sinon le micro.
+                val action = when {
+                    busy -> ComposerAction.Stop
+                    draft.isNotBlank() -> ComposerAction.Send
+                    voiceEnabled && sendingEnabled -> ComposerAction.Mic
+                    else -> ComposerAction.Idle
+                }
+                AnimatedContent(
+                    targetState = action,
+                    transitionSpec = { (scaleIn(initialScale = 0.6f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.6f) + fadeOut()) },
+                    label = "composer-action",
+                ) { shown ->
+                    when (shown) {
+                        ComposerAction.Stop -> ComposerButton(Icons.Rounded.Stop, stringResource(R.string.api_stop), filled = true, onClick = onStop)
+                        // Envoi impossible (délai d'attente du fournisseur) : le bouton s'efface au lieu de rester muet.
+                        ComposerAction.Send -> ComposerButton(Icons.Rounded.ArrowUpward, stringResource(R.string.cd_send), filled = true,
+                            enabled = sendingEnabled) { onSend(draft) }
+                        ComposerAction.Mic -> ComposerButton(Icons.Rounded.Mic, stringResource(R.string.cd_record_voice), filled = false, onClick = ::startRecording)
+                        ComposerAction.Idle -> ComposerButton(Icons.Rounded.ArrowUpward, stringResource(R.string.cd_send), filled = true, enabled = false) {}
                     }
                 }
             }
+        }
+    }
+}
+
+private enum class ComposerAction { Stop, Send, Mic, Idle }
+
+/** Bouton rond du champ de saisie : pastille de 34 dp dans une zone tactile de 44 dp. */
+@Composable
+private fun ComposerButton(icon: ImageVector, label: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+    val palette = LocalDotPalette.current
+    Box(
+        Modifier.size(44.dp).clip(CircleShape)
+            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier.size(34.dp).graphicsLayer { alpha = if (enabled) 1f else 0.35f }
+                .then(if (filled) Modifier.background(palette.base, CircleShape) else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, label, tint = if (filled) palette.onBase else palette.deep, modifier = Modifier.size(if (filled) 19.dp else 23.dp))
         }
     }
 }

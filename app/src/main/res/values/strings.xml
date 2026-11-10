@@ -2,7 +2,6 @@
 <!-- Textes de l'interface en anglais (langue par défaut). Traduction française : values-fr/strings.xml. -->
 <resources>
     <string name="app_name" translatable="false">Claydot</string>
-    <color name="ic_launcher_background">#FFFFEDE0</color>
 
     <!-- Profil de l'agent -->
     <string name="profile_tagline_gateway">Personal agent · Hermes gateway</string>
@@ -17,7 +16,7 @@
     <string name="gateway_error_token_refused">Token refused by the gateway.</string>
     <string name="gateway_error_not_found">No Dots gateway at this address.</string>
     <string name="gateway_error_unreachable">Gateway unreachable (%1$s).</string>
-    <string name="gateway_error_rate_limited">Too many attempts: the gateway rate-limits this address for %1$d s.</string>
+    <string name="gateway_error_rate_limited">Gateway rate limit reached. Please wait.</string>
     <string name="gateway_error_closed">Connection closed by the gateway.</string>
 
     <!-- Libellés des outils de l'agent -->
@@ -267,7 +266,7 @@
     <string name="agents_add_cancel">Cancel</string>
     <string name="agents_switch_to">Or open another agent:</string>
     <string name="agents_remove">Remove this agent</string>
-    <string name="agents_add_hint">For a Hermes agent whose gateway is already installed (a separate Hermes profile, with its own memory, tools and keys). To split one agent\'s work, create a sub-dot from “My dots” instead.</string>
+    <string name="agents_add_hint">Add OpenAI or Claude with an API key, or connect an existing Hermes gateway. Each account has its own saved conversation.</string>
     <string name="agents_busy">Working…</string>
     <string name="cd_switch_agent">Switch agent</string>
     <string name="theme_auto">Auto</string>
@@ -392,6 +391,41 @@
         <item>Summarize my latest messages</item>
         <item>Thanks Hermes!</item>
     </string-array>
+    <!-- Compte API direct : amorces de message, placées dans le champ (rien n'est envoyé) -->
+    <string-array name="chat_suggestions_direct">
+        <item>Explain this simply:</item>
+        <item>Help me write a message</item>
+        <item>Give me three ideas for…</item>
+        <item>Summarize this text:</item>
+    </string-array>
+    <string name="api_key_saved_hint">Saved · leave empty to keep it</string>
+    <string name="api_model_auto">Automatic · best available</string>
+    <string name="api_get_key_groq">Get a Groq API key</string>
+    <string name="api_connect_tagline_groq">Your AI companion, one message away.
+Paste a Groq API key to get started.</string>
+    <string name="api_key_hint">Your %s key</string>
+    <string name="connect_use_hermes">Use a Hermes server</string>
+    <string name="connect_use_groq">Use a Groq key</string>
+    <string name="companion_personality">Personality</string>
+    <string name="companion_voice">Voice</string>
+    <string name="companion_speak">Read replies aloud</string>
+    <string name="companion_speak_hint">Each reply is spoken with your Fish Audio voice.</string>
+    <string name="companion_speak_setup">Add a Fish Audio key and a voice ID below.</string>
+    <string name="companion_voice_id">Voice ID</string>
+    <string name="companion_voice_id_hint">Fish Audio voice ID</string>
+    <string name="companion_fish_key">Fish key</string>
+    <string name="companion_fish_key_hint">Fish Audio API key</string>
+    <string name="companion_fish_key_save">Save Fish Audio key</string>
+    <string name="companion_fish_key_forget">Remove Fish Audio key</string>
+    <string name="companion_fish_get_key">Get a Fish Audio API key</string>
+    <string name="personality_calm">Calm</string>
+    <string name="personality_playful">Playful</string>
+    <string name="personality_cheeky">Cheeky</string>
+    <string name="personality_calm_hint">Clear, warm and to the point.</string>
+    <string name="personality_playful_hint">Light humour, casual words, the odd emoji.</string>
+    <string name="personality_cheeky_hint">Teases you a little. The answers stay just as accurate.</string>
+    <string name="chat_listen">Listen</string>
+    <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>
     <string name="room_title">Group room</string>
@@ -453,4 +487,45 @@
     <string name="web_revoke">Revoke</string>
     <string name="web_revoke_title">Revoke this browser?</string>
     <string name="web_revoke_text">“%1$s” will be disconnected from %2$s right away. It will need a new QR code to come back.</string>
+
+    <!-- Connexion directe aux fournisseurs, sans gateway. -->
+    <string name="api_connect_title">Connect to %s</string>
+    <string name="api_key_label">API key</string>
+    <string name="api_model_label">Model</string>
+    <string name="api_model_hint">Choose or enter a model ID</string>
+    <string name="api_key_help">Saved keys and chats are encrypted on this device. Messages go directly to your selected provider. API usage is billed by that provider.</string>
+    <string name="api_load_models">Load available models</string>
+    <string name="api_save_account">Save account</string>
+    <string name="api_retry">Retry</string>
+    <string name="api_stop">Stop</string>
+    <string name="api_not_sent">Request failed</string>
+    <string name="api_error_key">Enter a valid API key.</string>
+    <string name="api_error_access">This key does not have the required access.</string>
+    <string name="api_error_model">This model is unavailable for this account.</string>
+    <string name="api_error_quota">API quota or credits are exhausted. Check provider billing.</string>
+    <string name="api_error_rate">Rate limited. Wait before retrying.</string>
+    <string name="api_error_storage">Private storage is unavailable. Check this account before retrying.</string>
+    <string name="api_error_stopped">Stopped. Partial reply saved.</string>
+    <string name="api_error_limit">A context or output limit was reached. Try a shorter request.</string>
+    <string name="api_error_network">The reply was interrupted. Retry only when you are ready.</string>
+    <string name="api_error_response">The provider could not complete this request. Check the model and try again.</string>
+    <string name="api_source">Direct API · encrypted local history</string>
+    <string name="api_retry_wait">%d s</string>
+    <string name="api_direct_status">Direct API</string>
+    <string name="api_provider_label">Provider</string>
+    <string name="api_edit_account">Change API key or model</string>
+    <string name="api_delete_account">Delete account and history</string>
+    <string name="api_delete_warning">This permanently deletes this account’s API key and all its saved conversations from this phone. This cannot be undone.</string>
+    <string name="api_ready">Ready</string>
+    <string name="api_limits_ready">No active cooldown</string>
+    <string name="api_limits_unknown">Limits have not been reported yet. They appear here after a chat response if the provider supplies them.</string>
+    <string name="api_limits_requests">Requests remaining · daily window</string>
+    <string name="api_limits_tokens">Tokens remaining · minute window</string>
+    <string name="api_limits_observed">Last response: %1$s</string>
+    <string name="api_limits_shared">Provider-reported snapshot, shared across your organization. Other apps may use the same allowance. This does not identify your billing plan or guarantee free usage.</string>
+    <string name="api_limits_not_reported">Not reported</string>
+    <string name="api_limits_refresh">Reset time passed · awaiting next response</string>
+    <string name="api_limits_balance">%1$d of %2$d remaining</string>
+    <string name="api_limits_resets">Resets: %1$s</string>
+    <string name="api_limits_remaining">%1$d remaining</string>
 </resources>

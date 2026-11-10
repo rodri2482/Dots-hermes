@@ -2,6 +2,7 @@ package app.dotshermes.data
 
 import android.content.Context
 import app.dotshermes.data.model.GatewayConfig
+import app.dotshermes.data.direct.ApiProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,8 +18,10 @@ import java.util.UUID
  * l'identifiant que le gateway annonce dans `welcome` et dans ses push : il sert à retrouver
  * l'agent d'une notification. Null tant que le gateway ne l'a pas donné (plugin d'avant 1.2).
  */
-data class AgentLink(val id: String, val url: String, val token: String, val remoteId: String? = null) {
-    val config: GatewayConfig get() = GatewayConfig(url, token)
+data class AgentLink(val id: String, val url: String, val token: String, val remoteId: String? = null,
+                     val provider: ApiProvider? = null, val model: String = "") {
+    init { require(provider == null || (token.isEmpty() && model.isNotBlank())) }
+    val config: GatewayConfig get() { check(provider == null); return GatewayConfig(url, token) }
 }
 
 /**
@@ -32,8 +35,9 @@ data class AgentLink(val id: String, val url: String, val token: String, val rem
  * - pas d'identifiant (plugin d'avant 1.2) : l'agent unique, ou le seul agent sans identifiant.
  */
 fun routePush(agents: List<AgentLink>, remoteId: String?): AgentLink? {
-    if (remoteId.isNullOrEmpty()) return agents.singleOrNull() ?: agents.singleOrNull { it.remoteId == null }
-    return agents.firstOrNull { it.remoteId == remoteId } ?: agents.singleOrNull { it.remoteId == null }
+    val gateways = agents.filter { it.provider == null }
+    if (remoteId.isNullOrEmpty()) return gateways.singleOrNull() ?: gateways.singleOrNull { it.remoteId == null }
+    return gateways.firstOrNull { it.remoteId == remoteId } ?: gateways.singleOrNull { it.remoteId == null }
 }
 
 /**
@@ -89,24 +93,36 @@ class AgentStore(context: Context) {
         return migrated
     }
 
-    private fun encode(agents: List<AgentLink>): String = JSONArray().apply {
-        agents.forEach { a ->
-            put(JSONObject().put("id", a.id).put("url", a.url).put("token", a.token).apply { a.remoteId?.let { put("remote_id", it) } })
-        }
-    }.toString()
-
-    private fun decode(raw: String): List<AgentLink> = runCatching {
-        val array = JSONArray(raw)
-        List(array.length()) { array.getJSONObject(it) }.mapNotNull { o ->
-            val id = o.optString("id").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-            AgentLink(id, o.optString("url"), o.optString("token"), o.optString("remote_id").takeIf { it.isNotEmpty() })
-        }
-    }.getOrDefault(emptyList())
+    private fun encode(agents: List<AgentLink>): String = AgentLinkCodec.encode(agents)
+    private fun decode(raw: String): List<AgentLink> = AgentLinkCodec.decode(raw)
 
     companion object {
-        /** L'agent repris de l'appairage unique (ou le premier appairé) : apparence et caches historiques. */
         const val PRIMARY_ID = "main"
         private const val KEY_LIST = "list"
         private const val KEY_ACTIVE = "active"
     }
+}
+
+/** Métadonnées non secrètes des comptes directs ; les clés API restent exclusivement dans le coffre. */
+internal object AgentLinkCodec {
+    fun encode(agents: List<AgentLink>): String = JSONArray().apply {
+        agents.forEach { a ->
+            put(JSONObject().put("id", a.id).put("url", a.url).put("token", a.token).apply {
+                a.remoteId?.let { put("remote_id", it) }
+                a.provider?.let { put("provider", it.id); put("model", a.model) }
+            })
+        }
+    }.toString()
+
+    fun decode(raw: String): List<AgentLink> = runCatching {
+        val array = JSONArray(raw)
+        List(array.length()) { array.getJSONObject(it) }.mapNotNull { o ->
+            val id = o.optString("id").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            runCatching {
+                val provider = if (o.has("provider")) ApiProvider.fromId(o.getString("provider")) ?: return@mapNotNull null else null
+                AgentLink(id, o.optString("url"), o.optString("token"), o.optString("remote_id").takeIf { it.isNotEmpty() }, provider, o.optString("model"))
+            }.getOrNull()
+        }
+    }.getOrDefault(emptyList())
+
 }

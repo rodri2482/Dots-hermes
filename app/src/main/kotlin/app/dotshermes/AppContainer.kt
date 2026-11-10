@@ -9,6 +9,7 @@ import app.dotshermes.data.webpair.WebPairer
 import app.dotshermes.attach.Attachments
 import app.dotshermes.push.Notifications
 import app.dotshermes.update.AppUpdater
+import app.dotshermes.voice.CompanionVoice
 import app.dotshermes.voice.VoicePlayer
 import app.dotshermes.voice.VoiceRecorder
 import kotlinx.coroutines.CoroutineScope
@@ -32,7 +33,8 @@ object AppContainer {
      * réponse rapide et feu vert visent toujours l'agent qui a écrit, pas celui qui est affiché.
      */
     val agents: AgentRegistry by lazy {
-        AgentRegistry(appContext, appScope, AgentStore(appContext), onApprovalResolved = { _, approvalId -> Notifications.cancelApproval(appContext, approvalId) })
+        AgentRegistry(appContext, appScope, AgentStore(appContext), onApprovalResolved = { _, approvalId -> Notifications.cancelApproval(appContext, approvalId) },
+            persona = { name -> companion.persona(name) })
     }
 
     val chatRepository: RoutingChatRepository by lazy {
@@ -42,6 +44,8 @@ object AppContainer {
     val webPairer: WebPairer by lazy { WebPairer(agents) }
     val voiceRecorder: VoiceRecorder by lazy { VoiceRecorder(appContext, appScope) }
     val voicePlayer: VoicePlayer by lazy { VoicePlayer(appScope) }
+    /** Personnalité et voix (Fish Audio) des comptes API directs. */
+    val companion: CompanionVoice by lazy { CompanionVoice(appContext, appScope, app.dotshermes.data.direct.androidApiVault(appContext)) }
     val attachments: Attachments by lazy { Attachments(appContext) }
     val updater: AppUpdater by lazy { AppUpdater(appContext) }
 }

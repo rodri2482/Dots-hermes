@@ -27,6 +27,7 @@ import app.dotshermes.data.model.ToolCall
 import app.dotshermes.data.webpair.WebSession
 import app.dotshermes.data.webpair.WebTokenResult
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -59,13 +60,18 @@ import java.util.concurrent.TimeUnit
 private const val TAG = "GatewayChat"
 private val ReconnectBackoffMs = longArrayOf(1_000, 2_000, 5_000, 10_000, 30_000)
 
-/** Patience demandée par un 429 (en-tête `Retry-After`, en secondes — guard.py) ; 0 si absente ou illisible. */
-internal fun retryAfterSeconds(response: Response?): Long =
-    response?.header("Retry-After")?.trim()?.toLongOrNull()?.takeIf { it > 0 } ?: 0L
+/** Patience demandée par un 429 ; arrondie vers le haut pour ne jamais réessayer avant la date HTTP. */
+internal fun retryAfterSeconds(response: Response?, nowMs: Long = System.currentTimeMillis()): Long {
+    val delay = gatewayRetryDelayMs(0, response?.header("Retry-After"), nowMs)
+    return delay / 1_000 + if (delay % 1_000 != 0L) 1 else 0
+}
 
 /** Délai avant la prochaine tentative : backoff habituel, sauf un `Retry-After` plus long (429 du guard.py). */
 internal fun reconnectDelayMs(attempt: Int, retryAfterSeconds: Long = 0): Long =
-    maxOf(ReconnectBackoffMs[minOf(attempt, ReconnectBackoffMs.lastIndex)], retryAfterSeconds * 1000)
+    gatewayRetryDelayMs(
+        ReconnectBackoffMs[attempt.coerceIn(0, ReconnectBackoffMs.lastIndex)],
+        retryAfterSeconds.toString(), System.currentTimeMillis(),
+    )
 
 /** L'agent servi par un gateway : identifiant stable (routage des push) et nom de son profil Hermes. */
 data class ServerAgent(val id: String, val name: String)
@@ -151,7 +157,7 @@ class GatewayChatRepository(
      * L'agent passe à l'écran (ou le quitte, quand on en choisit un autre). Caché, ses messages
      * comptent comme non lus même dans sa conversation ouverte ; affiché, celle-ci redevient lue.
      */
-    fun setShown(shown: Boolean) {
+    override fun setShown(shown: Boolean) {
         this.shown = shown
         if (shown) updateChat(_activeChat.value) { it.copy(unread = 0) }
     }
@@ -185,25 +191,34 @@ class GatewayChatRepository(
     @Volatile private var helloSentAt = 0L
     private var attempt = 0
     private var reconnectJob: Job? = null
+    private var connectGeneration = 0L
 
     /** Issue de la première connexion : "" si `welcome` reçu, sinon le message d'erreur. */
-    @Volatile private var firstOutcome: CompletableDeferred<String>? = null
+    @Volatile private var firstOutcome: Channel<HandshakeOutcome>? = null
 
     override suspend fun connect(config: GatewayConfig) {
+        val generation = ++connectGeneration
+        firstOutcome?.trySend(HandshakeOutcome.Finished(context.getString(R.string.gateway_error_cancelled)))
         closeSocket()
         this.config = config
         lastSeq = 0
         attempt = 0
         resetChats()
         _connection.value = ConnectionState.Connecting(context.getString(R.string.gateway_connecting))
-        val outcome = CompletableDeferred<String>().also { firstOutcome = it }
+        val outcome = Channel<HandshakeOutcome>(Channel.UNLIMITED).also { firstOutcome = it }
         try {
             open(config)
         } catch (e: IllegalArgumentException) {
-            outcome.complete(context.getString(R.string.gateway_error_invalid_url))
+            outcome.trySend(HandshakeOutcome.Finished(context.getString(R.string.gateway_error_invalid_url)))
         }
-        val error = withTimeoutOrNull(15_000) { outcome.await() } ?: context.getString(R.string.gateway_error_timeout)
-        firstOutcome = null
+        val error = try {
+            awaitGatewayHandshake(outcome, context.getString(R.string.gateway_error_timeout))
+        } finally {
+            if (firstOutcome === outcome) firstOutcome = null
+            outcome.close()
+        }
+        // Une annulation ou un nouvel appairage ne doit pas être écrasé par l'ancien essai.
+        if (connectGeneration != generation) return
         if (error.isNotEmpty()) {
             this.config = null
             closeSocket()
@@ -212,9 +227,10 @@ class GatewayChatRepository(
     }
 
     override fun disconnect() {
+        connectGeneration++
         config = null
         closeSocket()
-        firstOutcome?.complete(context.getString(R.string.gateway_error_cancelled))
+        firstOutcome?.trySend(HandshakeOutcome.Finished(context.getString(R.string.gateway_error_cancelled)))
         resetChats()
         _connection.value = ConnectionState.Disconnected
     }
@@ -532,23 +548,29 @@ class GatewayChatRepository(
             val code = response?.code
             // Un 429 (garde-fou anti force-brute, guard.py) n'est pas un gateway injoignable : le token est
             // bon, l'appairage reste, et la prochaine tentative attend au moins le Retry-After demandé.
-            val retryAfter = retryAfterSeconds(response)
+            val retryAfter = if (code == 429) retryAfterSeconds(response) else 0L
             val reason = when (code) {
                 401 -> context.getString(R.string.gateway_error_token_refused)
                 404 -> context.getString(R.string.gateway_error_not_found)
-                429 -> context.getString(R.string.gateway_error_rate_limited, retryAfter)
+                429 -> context.getString(R.string.gateway_error_rate_limited)
                 else -> context.getString(R.string.gateway_error_unreachable, t.message ?: t.javaClass.simpleName)
             }
-            onDropped(reason, tokenRefused = code == 401, retryAfterSeconds = retryAfter)
+            onDropped(reason, tokenRefused = code == 401, retryAfterSeconds = retryAfter,
+                reconnectReason = if (code == 429) reason else null)
         }
     }
 
     /** Coupure : échec de la première connexion, ou reconnexion avec backoff sans quitter le chat. */
-    private fun onDropped(reason: String?, tokenRefused: Boolean = false, retryAfterSeconds: Long = 0) {
+    private fun onDropped(reason: String?, tokenRefused: Boolean = false, retryAfterSeconds: Long = 0,
+                          reconnectReason: String? = null) {
         socket = null
-        firstOutcome?.let { pending ->
-            pending.complete(reason ?: context.getString(R.string.gateway_error_closed))
-            return
+        val initial = firstOutcome
+        if (initial != null) {
+            if (reconnectReason == null) {
+                initial.trySend(HandshakeOutcome.Finished(reason ?: context.getString(R.string.gateway_error_closed)))
+                return
+            }
+            _connection.value = ConnectionState.Connecting(reconnectReason)
         }
         val current = config ?: return
         chats.update { all -> all.mapValues { it.value.copy(activity = AgentActivity.Idle, speaker = null, loadingOlder = false) } }
@@ -557,8 +579,11 @@ class GatewayChatRepository(
             _connection.value = ConnectionState.Failed(reason!!)
             return
         }
-        (_connection.value as? ConnectionState.Connected)?.let { _connection.value = it.copy(online = false) }
+        (_connection.value as? ConnectionState.Connected)?.let {
+            _connection.value = it.copy(online = false, reconnectReason = reconnectReason)
+        }
         val wait = reconnectDelayMs(attempt, retryAfterSeconds)
+        initial?.trySend(HandshakeOutcome.RateLimited(wait))
         attempt++
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
@@ -729,7 +754,10 @@ class GatewayChatRepository(
             gatewayUrl = current.url,
             latencyMs = (SystemClock.elapsedRealtime() - helloSentAt).toInt(),
         )
-        firstOutcome?.complete("")
+        // Détacher avant le signal : un close immédiat après welcome doit déjà être une reconnexion.
+        val initial = firstOutcome
+        firstOutcome = null
+        initial?.trySend(HandshakeOutcome.Finished(""))
         if (watchingScreen) socket?.send(GatewayProtocol.screenWatch(true))
         requestFirstPage(_activeChat.value)
         // Renvoie ce qui a été tapé pendant la coupure ; le plugin déduplique par client_id.

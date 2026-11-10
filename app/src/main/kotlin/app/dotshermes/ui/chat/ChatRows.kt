@@ -96,7 +96,7 @@ fun buildChatRows(
             message = message,
             groupedWithPrev = tools == null && previous != null && sameGroup(previous, message, zone),
             groupedWithNext = next != null && sameGroup(message, next, zone) && trail.isEmptyBefore(next.turn, next.sentAt),
-            showReceipt = message.id == lastUserId,
+            showReceipt = message.id == lastUserId || message.failed,
             afterTools = tools != null,
             showSpeaker = inRoom && (!sameVoice || tools != null),
         )

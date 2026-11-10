@@ -16,6 +16,11 @@ fun setting(env: String, property: String, default: String): String =
         ?: (project.findProperty(property) as String?)?.takeIf { it.isNotBlank() }
         ?: default
 
+// Le mode release ne doit jamais emprunter silencieusement l'identité de debug.
+val releaseSigningNames = listOf("SIGNING_KEYSTORE", "SIGNING_STORE_PASSWORD", "SIGNING_KEY_ALIAS", "SIGNING_KEY_PASSWORD")
+val releaseSigningReady = releaseSigningNames.all { !System.getenv(it).isNullOrBlank() }
+    && System.getenv("SIGNING_KEYSTORE")?.let { file(it).isFile } == true
+
 android {
     namespace = "app.dotshermes"
     compileSdk = 36
@@ -39,7 +44,7 @@ android {
     signingConfigs {
         // Clé de publication fournie par la CI (secrets) ou en local via les mêmes variables.
         val keystore = System.getenv("SIGNING_KEYSTORE")
-        if (keystore != null && file(keystore).exists()) {
+        if (releaseSigningReady && keystore != null) {
             create("release") {
                 storeFile = file(keystore)
                 storePassword = System.getenv("SIGNING_STORE_PASSWORD")
@@ -50,12 +55,19 @@ android {
     }
 
     buildTypes {
+        debug {
+            val offline = providers.gradleProperty("directApiMock").orNull == "true"
+            buildConfigField("boolean", "DIRECT_API_MOCK", offline.toString())
+            if (offline) {
+                applicationIdSuffix = ".offline"
+                versionNameSuffix = "-offline-fixture"
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Sans clé de publication, l'APK est signé avec la clé de debug : installable, mais une
-            // mise à jour vers une version signée « pour de vrai » demandera de désinstaller d'abord.
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // Sans signature propriétaire, la vérification ci-dessous bloque tout APK/AAB release.
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
@@ -69,6 +81,19 @@ android {
         buildConfig = true
     }
 }
+
+val verifyReleaseSigning by tasks.registering {
+    group = "verification"
+    description = "Refuse une publication sans signature propriétaire ; ne révèle aucun secret."
+    doLast {
+        if (!releaseSigningReady) throw GradleException(
+            "Release signing is not configured. Provide all SIGNING_* variables and an existing keystore. Use assembleDebug for private tests."
+        )
+    }
+}
+// Garder tests et compilation release accessibles sans clé ; protéger tous les emballages APK/AAB.
+tasks.matching { it.name in setOf("assembleRelease", "bundleRelease", "packageRelease", "packageReleaseBundle", "signReleaseBundle", "validateSigningRelease") }
+    .configureEach { dependsOn(verifyReleaseSigning) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -100,4 +125,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    // Même API JSON que sur Android ; serveur HTTP local pour tester sans clé ni appel payant.
+    testImplementation("org.json:json:20260814")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }

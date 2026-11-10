@@ -1074,6 +1074,18 @@
 .composer-notice .icon-btn { flex: none; width: 28px; height: 28px; border: 0; background: transparent; }
 
 .receipt.is-failed { color: var(--ink-danger); }
+.upload-actions summary { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.upload-action-buttons { display: flex; gap: 8px; margin-top: 6px; }
+.upload-action-buttons button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--ink-separator);
+  border-radius: 12px;
+  background: var(--ink-raised);
+  color: var(--ink-primary);
+  font: inherit;
+  cursor: pointer;
+}
 
 .attachment-image {
   display: block;

@@ -88,6 +88,9 @@ fun MessageRow(
     onTakeover: () -> Unit = {},
     /** Salon de groupe : la mascotte de qui parle, posée au-dessus de la bulle ; null hors salon. */
     speakerLook: DotAppearance? = null,
+    reactionsEnabled: Boolean = true,
+    /** Voix réglée (compte direct) : un lien « Écouter » lit cette réponse ; null = pas de lien. */
+    onListen: (() -> Unit)? = null,
 ) {
     val message = row.message
     val fromUser = message.sender == Sender.User
@@ -97,13 +100,27 @@ fun MessageRow(
     ) {
         speakerLook?.let { SpeakerHeader(it) }
         when (val content = message.content) {
-            is MessageContent.Text -> TextBubble(message, content.text, fromUser, row.groupedWithPrev, row.groupedWithNext, onReact)
+            is MessageContent.Text -> TextBubble(message, content.text, fromUser, row.groupedWithPrev, row.groupedWithNext, onReact, reactionsEnabled)
             is MessageContent.Task -> TaskCard(content, Modifier.fillMaxWidth(0.86f))
             is MessageContent.Approval -> ApprovalCard(content, onApproval, Modifier.fillMaxWidth(0.86f))
             is MessageContent.Clarify -> ClarifyCard(content, onClarify, Modifier.fillMaxWidth(0.86f))
             is MessageContent.Voice -> VoiceBubble(message.id, content, fromUser, playback, onToggleVoice, onSeekVoice)
             is MessageContent.File -> attachments?.let { FileBubble(message.id, content, fromUser, it) }
             is MessageContent.Takeover -> TakeoverCard(content, onTakeover, Modifier.fillMaxWidth(0.86f))
+        }
+        if (!fromUser && (message.footer != null)) {
+            Row(Modifier.padding(top = 4.dp, start = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(message.footer, style = MaterialTheme.typography.labelSmall, color = Ink.Tertiary)
+                onListen?.let { listen ->
+                    Text(
+                        stringResource(R.string.chat_listen),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = LocalDotPalette.current.deep,
+                        modifier = Modifier.padding(start = 6.dp).clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = listen).padding(horizontal = 6.dp, vertical = 4.dp),
+                    )
+                }
+            }
         }
         if (row.showReceipt) {
             Text(
@@ -117,7 +134,7 @@ fun MessageRow(
 }
 
 @Composable
-private fun receiptLabel(message: ChatMessage) = when (message.delivery) {
+private fun receiptLabel(message: ChatMessage): String = if (message.failed) stringResource(R.string.api_not_sent) else when (message.delivery) {
     Delivery.Sending -> stringResource(R.string.receipt_sending)
     Delivery.Sent -> stringResource(R.string.receipt_sent)
     Delivery.Read -> stringResource(R.string.receipt_read, formatTime(message.sentAt))
@@ -136,10 +153,11 @@ private fun TextBubble(
     groupedWithPrev: Boolean,
     groupedWithNext: Boolean,
     onReact: (String) -> Unit,
+    reactionsEnabled: Boolean,
 ) {
     val palette = LocalDotPalette.current
     val haptics = LocalHapticFeedback.current
-    var pickerOpen by remember { mutableStateOf(false) }
+    var pickerOpen by remember(reactionsEnabled) { mutableStateOf(false) }
 
     val round = 20.dp
     val tight = 6.dp
@@ -148,7 +166,7 @@ private fun TextBubble(
     } else {
         RoundedCornerShape(topStart = if (groupedWithPrev) tight else round, topEnd = round, bottomEnd = round, bottomStart = if (groupedWithNext) tight else round)
     }
-    val reactions = message.reactions.values.distinct()
+    val reactions = if (reactionsEnabled) message.reactions.values.distinct() else emptyList()
 
     // Largeur de la bulle : 296.dp sur téléphone, mais on laisse respirer les grands
     // écrans (tablette, paysage) au lieu de garder une colonne étroite au milieu.
@@ -175,7 +193,7 @@ private fun TextBubble(
                 .onGloballyPositioned { bubbleOriginInRoot = it.positionInRoot() }
                 // combinedClickable SANS onLongClick : c'était lui qui volait l'appui long
                 // au SelectionContainer (le picker d'émojis s'ouvrait au lieu du sélecteur).
-                .combinedClickable(
+                .then(if (reactionsEnabled) Modifier.combinedClickable(
                     onClick = {},
                     onDoubleClick = { onReact("❤️") },
                 )
@@ -202,7 +220,7 @@ private fun TextBubble(
                             // SelectionContainer détecter l'appui long et afficher le menu Copier.
                         }
                     }
-                }
+                } else Modifier)
                 .padding(horizontal = 14.dp, vertical = 9.dp),
         ) {
             val ink = if (fromUser) palette.onBase else Ink.Primary
@@ -226,7 +244,7 @@ private fun TextBubble(
                     .offset(x = if (fromUser) (-8).dp else 8.dp),
             )
         }
-        if (pickerOpen) {
+        if (pickerOpen && reactionsEnabled) {
             ReactionPicker(
                 selected = message.reactions[Sender.User],
                 anchorEnd = fromUser,

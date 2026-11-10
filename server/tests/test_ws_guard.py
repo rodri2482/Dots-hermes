@@ -68,8 +68,12 @@ def _install_hermes_stubs(home: pathlib.Path) -> None:
     mod("hermes_constants", get_hermes_home=lambda: home)
 
 
-def _load_adapter():
-    _install_hermes_stubs(pathlib.Path(tempfile.mkdtemp()))
+def _load_adapter(home=None):
+    _install_hermes_stubs(home or pathlib.Path(tempfile.mkdtemp()))
+    # Chaque scénario a son propre faux profil ; ne pas réutiliser un adapter importé avec l'ancien.
+    for name in list(sys.modules):
+        if name == "dotsplugin_under_test" or name.startswith("dotsplugin_under_test."):
+            del sys.modules[name]
     spec = importlib.util.spec_from_file_location(
         "dotsplugin_under_test", PLUGIN / "__init__.py", submodule_search_locations=[str(PLUGIN)])
     pkg = importlib.util.module_from_spec(spec)

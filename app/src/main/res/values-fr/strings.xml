@@ -14,7 +14,7 @@
     <string name="gateway_error_token_refused">Jeton refusé par le gateway.</string>
     <string name="gateway_error_not_found">Aucun gateway Dots à cette adresse.</string>
     <string name="gateway_error_unreachable">Gateway injoignable (%1$s).</string>
-    <string name="gateway_error_rate_limited">Trop de tentatives : le gateway limite cette adresse pendant %1$d s.</string>
+    <string name="gateway_error_rate_limited">Limite du gateway atteinte. Veuillez patienter.</string>
     <string name="gateway_error_closed">Connexion fermée par le gateway.</string>
 
     <!-- Libellés des outils de l'agent -->
@@ -267,7 +267,7 @@
     <string name="agents_add_cancel">Annuler</string>
     <string name="agents_switch_to">Ou ouvrir un autre agent :</string>
     <string name="agents_remove">Retirer cet agent</string>
-    <string name="agents_add_hint">Pour un agent Hermes dont le gateway est déjà installé (un autre profil Hermes, avec sa mémoire, ses outils et ses clés). Pour répartir le travail d\'un même agent, crée plutôt un sous-dot depuis « Mes dots ».</string>
+    <string name="agents_add_hint">Ajoutez OpenAI ou Claude avec une clé API, ou connectez un gateway Hermes existant. Chaque compte possède sa propre conversation enregistrée.</string>
     <string name="agents_busy">Au travail…</string>
     <string name="cd_switch_agent">Changer d\'agent</string>
     <string name="theme_auto">Auto</string>
@@ -373,15 +373,15 @@
         <item quantity="other">%1$d sur %2$d étapes</item>
     </plurals>
     <plurals name="schedule_every_minutes">
-        <item quantity="one">toutes les minutes</item>
+        <item quantity="one">toutes les %d min</item>
         <item quantity="other">toutes les %d min</item>
     </plurals>
     <plurals name="schedule_every_hours">
-        <item quantity="one">toutes les heures</item>
+        <item quantity="one">toutes les %d h</item>
         <item quantity="other">toutes les %d h</item>
     </plurals>
     <plurals name="schedule_every_days">
-        <item quantity="one">tous les jours</item>
+        <item quantity="one">tous les %d j</item>
         <item quantity="other">tous les %d jours</item>
     </plurals>
 
@@ -392,6 +392,41 @@
         <item>Résume mes derniers messages</item>
         <item>Merci Hermes !</item>
     </string-array>
+    <!-- Compte API direct : amorces de message, placées dans le champ (rien n'est envoyé) -->
+    <string-array name="chat_suggestions_direct">
+        <item>Explique-moi simplement :</item>
+        <item>Aide-moi à écrire un message</item>
+        <item>Donne-moi trois idées pour…</item>
+        <item>Résume ce texte :</item>
+    </string-array>
+    <string name="api_key_saved_hint">Enregistrée · laisser vide pour la garder</string>
+    <string name="api_model_auto">Automatique · le meilleur disponible</string>
+    <string name="api_get_key_groq">Obtenir une clé API Groq</string>
+    <string name="api_connect_tagline_groq">Ton compagnon IA, à un message près.
+Colle une clé API Groq pour commencer.</string>
+    <string name="api_key_hint">Ta clé %s</string>
+    <string name="connect_use_hermes">Utiliser un serveur Hermes</string>
+    <string name="connect_use_groq">Utiliser une clé Groq</string>
+    <string name="companion_personality">Personnalité</string>
+    <string name="companion_voice">Voix</string>
+    <string name="companion_speak">Lire les réponses à voix haute</string>
+    <string name="companion_speak_hint">Chaque réponse est dite avec ta voix Fish Audio.</string>
+    <string name="companion_speak_setup">Ajoute une clé Fish Audio et un identifiant de voix ci-dessous.</string>
+    <string name="companion_voice_id">Voix</string>
+    <string name="companion_voice_id_hint">Identifiant de voix Fish Audio</string>
+    <string name="companion_fish_key">Clé Fish</string>
+    <string name="companion_fish_key_hint">Clé API Fish Audio</string>
+    <string name="companion_fish_key_save">Enregistrer la clé Fish Audio</string>
+    <string name="companion_fish_key_forget">Retirer la clé Fish Audio</string>
+    <string name="companion_fish_get_key">Obtenir une clé API Fish Audio</string>
+    <string name="personality_calm">Calme</string>
+    <string name="personality_playful">Joueur</string>
+    <string name="personality_cheeky">Taquin</string>
+    <string name="personality_calm_hint">Clair, chaleureux, droit au but.</string>
+    <string name="personality_playful_hint">Un peu d\'humour, des mots simples, un émoji de temps en temps.</string>
+    <string name="personality_cheeky_hint">Te taquine un peu. Les réponses restent tout aussi justes.</string>
+    <string name="chat_listen">Écouter</string>
+    <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>
     <string name="room_title">Salon de groupe</string>
@@ -454,4 +489,45 @@
     <string name="web_revoke">Révoquer</string>
     <string name="web_revoke_title">Révoquer ce navigateur ?</string>
     <string name="web_revoke_text">« %1$s » sera aussitôt déconnecté de %2$s. Il lui faudra un nouveau QR code pour revenir.</string>
+
+    <!-- Connexion directe aux fournisseurs, sans gateway. -->
+    <string name="api_connect_title">Connexion à %s</string>
+    <string name="api_key_label">Clé API</string>
+    <string name="api_model_label">Modèle</string>
+    <string name="api_model_hint">Choisir ou saisir un modèle</string>
+    <string name="api_key_help">Les clés et conversations enregistrées sont chiffrées sur ce téléphone. Les messages vont directement au fournisseur choisi, qui facture la consommation API.</string>
+    <string name="api_load_models">Charger les modèles disponibles</string>
+    <string name="api_save_account">Enregistrer le compte</string>
+    <string name="api_retry">Réessayer</string>
+    <string name="api_stop">Arrêter</string>
+    <string name="api_not_sent">Échec de la demande</string>
+    <string name="api_error_key">Saisissez une clé API valide.</string>
+    <string name="api_error_access">Cette clé ne dispose pas des accès nécessaires.</string>
+    <string name="api_error_model">Ce modèle est indisponible pour ce compte.</string>
+    <string name="api_error_quota">Le quota ou les crédits API sont épuisés. Vérifiez la facturation du fournisseur.</string>
+    <string name="api_error_rate">Limite atteinte. Patientez avant de réessayer.</string>
+    <string name="api_error_storage">Le stockage privé est indisponible. Vérifiez ce compte avant de réessayer.</string>
+    <string name="api_error_stopped">Arrêté. La réponse partielle est conservée.</string>
+    <string name="api_error_limit">Une limite de contexte ou de réponse est atteinte. Essayez une demande plus courte.</string>
+    <string name="api_error_network">La réponse a été interrompue. Réessayez lorsque vous le souhaitez.</string>
+    <string name="api_error_response">Le fournisseur ne peut pas traiter cette demande. Vérifiez le modèle et réessayez.</string>
+    <string name="api_source">API directe · historique local chiffré</string>
+    <string name="api_retry_wait">%d s</string>
+    <string name="api_direct_status">API directe</string>
+    <string name="api_provider_label">Fournisseur</string>
+    <string name="api_edit_account">Changer la clé API ou le modèle</string>
+    <string name="api_delete_account">Supprimer le compte et son historique</string>
+    <string name="api_delete_warning">La clé API et toutes les conversations de ce compte seront définitivement supprimées de ce téléphone. Cette action est irréversible.</string>
+    <string name="api_ready">Prêt</string>
+    <string name="api_limits_ready">Aucun délai actif</string>
+    <string name="api_limits_unknown">Le fournisseur n’a pas encore communiqué ses limites. Elles apparaîtront ici après une réponse, si elles sont disponibles.</string>
+    <string name="api_limits_requests">Requêtes restantes · fenêtre quotidienne</string>
+    <string name="api_limits_tokens">Tokens restants · fenêtre par minute</string>
+    <string name="api_limits_observed">Dernière réponse : %1$s</string>
+    <string name="api_limits_shared">Dernier état communiqué par le fournisseur, partagé par votre organisation. D’autres applications peuvent utiliser ce quota. Cela ne détermine pas votre forfait et ne garantit pas la gratuité.</string>
+    <string name="api_limits_not_reported">Non communiqué</string>
+    <string name="api_limits_refresh">Délai écoulé · en attente de la prochaine réponse</string>
+    <string name="api_limits_balance">%1$d restants sur %2$d</string>
+    <string name="api_limits_resets">Réinitialisation : %1$s</string>
+    <string name="api_limits_remaining">%1$d restants</string>
 </resources>

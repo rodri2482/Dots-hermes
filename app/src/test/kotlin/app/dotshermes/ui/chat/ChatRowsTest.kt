@@ -121,4 +121,9 @@ class ChatRowsTest {
         val live = rows.first() as ChatRow.Tools
         assertTrue(live.running)
     }
+    @Test fun `failed older user messages retain a visible failure receipt`() {
+        val rows = buildChatRows(listOf(msg("failed", Sender.User, 9, 0).copy(failed = true), msg("new", Sender.User, 9, 5)), AgentActivity.Idle, zone, today)
+        assertTrue(rows.filterIsInstance<ChatRow.Bubble>().single { it.key == "failed" }.showReceipt)
+    }
+
 }

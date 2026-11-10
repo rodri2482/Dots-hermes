@@ -1,24 +1,16 @@
-# Construit l'APK et publie une release GitHub à chaque push sur main (ou à la demande).
-#
-# Secrets facultatifs (Settings → Secrets and variables → Actions) :
-#   GOOGLE_SERVICES_JSON     contenu de app/google-services.json, encodé en base64 → active le push
-#   SIGNING_KEYSTORE_BASE64  keystore de publication (.jks) en base64 ─┐
-#   SIGNING_STORE_PASSWORD   mot de passe du keystore                    │ sans eux, l'APK est signé
-#   SIGNING_KEY_ALIAS        alias de la clé                             │ avec une clé de debug
-#   SIGNING_KEY_PASSWORD     mot de passe de la clé                     ─┘
-# Variable facultative : DEFAULT_GATEWAY_URL (adresse pré-remplie sur l'écran d'appairage).
+# Publication manuelle seulement, avec confirmation explicite et signature propriétaire obligatoire.
+# Aucun push (même sur main) ne déclenche une publication.
+# Firebase reste facultatif ; les quatre secrets SIGNING_* sont obligatoires.
 name: Android release
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "design/**"
-      - "assets/**"
-      - "server/**"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish the signed Claydot release after owner device/provider acceptance"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write # créer le tag et la release
@@ -29,6 +21,8 @@ concurrency:
 
 jobs:
   release:
+    if: ${{ inputs.publish && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner }}
+    environment: claydot-production
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -67,17 +61,25 @@ jobs:
             echo "PUSH_STATUS=disabled (no GOOGLE_SERVICES_JSON secret)" >> "$GITHUB_ENV"
           fi
 
-      - name: Signing key (optional)
+      - name: Require release signing
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
-          if [ -n "$SIGNING_KEYSTORE_BASE64" ]; then
-            echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-            echo "SIGNING_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-            echo "SIGNING_STATUS=release key" >> "$GITHUB_ENV"
-          else
-            echo "SIGNING_STATUS=debug key (add the SIGNING_* secrets for a stable signature)" >> "$GITHUB_ENV"
-          fi
+          set -euo pipefail
+          for name in SIGNING_KEYSTORE_BASE64 SIGNING_STORE_PASSWORD SIGNING_KEY_ALIAS SIGNING_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Required release signing secret is missing: $name"
+              exit 1
+            fi
+          done
+          umask 077
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          test -s "$RUNNER_TEMP/release.jks"
+          echo "SIGNING_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          echo "SIGNING_STATUS=release key" >> "$GITHUB_ENV"
 
       - name: Tests and release build
         env:
@@ -89,7 +91,7 @@ jobs:
           UPDATE_REPO: ${{ github.repository }}
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon testDebugUnitTest assembleRelease
+          bash ./gradlew --no-daemon verifyReleaseSigning testDebugUnitTest lintDebug assembleRelease
 
       - name: Name the APK
         run: |
@@ -112,4 +114,4 @@ jobs:
             - Push notifications: ${{ env.PUSH_STATUS }}
             - Signature: ${{ env.SIGNING_STATUS }}
 
-            Install it on your phone, then pair it with your gateway (see the README).
+            Install it on your phone, then choose a direct API account or a Hermes gateway.

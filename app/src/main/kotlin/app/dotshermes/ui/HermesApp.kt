@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import app.dotshermes.ui.theme.ThemeMode
@@ -57,10 +59,16 @@ import kotlinx.coroutines.launch
 @Composable
 fun HermesApp(
     viewModel: HermesViewModel = viewModel {
-        HermesViewModel(AppContainer.chatRepository, AppContainer.agents, AppContainer.voiceRecorder, AppContainer.voicePlayer, AppContainer.attachments)
+        HermesViewModel(AppContainer.chatRepository, AppContainer.agents, AppContainer.voiceRecorder, AppContainer.voicePlayer, AppContainer.attachments, AppContainer.companion)
     },
 ) {
     val connection by viewModel.connection.collectAsStateWithLifecycle()
+    val gatewayFeatures by viewModel.gatewayFeatures.collectAsStateWithLifecycle()
+    val voiceInput by viewModel.voiceInput.collectAsStateWithLifecycle()
+    val companion by AppContainer.companion.state.collectAsStateWithLifecycle()
+    val speech by AppContainer.companion.status.collectAsStateWithLifecycle()
+    val requestIssue by viewModel.requestIssue.collectAsStateWithLifecycle()
+    val accountFailure by viewModel.accountFailure.collectAsStateWithLifecycle()
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val chat by viewModel.chat.collectAsStateWithLifecycle()
@@ -69,6 +77,7 @@ fun HermesApp(
     val screen by viewModel.screen.collectAsStateWithLifecycle()
     val snapshot by viewModel.activitySnapshot.collectAsStateWithLifecycle()
     val usage by viewModel.usage.collectAsStateWithLifecycle()
+    val directUsage by viewModel.directUsage.collectAsStateWithLifecycle()
     val turns by viewModel.turns.collectAsStateWithLifecycle()
     val liveTools by viewModel.liveTools.collectAsStateWithLifecycle()
     val browsing by viewModel.browsing.collectAsStateWithLifecycle()
@@ -92,8 +101,10 @@ fun HermesApp(
     val unread by viewModel.unread.collectAsStateWithLifecycle()
     val agentList by viewModel.agentList.collectAsStateWithLifecycle()
     val activeAgent by viewModel.activeAgent.collectAsStateWithLifecycle()
+    val connectionEditor by viewModel.connectionEditor.collectAsStateWithLifecycle()
     val addingAgent by viewModel.addingAgent.collectAsStateWithLifecycle()
     val otherAgentsUnread by viewModel.otherAgentsUnread.collectAsStateWithLifecycle()
+    var deletingAccount by remember { mutableStateOf<String?>(null) }
     val demo = (connection as? ConnectionState.Connected)?.demo == true
     var creatingDot by rememberSaveable { mutableStateOf(false) }
     // Apparence saisie dans l'éditeur d'un sous-dot (ou du nouveau) : le carrousel l'affiche en direct.
@@ -144,14 +155,25 @@ fun HermesApp(
     SystemBarsFor(dark)
     // La conversation affichée donne sa couleur à toute l'interface : on sait toujours à quel dot on parle.
     DotsTheme(look.appearance.palette, dark) {
+        val root = when {
+            connection is ConnectionState.Connected -> RootScreen.Chat
+            // Compte direct en cours d'ouverture (lecture locale, quelques millisecondes) : fond neutre.
+            connection is ConnectionState.Connecting && !gatewayFeatures -> RootScreen.Launch
+            else -> RootScreen.Connect
+        }
         AnimatedContent(
-            targetState = connection is ConnectionState.Connected,
+            targetState = root,
             transitionSpec = { (fadeIn(tween(450)) + scaleIn(tween(450), initialScale = 0.97f)) togetherWith fadeOut(tween(200)) },
             label = "root",
-        ) { inChat ->
-            if (inChat) {
+        ) { shown ->
+            if (shown == RootScreen.Chat) {
+                key(activeAgent, activeChat) {
                 ChatScreen(
                     state = chat,
+                    gatewayFeatures = gatewayFeatures, voiceInput = voiceInput, requestIssue = requestIssue,
+                    speaking = speech.speaking, onStopSpeaking = viewModel::stopSpeaking,
+                    onListen = if (!gatewayFeatures && companion.fishKeySaved && companion.voiceId.isNotBlank()) viewModel::listen else null,
+                    onRetryRequest = viewModel::retryRequest, onStopRequest = viewModel::stopTurn,
                     connection = connection as? ConnectionState.Connected,
                     appearance = look.appearance,
                     onSend = viewModel::send,
@@ -187,21 +209,57 @@ fun HermesApp(
                         onSeek = viewModel::seekVoice,
                     ),
                 )
+                }
+            } else if (shown == RootScreen.Launch) {
+                androidx.compose.foundation.layout.Box(
+                    androidx.compose.ui.Modifier.fillMaxSize().background(app.dotshermes.ui.theme.Ink.Surface))
             } else {
-                ConnectScreen(
+                val editor = connectionEditor
+                key(editor.key) {
+                app.dotshermes.ui.connect.AccountConnectScreen(
+                    initialProvider = editor.provider, initialModel = editor.model,
+                    onRemove = if (addingAgent) null else editor.accountId?.takeIf { editor.provider != "hermes" }?.let { id -> ({ deletingAccount = id }) },
+                    editing = !addingAgent && editor.accountId != null && editor.provider != "hermes",
+                    onCancelEdit = viewModel::cancelEditDirect,
+                    recoveryFailure = requestIssue?.failure?.takeIf { it in setOf(
+                        app.dotshermes.data.direct.ApiFailure.MissingKey,
+                        app.dotshermes.data.direct.ApiFailure.InvalidKey,
+                        app.dotshermes.data.direct.ApiFailure.Storage,
+                    ) },
+                    onModels = viewModel::availableModels,
+                    onDirect = { provider, model, key -> viewModel.connectApi(editor.key, provider, model, key) },
                     connection = connection,
                     appearance = appearance,
-                    initialUrl = remember(activeAgent, addingAgent) { viewModel.gatewayUrlHint() },
-                    onConnect = viewModel::connect,
+                    initialUrl = editor.gatewayUrl.ifBlank { app.dotshermes.BuildConfig.DEFAULT_GATEWAY_URL },
+                    onConnect = { url, token -> viewModel.connect(url, token, editor.key) },
                     adding = addingAgent,
                     onCancelAdd = viewModel::cancelAddAgent,
                     otherAgents = agentList.filter { it.id != activeAgent && it.connection is ConnectionState.Connected },
                     onSelectAgent = viewModel::selectAgent,
                 )
+                }
             }
         }
 
 
+        deletingAccount?.let { id ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { deletingAccount = null },
+                title = { androidx.compose.material3.Text(stringResource(R.string.api_delete_account)) },
+                text = { androidx.compose.material3.Text(stringResource(R.string.api_delete_warning)) },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { deletingAccount = null; viewModel.removeAccount(id) }) {
+                    androidx.compose.material3.Text(stringResource(R.string.api_delete_account))
+                } },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { deletingAccount = null }) {
+                    androidx.compose.material3.Text(stringResource(android.R.string.cancel))
+                } },
+            )
+        }
+        accountFailure?.let { failure ->
+            androidx.compose.material3.AlertDialog(onDismissRequest = viewModel::clearAccountFailure,
+                text = { androidx.compose.material3.Text(stringResource(app.dotshermes.ui.connect.apiFailureMessage(failure))) },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = viewModel::clearAccountFailure) { androidx.compose.material3.Text("OK") } })
+        }
         if (activityOpen) {
             ActivitySheet(
                 agentName = chat.agentName,
@@ -212,6 +270,7 @@ fun HermesApp(
                 turns = turns,
                 screen = screen,
                 usage = usage,
+                gatewayFeatures = gatewayFeatures, directUsage = directUsage,
                 onUsage = viewModel::requestUsage,
                 onRefresh = viewModel::refreshActivity,
                 onCron = viewModel::cronAction,
@@ -250,7 +309,7 @@ fun HermesApp(
                         main = appearance, dots = dots, activeChat = activeChat, creating = creatingDot,
                         preview = editPreview.takeIf { creatingDot || look.subDot != null },
                         activities = chatActivity, unread = unread,
-                        showSubDots = (connection as? ConnectionState.Connected)?.demo != true,
+                        showSubDots = gatewayFeatures && (connection as? ConnectionState.Connected)?.demo != true,
                         onSelect = { chat ->
                             creatingDot = false
                             editPreview = null
@@ -278,6 +337,14 @@ fun HermesApp(
                             onDelete = { viewModel.deleteDot(sub.id) }, onPreview = { editPreview = it })
                     }
                     else -> AgentSettings(
+                        gatewayFeatures = gatewayFeatures,
+                        onEditDirect = { agentSheetOpen = false; viewModel.editDirectAccount() },
+                        companion = app.dotshermes.ui.agent.CompanionControls(
+                            state = companion, status = speech,
+                            onPersonality = { viewModel.setPersonality(it) }, onSpeak = { viewModel.setSpeakReplies(it) },
+                            onVoiceId = { viewModel.setVoiceId(it) }, onFishKey = viewModel::saveFishKey,
+                            onForgetFishKey = viewModel::forgetFishKey,
+                        ),
                         profile = profile,
                         connection = connection,
                         appearance = appearance,
@@ -294,7 +361,7 @@ fun HermesApp(
                         },
                         onDisconnect = {
                             agentSheetOpen = false
-                            viewModel.disconnect()
+                            if (gatewayFeatures) viewModel.disconnect() else deletingAccount = activeAgent
                         },
                         onAddAgent = {
                             agentSheetOpen = false
@@ -325,10 +392,10 @@ fun HermesApp(
                     viewModel.addAgent()
                 },
                 onDismiss = { agentMenuOpen = false },
-                onConnectBrowser = {
+                onConnectBrowser = if (viewModel.hasGatewayAccounts()) ({
                     agentMenuOpen = false
                     openWebPair()
-                },
+                }) else null,
             )
         }
         if (webSessionsOpen) {
@@ -359,6 +426,9 @@ fun HermesApp(
         }
     }
 }
+
+/** Ce que montre la racine : la conversation, l'attente d'ouverture d'un compte direct, ou la connexion. */
+private enum class RootScreen { Chat, Launch, Connect }
 
 /** Icônes de la barre d'état et de navigation : sombres sur fond clair, claires sur fond sombre. */
 @Composable

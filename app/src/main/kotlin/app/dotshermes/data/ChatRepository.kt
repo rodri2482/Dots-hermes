@@ -31,6 +31,13 @@ private val NoUsage: StateFlow<UsageWindow?> = MutableStateFlow<UsageWindow?>(nu
  * aiguillées par [RoutingChatRepository].
  */
 interface ChatRepository {
+    val gatewayFeatures: StateFlow<Boolean> get() = GatewayFeatures
+    /** Micro disponible : le gateway Hermes, ou un compte direct qui sait transcrire (Groq). */
+    val voiceInput: StateFlow<Boolean> get() = gatewayFeatures
+    val directUsage: StateFlow<app.dotshermes.data.direct.DirectApiUsage?> get() = NoDirectUsage
+    val requestIssue: StateFlow<app.dotshermes.data.direct.DirectRequestIssue?> get() = NoRequestIssue
+    fun retryRequest() {}
+    fun setShown(shown: Boolean) {}
     val profile: StateFlow<AgentProfile>
     val connection: StateFlow<ConnectionState>
     val messages: StateFlow<List<ChatMessage>>
@@ -120,3 +127,8 @@ interface ChatRepository {
     /** Jeton FCM de cet appareil, transmis au gateway pour les notifications. */
     fun setPushToken(token: String) {}
 }
+
+private val GatewayFeatures = MutableStateFlow(true).asStateFlow()
+private val NoRequestIssue = MutableStateFlow<app.dotshermes.data.direct.DirectRequestIssue?>(null).asStateFlow()
+
+private val NoDirectUsage = MutableStateFlow<app.dotshermes.data.direct.DirectApiUsage?>(null).asStateFlow()

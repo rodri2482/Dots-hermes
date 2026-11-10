@@ -172,11 +172,18 @@ export class GatewayClient {
     });
     this.fetches.clear();
     this.outbox.clear();
-    for (const c of this.chats.values()) for (const m of c.messages) if (m.localUrl) URL.revokeObjectURL(m.localUrl);
+    for (const c of this.chats.values()) this.releaseMessages(c.messages);
     const ws = this.ws;
     this.ws = null;
     if (ws && ws.readyState <= WebSocket.OPEN) ws.close(1000);
     this.listeners.clear();
+  }
+
+  private releaseMessages(messages: ChatMessage[]): void {
+    for (const m of messages) {
+      this.outbox.delete(m.key);
+      if (m.localUrl) URL.revokeObjectURL(m.localUrl);
+    }
   }
 
   /** Réseau revenu, onglet de nouveau visible : on n'attend pas la fin du backoff. */
@@ -298,6 +305,10 @@ export class GatewayClient {
     }
     this.status = "offline";
     for (const [id, c] of this.chats) this.chats.set(id, { ...c, activity: "idle", loadingOlder: false });
+    this.updateMessages(
+      (m) => m.role === "user" && m.id == null && m.kind !== "text" && this.outbox.has(m.key),
+      (m) => ({ ...m, failed: true, retryable: true }),
+    );
     this.publish();
     this.scheduleRetry();
   }
@@ -342,17 +353,23 @@ export class GatewayClient {
       case "ack": {
         this.bumpSeq(frame);
         this.outbox.delete(String(frame.client_id));
-        // `ack` d'un vocal ou d'un fichier : pas de `chat` ; on cherche le client_id partout.
-        return this.updateMessages(
-          (m) => m.key === frame.client_id && m.id == null,
-          (m) => ({
-            ...m,
-            id: String(frame.id),
-            seq: Number(frame.seq) || 0,
-            ts: Number(frame.ts) || m.ts,
-            delivery: maxDelivery(m.delivery, "sent"),
-          }),
-        );
+        // L'ancien plugin peut avoir rejoué un événement sans client_id avant de renvoyer son ack.
+        // Seul cet id confirmé permet alors de réunir les deux lignes, jamais le nom ou la durée.
+        for (const [chat, c] of this.chats) {
+          const local = c.messages.find((m) => m.key === frame.client_id);
+          if (!local) continue;
+          const id = String(frame.id);
+          const stored = c.messages.find((m) => m.id === id && m.key !== local.key);
+          const merged: ChatMessage = {
+            ...local, ...stored, key: local.key, localUrl: local.localUrl, id,
+            seq: Number(frame.seq) || stored?.seq || 0,
+            ts: Number(frame.ts) || stored?.ts || local.ts,
+            delivery: maxDelivery(stored?.delivery ?? local.delivery, "sent"),
+            failed: false, retryable: false, uncertain: false,
+          };
+          this.patchChat(chat, { messages: sortMessages([...c.messages.filter((m) => m.key !== local.key && m.id !== id), merged]) });
+        }
+        return this.publish();
       }
       case "read":
         return this.updateMessages(
@@ -424,7 +441,10 @@ export class GatewayClient {
   private onDots(dots: SubDot[]): void {
     this.dots = dots;
     for (const id of [...this.chats.keys()]) {
-      if (id !== MAIN_CHAT && !dots.some((d) => d.id === id)) this.chats.delete(id);
+      if (id !== MAIN_CHAT && !dots.some((d) => d.id === id)) {
+        this.releaseMessages(this.chats.get(id)!.messages);
+        this.chats.delete(id);
+      }
     }
     if (!this.knows(this.activeChat)) this.activeChat = MAIN_CHAT;
     this.publish();
@@ -444,6 +464,7 @@ export class GatewayClient {
       // redemandée à leur ouverture. Ce qui a été tapé ici sans être enregistré est gardé.
       for (const [id, c] of this.chats) {
         const unsent = c.messages.filter((m) => m.role === "user" && m.id == null);
+        this.releaseMessages(c.messages.filter((m) => !unsent.includes(m)));
         this.chats.set(id, { ...EMPTY_CHAT, oldestSeq: 0, messages: unsent, unread: c.unread });
       }
       const main = history.filter((e) => chatOf(e) === MAIN_CHAT);
@@ -550,10 +571,21 @@ export class GatewayClient {
       let unread = c.unread;
       let index = messages.findIndex((m) => m.id === incoming.id);
       if (index < 0 && incoming.role === "user") {
-        // Un message envoyé d'ici dont l'ack s'est perdu revient dans l'historique : on le reconnaît
-        // à son texte, à son nom et sa taille (fichier) ou à sa durée (vocal).
+        // Les plugins récents conservent client_id. Sans lui, attendre le re-ack plutôt que risquer
+        // d'absorber un autre fichier de même nom/taille ou un autre vocal de même durée.
         index = messages.findIndex((m) => m.role === "user" && m.id == null && sameUpload(m, incoming));
         if (index >= 0) this.outbox.delete(messages[index].key);
+        else if (!incoming.clientId) {
+          // Un ancien gateway peut avoir perdu son cache d'acks. Un contenu ressemblant n'est ni
+          // une preuve de livraison ni une autorisation de rejouer une commande déjà exécutée.
+          messages = messages.map((m) => {
+            if (m.role !== "user" || m.id != null || (m.failed && !m.retryable) || m.kind !== incoming.kind) return m;
+            const ambiguous = m.kind === "file" ? m.name === incoming.name && m.size === incoming.size
+              : m.kind === "voice" ? m.durationMs === incoming.durationMs
+              : m.kind === "text" && m.text.trim() === incoming.text.trim();
+            return ambiguous ? { ...m, failed: true, retryable: true, uncertain: true } : m;
+          });
+        }
       }
       if (index < 0) {
         const answer = incoming.clarify ? clarifyAnswers.get(incoming.id!) : undefined;
@@ -625,12 +657,14 @@ export class GatewayClient {
   private flushUnsent(): void {
     for (const [chat, c] of this.chats) {
       for (const m of c.messages) {
-        if (m.role !== "user" || m.id != null || m.failed) continue;
+        if (m.role !== "user" || m.id != null || m.uncertain || (m.failed && !m.retryable)) continue;
         if (m.kind === "text") {
           this.sendFrame({ type: "message", client_id: m.key, text: m.text, chat });
         } else {
           const frame = this.outbox.get(m.key);
-          if (frame) this.sendFrame(frame);
+          if (frame && this.sendFrame(frame)) {
+            this.updateMessages((pending) => pending.key === m.key, (pending) => ({ ...pending, failed: false, retryable: false }));
+          }
         }
       }
     }
@@ -640,7 +674,7 @@ export class GatewayClient {
     this.outbox.delete(clientId);
     this.updateMessages(
       (m) => m.key === clientId && m.id == null,
-      (m) => ({ ...m, failed: true }),
+      (m) => ({ ...m, failed: true, retryable: false, uncertain: false }),
     );
   }
 
@@ -659,7 +693,7 @@ export class GatewayClient {
       this.markFailed(message.key);
       return;
     }
-    if (this.disposed) return;
+    if (this.disposed || !this.knows(chat) || !this.chat(chat).messages.some((m) => m.key === message.key)) return;
     const frame = { ...build(data), client_id: message.key, chat };
     this.outbox.set(message.key, frame);
     if (this.ready) this.sendFrame(frame);
@@ -675,8 +709,36 @@ export class GatewayClient {
 
   /* -- Actions de l'interface ------------------------------------------------------------------ */
 
+  /** Seule une coupure réseau est récupérable ; jamais un refus définitif ou une erreur de lecture. */
+  canRetry(key: string): boolean {
+    const target = this.findMessage(key);
+    return !this.disposed && target?.id == null && !!target?.failed && !!target.retryable && this.outbox.has(key);
+  }
+
+  retry(key: string, confirmUncertain = false): boolean {
+    if (!this.canRetry(key)) return false;
+    if (this.findMessage(key)?.uncertain && !confirmUncertain) return false;
+    this.updateMessages((m) => m.key === key, (m) => ({ ...m, failed: false, retryable: false, uncertain: false }));
+    if (this.ready) this.sendFrame(this.outbox.get(key)!);
+    return true;
+  }
+
+  /** Retrait local uniquement : un message déjà confirmé par le gateway ne peut pas être effacé ici. */
+  discard(key: string): boolean {
+    const target = this.findMessage(key);
+    if (!target?.failed || target.id != null) return false;
+    this.outbox.delete(key);
+    if (target.localUrl) URL.revokeObjectURL(target.localUrl);
+    for (const [chat, c] of this.chats) {
+      if (c.messages.some((m) => m.key === key)) this.patchChat(chat, { messages: c.messages.filter((m) => m.key !== key) });
+    }
+    this.publish();
+    return true;
+  }
+
   /** Bulle « Envoi… » tout de suite, dans la conversation ouverte ; part maintenant si la socket est prête, sinon au prochain welcome. */
   send(text: string): void {
+    if (this.disposed) return;
     const trimmed = text.trim();
     if (!trimmed) return;
     const chat = this.activeChat;
@@ -696,7 +758,9 @@ export class GatewayClient {
     };
     this.patchChat(chat, { messages: [...this.chat(chat).messages, message] });
     this.publish();
-    if (this.ready) this.sendFrame({ type: "message", client_id: message.key, text: trimmed, chat });
+    const frame = { type: "message", client_id: message.key, text: trimmed, chat };
+    this.outbox.set(message.key, frame);
+    if (this.ready) this.sendFrame(frame);
   }
 
   /**
@@ -704,6 +768,7 @@ export class GatewayClient {
    * comme sur l'app. `false` : trop lourd ou vide, rien n'est envoyé.
    */
   sendFile(file: File, caption = ""): boolean {
+    if (this.disposed) return false;
     if (file.size === 0 || file.size > MAX_FILE_BYTES) return false;
     const mime = file.type || "application/octet-stream";
     const name = file.name || "file";
@@ -724,6 +789,7 @@ export class GatewayClient {
    * enveloppe de 40 barres. Le gateway le fait transcrire par Whisper, comme ceux du téléphone.
    */
   sendVoice(blob: Blob, durationMs: number, waveform: number[]): boolean {
+    if (this.disposed) return false;
     const mime = baseMime(blob.type);
     if (blob.size === 0 || blob.size > MAX_VOICE_BYTES || !VOICE_MIMES.includes(mime)) return false;
     const message: ChatMessage = {
@@ -886,22 +952,12 @@ function localMessage(kind: "voice" | "file"): ChatMessage {
 }
 
 /** Le même envoi, revenu de l'historique sans que son `ack` soit arrivé ici. */
-function sameUpload(local: ChatMessage, stored: ChatMessage): boolean {
-  if (local.kind !== stored.kind) return false;
-  switch (local.kind) {
-    case "text":
-      return local.text.trim() === stored.text.trim();
-    case "file":
-      return local.name === stored.name && local.size === stored.size;
-    case "voice":
-      return local.durationMs === stored.durationMs;
-    default:
-      return false;
-  }
+export function sameUpload(local: ChatMessage, stored: ChatMessage): boolean {
+  return local.kind === stored.kind && !!stored.clientId && local.key === stored.clientId;
 }
 
 /** `audio/webm;codecs=opus` → `audio/webm` : le plugin compare le type sans paramètres. */
-function baseMime(type: string): string {
+export function baseMime(type: string): string {
   return type.split(";")[0].trim().toLowerCase();
 }
 

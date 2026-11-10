@@ -19,8 +19,11 @@ These need accounts, secrets or hardware an agent must not touch. Agents: don't 
 may prepare docs or scripts for them.
 
 - [ ] **Signing key**: `keytool -genkeypair -v -keystore release.jks -alias claydot -keyalg RSA -keysize 4096 -validity 10000`,
-      then repository secrets `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`,
-      `SIGNING_KEY_PASSWORD`. Back up the `.jks` and passwords: losing them breaks every update.
+      then protected `claydot-production` environment secrets `SIGNING_KEYSTORE_BASE64`,
+      `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`. Require owner approval
+      and main-only deployments before adding secrets; do not use repository-level signing secrets.
+      If environment approval is unavailable, keep signing local. See [owner setup](docs/owner-setup.md).
+      Back up the `.jks` and passwords: losing them breaks every update.
 - [ ] **Deploy the web app**: Vercel project with root `web/`, Upstash Redis from the Marketplace. Note the URL.
 - [ ] **Firebase** (optional, push notifications): Android app with package `app.claydot`;
       `GOOGLE_SERVICES_JSON` secret (base64); service-account key on the server via `install.sh --fcm-key`.

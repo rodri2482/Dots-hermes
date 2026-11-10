@@ -5,8 +5,19 @@ import okhttp3.Request
 import okhttp3.Response
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.Instant
 
 class ReconnectDelayTest {
+
+    @Test fun `large retry-after values cannot overflow into a short reconnect`() {
+        assertEquals(Long.MAX_VALUE, reconnectDelayMs(0, Long.MAX_VALUE))
+        assertEquals(Long.MAX_VALUE, reconnectDelayMs(0, retryAfterSeconds(response429("9999999999999999999999"))))
+    }
+
+    @Test fun `HTTP date is rounded up so the next request is not early`() {
+        val now = Instant.parse("2026-11-10T12:00:00.250Z").toEpochMilli()
+        assertEquals(120L, retryAfterSeconds(response429("Tue, 10 Nov 2026 12:02:00 GMT"), now))
+    }
 
     /** Une réponse de handshake 429 comme celle du guard.py, avec ou sans en-tête Retry-After. */
     private fun response429(retryAfter: String? = null): Response {

@@ -48,6 +48,8 @@ export interface ChatMessage {
   key: string;
   /** Id attribué par le gateway, null tant que l'`ack` n'est pas arrivé. */
   id: string | null;
+  /** Identifiant d'envoi conservé par les plugins récents pour rapprocher un ack perdu sans heuristique. */
+  clientId?: string;
   type: "message" | "approval" | "clarify";
   role: "user" | "agent";
   kind: "text" | "voice" | "file" | "takeover";
@@ -73,8 +75,12 @@ export interface ChatMessage {
    * Gardé jusqu'au rechargement de la page ; ensuite le contenu vient du gateway, comme les autres.
    */
   localUrl?: string;
-  /** Refusé par le gateway (`bad_voice`, `bad_file`) ou trop lourd : il ne repartira pas. */
+  /** Envoi interrompu ou refusé ; retryable distingue une coupure d'un refus définitif. */
   failed?: boolean;
+  /** Coupure réseau avec la trame encore en mémoire : renvoi possible avec le même client_id. */
+  retryable?: boolean;
+  /** Ancien historique sans client_id : livraison ambiguë, jamais renvoyée sans décision explicite. */
+  uncertain?: boolean;
   // Prise en main : `pending`, `done` ou `expired`
   status?: string;
   approval?: Approval;
@@ -185,6 +191,7 @@ export function toMessage(event: Json): ChatMessage | null {
   const base = {
     key: id,
     id,
+    clientId: typeof event.client_id === "string" ? event.client_id : undefined,
     ts: num(event.ts, Date.now()),
     seq: num(event.seq),
     turn: str(event.turn) || null,

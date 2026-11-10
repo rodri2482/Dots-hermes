@@ -39,12 +39,21 @@ export function MessageRow({
   return (
     <div class={`row ${fromUser ? "is-user" : "is-agent"}${tight ? " is-tight" : ""}`}>
       {body}
-      {row.showReceipt && <div class={`receipt${message.failed ? " is-failed" : ""}`}>{receiptLabel(message)}</div>}
+      {row.showReceipt && (message.failed && message.role === "user" ? (
+        <details class="upload-actions">
+          <summary class="receipt is-failed" aria-label={t.unsentActions}>{receiptLabel(message)}</summary>
+          <div class="upload-action-buttons">
+            {client.canRetry(message.key) && <button type="button" onClick={() => client.retry(message.key, !message.uncertain || window.confirm(t.retryMayDuplicate))}>{t.retry}</button>}
+            <button type="button" onClick={() => client.discard(message.key)}>{t.remove}</button>
+          </div>
+        </details>
+      ) : <div class={`receipt${message.failed ? " is-failed" : ""}`}>{receiptLabel(message)}</div>)}
     </div>
   );
 }
 
 function receiptLabel(message: ChatMessage): string {
+  if (message.uncertain) return t.deliveryUnknown;
   if (message.failed) return t.notSent;
   if (message.delivery === "sending") return t.sending;
   if (message.delivery === "sent") return t.sent;

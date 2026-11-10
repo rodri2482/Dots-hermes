@@ -83,6 +83,9 @@ data class ChatMessage(
     val speaker: String? = null,
     /** Son nom au moment où il a parlé : le fil le montre encore une fois ce sous-dot fermé. */
     val speakerName: String? = null,
+    val failed: Boolean = false,
+    /** Ligne discrète sous une réponse (compte direct : « modèle · 1,4 s ») ; null = rien. */
+    val footer: String? = null,
 )
 
 enum class ToolState { Running, Done, Error }
@@ -124,6 +127,8 @@ sealed interface ConnectionState {
         val latencyMs: Int,
         val online: Boolean = true,
         val demo: Boolean = false,
+        /** Motif d'une attente de reconnexion ; null une fois le gateway de nouveau connecté. */
+        val reconnectReason: String? = null,
     ) : ConnectionState
     data class Failed(val reason: String) : ConnectionState
 }

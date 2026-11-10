@@ -366,7 +366,7 @@ Your gateway address is then `wss://hermes.example.com/dots/ws`.
 
 ### Download a release
 
-Every push to `main` builds an APK and publishes it on the repository's **Releases** page
+An owner-confirmed manual release run builds an APK and publishes it on the repository's **Releases** page
 (`claydot-<version>.apk`, with its SHA-256). Open the page on your phone, download the APK and allow
 installation from your browser when Android asks.
 
@@ -629,15 +629,19 @@ themselves: their signing key differs from the releases'.
 
 ## Releases (CI)
 
-[`.github/workflows/android-release.yml`](.github/workflows/android-release.yml) runs on every push
-to `main` that touches the app (changes limited to docs, design or `server/` are skipped), or by
-hand from the **Actions** tab. It runs the unit tests, builds a release APK and publishes it as a
-GitHub release tagged `v<appVersionName>.<run number>`.
+[`.github/workflows/android-release.yml`](.github/workflows/android-release.yml) runs only after
+explicit manual dispatch from **Actions**, with **publish** enabled (default false). Only the
+personal repository owner may dispatch or rerun it, and only the reviewed `main` ref may publish.
+Pushes run read-only checks. After device/provider acceptance, the manual workflow runs tests/lint,
+builds a release APK and publishes a GitHub release tagged `v<appVersionName>.<run number>`.
 
 The version name comes from `appVersionName` in [`gradle.properties`](gradle.properties); the
 version code grows with each run, so phones accept each new release as an update.
 
-Everything below is optional: without it, the workflow still publishes a working APK.
+The four signing secrets below are required in the protected `claydot-production` environment
+with owner approval and main-only deployment rules (see [owner setup](docs/owner-setup.md));
+missing credentials stop publication. Firebase and
+the default gateway remain optional. Local private testing uses `assembleDebug`.
 
 | Secret / variable | Purpose |
 |---|---|
@@ -649,9 +653,8 @@ Everything below is optional: without it, the workflow still publishes a working
 The workflow also sets `UPDATE_REPO` to the repository it runs in, so the in-app updater of a fork
 follows that fork's releases.
 
-Without the signing secrets, the APK is signed with a throwaway debug key generated on the build
-machine. It installs fine, but each release may be signed differently, so **updates (in-app or
-Obtainium) fail** until you set a stable key. Create a key once and add it as secrets:
+Release packaging requires a stable owner signing key and never falls back to a debug key.
+The owner creates a key once, backs it up, and adds the signing secrets privately:
 
 ```bash
 keytool -genkeypair -v -keystore release.jks -alias hermes -keyalg RSA -keysize 4096 -validity 10000
@@ -662,6 +665,23 @@ base64 -w0 app/google-services.json   # → GOOGLE_SERVICES_JSON
 Keep `release.jks` and its passwords safe: losing them means every user must reinstall the app.
 
 ---
+
+## Groq, voice and personality (direct accounts)
+
+- **Sign-in**: the first screen asks for one Groq API key ([console.groq.com/keys](https://console.groq.com/keys)).
+  The chat model is picked automatically from the models your key can use; you can still choose one under
+  *Change API key or model*. "Use a Hermes server" keeps the original gateway pairing.
+- **Voice notes**: the mic records a note, Groq transcribes it (`whisper-large-v3-turbo`) and the text is sent
+  as your message. The recording is deleted right after.
+- **Spoken replies**: in the dot's settings, *Voice* takes a [Fish Audio](https://docs.fish.audio) API key and a
+  voice ID; with *Read replies aloud* on, each reply is spoken with that voice (`POST /v1/tts`). Use a voice you
+  have the rights to.
+- **Personality**: Calm, Playful or Cheeky. It changes the tone of replies, never their accuracy. The idea of a
+  personality dial comes from [Capri](https://github.com/seanyih/Capri) (MIT); no code or character assets were
+  copied.
+
+Every key is typed on the phone, stored encrypted, and sent only to the provider's official HTTPS endpoint.
+None is bundled in the app.
 
 ## Troubleshooting
 
@@ -710,7 +730,7 @@ app/                          Android app (Kotlin, Jetpack Compose)
 server/hermes-plugin-dots/    Hermes platform plugin (aiohttp WebSocket, SQLite history, FCM)
 server/install.sh             one-command plugin installer / updater
 web/                          web app (Vite + Preact), pairing relay in web/api/
-.github/workflows/            release pipeline (APK built and published on push to main)
+.github/workflows/            owner-confirmed manual release pipeline and read-only checks
 design/mascotte/              mascot renderer (Python) and renders
 design/mockups/               screenshot mockups generator
 docs/                         gateway protocol (French)

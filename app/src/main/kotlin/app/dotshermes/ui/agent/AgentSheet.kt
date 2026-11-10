@@ -79,6 +79,10 @@ fun AgentSettings(
     onAddAgent: () -> Unit = {},
     /** Plusieurs agents : « Se déconnecter » devient « Retirer cet agent » (les autres restent). */
     multipleAgents: Boolean = false,
+    gatewayFeatures: Boolean = true,
+    onEditDirect: () -> Unit = {},
+    /** Compte API direct : personnalité et voix (Fish Audio). */
+    companion: CompanionControls? = null,
     /** App web : scanner le QR code d'un navigateur, et la liste des navigateurs appairés (null : section masquée). */
     onConnectBrowser: (() -> Unit)? = null,
     onBrowserSessions: (() -> Unit)? = null,
@@ -97,13 +101,14 @@ fun AgentSettings(
 
             SectionLabel(stringResource(R.string.settings_connection))
             GroupedCard {
-                InfoRow(stringResource(R.string.connect_gateway), connected?.gatewayUrl ?: "—")
+                InfoRow(stringResource(if (gatewayFeatures) R.string.connect_gateway else R.string.api_provider_label), connected?.gatewayUrl ?: "—")
                 Hairline()
-                InfoRow(stringResource(R.string.settings_latency), connected?.let { stringResource(R.string.latency_ms, it.latencyMs) } ?: "—")
+                if (gatewayFeatures) InfoRow(stringResource(R.string.settings_latency), connected?.let { stringResource(R.string.latency_ms, it.latencyMs) } ?: "—")
+                else InfoRow(stringResource(R.string.api_model_label), profile.tagline)
                 Hairline()
-                InfoRow(stringResource(R.string.settings_encryption), if (connected?.demo == false) "TLS · Let's Encrypt" else "—")
+                InfoRow(stringResource(R.string.settings_encryption), if (!gatewayFeatures) "HTTPS" else if (connected?.demo == false) "TLS" else "—")
                 Hairline()
-                InfoRow(stringResource(R.string.settings_source), stringResource(if (connected?.demo == false) R.string.settings_source_gateway else R.string.settings_source_demo))
+                InfoRow(stringResource(R.string.settings_source), stringResource(if (!gatewayFeatures) R.string.api_source else if (connected?.demo == false) R.string.settings_source_gateway else R.string.settings_source_demo))
                 if (connected?.demo == false) {
                     Hairline()
                     Text(
@@ -115,7 +120,12 @@ fun AgentSettings(
                 }
             }
 
-            if (connected?.demo == false && onConnectBrowser != null && onBrowserSessions != null) {
+            if (!gatewayFeatures) {
+                GroupedCard { LinkRow(stringResource(R.string.api_edit_account), onEditDirect) }
+                companion?.let { CompanionSettings(it) }
+            }
+
+            if (gatewayFeatures && connected?.demo == false && onConnectBrowser != null && onBrowserSessions != null) {
                 // Un navigateur reçoit tous les agents connectés, pas seulement celui-ci : section à part.
                 SectionLabel(stringResource(R.string.web_section))
                 GroupedCard {
@@ -176,7 +186,7 @@ fun AgentSettings(
             Spacer(Modifier.height(24.dp))
             GroupedCard {
                 Text(
-                    stringResource(if (multipleAgents) R.string.agents_remove else R.string.settings_disconnect),
+                    stringResource(if (!gatewayFeatures) R.string.api_delete_account else if (multipleAgents) R.string.agents_remove else R.string.settings_disconnect),
                     style = MaterialTheme.typography.labelLarge,
                     color = Ink.Danger,
                     textAlign = TextAlign.Center,
@@ -225,7 +235,6 @@ private fun LinkRow(label: String, onClick: () -> Unit) {
 private fun InfoRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-        Spacer(Modifier.weight(1f).padding(horizontal = 8.dp))
         Text(
             value,
             style = MaterialTheme.typography.bodyMedium,
@@ -233,7 +242,7 @@ private fun InfoRow(label: String, value: String) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.End,
-            modifier = Modifier.weight(2f, fill = false),
+            modifier = Modifier.weight(1f).padding(start = 12.dp),
         )
     }
 }

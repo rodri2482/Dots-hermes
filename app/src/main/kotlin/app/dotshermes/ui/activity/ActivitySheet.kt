@@ -82,6 +82,8 @@ fun ActivitySheet(
     turns: List<TurnSummary>,
     screen: ScreenState,
     usage: UsageWindow?,
+    gatewayFeatures: Boolean = true,
+    directUsage: app.dotshermes.data.direct.DirectApiUsage? = null,
     onUsage: (from: Instant, to: Instant) -> Unit,
     onRefresh: () -> Unit,
     onCron: (String, CronAction) -> Unit,
@@ -90,7 +92,8 @@ fun ActivitySheet(
     onDismiss: () -> Unit,
 ) {
     // Les crons bougent tout seuls (prochaine exécution, statut) : on rafraîchit tant que la vue est ouverte.
-    LaunchedEffect(Unit) {
+    LaunchedEffect(gatewayFeatures) {
+        if (!gatewayFeatures) return@LaunchedEffect
         while (true) {
             onRefresh()
             delay(20_000)
@@ -108,7 +111,7 @@ fun ActivitySheet(
             Text(stringResource(R.string.activity_title), style = MaterialTheme.typography.headlineSmall, color = Ink.Primary, modifier = Modifier.padding(start = 4.dp))
 
             SectionLabel(stringResource(R.string.activity_usage))
-            GroupedCard { UsageCard(usage, onUsage) }
+            GroupedCard { if (gatewayFeatures) UsageCard(usage, onUsage) else DirectUsageCard(directUsage) }
 
             SectionLabel(stringResource(R.string.activity_now))
             GroupedCard { NowCard(agentName, appearance, activity, busy, liveTools, onStop) }
@@ -118,19 +121,22 @@ fun ActivitySheet(
                 GroupedCard { BrowserCard(screen, onOpenScreen) }
             }
 
-            SectionLabel(stringResource(R.string.activity_scheduled))
-            GroupedCard {
-                val crons = snapshot?.crons.orEmpty().sortedWith(compareBy<CronJob> { it.finished }.thenBy { it.nextRunAt ?: Instant.MAX })
-                when {
-                    snapshot == null -> Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(20.dp), color = LocalDotPalette.current.base, strokeWidth = 2.dp)
-                    }
-                    crons.isEmpty() -> EmptyLine(stringResource(R.string.activity_no_crons))
-                    else -> crons.forEachIndexed { i, job ->
-                        if (i > 0) Hairline()
-                        CronRow(job, onCron)
+            if (gatewayFeatures) {
+                SectionLabel(stringResource(R.string.activity_scheduled))
+                GroupedCard {
+                    val crons = snapshot?.crons.orEmpty().sortedWith(compareBy<CronJob> { it.finished }.thenBy { it.nextRunAt ?: Instant.MAX })
+                    when {
+                        snapshot == null -> Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(20.dp), color = LocalDotPalette.current.base, strokeWidth = 2.dp)
+                        }
+                        crons.isEmpty() -> EmptyLine(stringResource(R.string.activity_no_crons))
+                        else -> crons.forEachIndexed { i, job ->
+                            if (i > 0) Hairline()
+                            CronRow(job, onCron)
+                        }
                     }
                 }
+
             }
 
             SectionLabel(stringResource(R.string.activity_recent))

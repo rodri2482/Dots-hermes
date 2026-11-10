@@ -17,13 +17,17 @@ Three parts, one protocol (JSON frames over one WebSocket, see `docs/protocole-g
 | Gateway plugin | Python, aiohttp, SQLite; runs **inside** Hermes as platform plugin `dots-platform` | `server/hermes-plugin-dots/` |
 | Web app | Vite + Preact + TypeScript, static, paired with the phone by QR code | `web/` |
 
-The apps never talk to an AI provider. Hermes does, with keys stored in `~/.hermes/.env` on the server.
+Hermes accounts use gateway-held provider keys. The user additionally approved native Android direct
+API-key text chat (OpenAI/Anthropic/Groq), with offline development and keys entered only on the phone.
+Direct account keys/history use Keystore-backed encryption in noBackupFilesDir; metadata holds no
+API key. No real provider calls or developer credentials are authorized for testing.
 
 ## Hard rules
 
 1. **No secrets in the repository or in client code.** API keys (Groq, OpenAI, …), `DOTS_TOKEN`,
    keystores, `google-services.json` and Firebase service-account keys stay out of git and out of
    `app/` and `web/`. Anything bundled into the APK or the web app is public.
+   User-entered direct API keys may exist only in the encrypted on-device runtime vault described above.
 2. **Keep the upstream-compatible internals.** User-facing identity is Claydot (`applicationId
    "app.claydot"`, app name, web title, release file names), but these stay as they are:
    - Kotlin namespace and packages `app.dotshermes` (do not move source files),
@@ -36,13 +40,14 @@ The apps never talk to an AI provider. Hermes does, with keys stored in `~/.herm
    and `values-fr/strings.xml`; on the web, the `en`/`fr` objects passed to `strings()`.
 5. Code comments and docs inside the code are mostly French: follow the surrounding file's language.
 6. Don't commit, push or open PRs unless the user asks. Work on a feature branch, never on `main`
-   (every push to `main` that touches the app publishes a GitHub release).
+   (publication is a separate, explicit owner action through the manual release workflow).
 
 ## Commands
 
 ```bash
-# Web app (Node 20+)
+# Web app (Node 22.12+, required by Vitest)
 cd web && npm ci && npm run typecheck && npm run build
+npm test              # fonctions pures + faux gateway pour les envois interrompus/refusés
 npm run dev            # http://localhost:5173, with an in-memory pairing relay
 
 # Gateway plugin tests (no Hermes needed; test_ws_guard needs `pip install aiohttp`, else skipped)
@@ -57,7 +62,7 @@ bash -n server/install.sh
 
 Not every machine has the Android SDK. When you cannot run Gradle, say so in your report: never
 claim an Android change compiles without having built it. CI (`.github/workflows/android-release.yml`)
-builds on push to `main` only.
+publishes only after an explicit owner-confirmed manual run on main. Read-only checks run on pushes and PRs.
 
 ## Testing without a real Hermes server
 

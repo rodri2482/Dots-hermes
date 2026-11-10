@@ -22,16 +22,16 @@ object QuickReply {
     private val client by lazy { OkHttpClient() }
 
     suspend fun send(agent: String, text: String, chat: String = MAIN_CHAT): Boolean {
-        if (AppContainer.agents.store.get(agent) == null) return false
-        if (AppContainer.agents.repo(agent).sendIfConnected(text, chat)) return true
+        if (AppContainer.agents.store.get(agent)?.provider != null || AppContainer.agents.store.get(agent) == null) return false
+        if (AppContainer.agents.gatewayRepo(agent)?.sendIfConnected(text, chat) == true) return true
         val clientId = UUID.randomUUID().toString()
         return oneShot(agent, GatewayProtocol.message(clientId, text, chat)) { it.optString("type") == "ack" && it.optString("client_id") == clientId }
     }
 
     /** Approuver / refuser une commande : terminé quand le gateway confirme la résolution. */
     suspend fun answerApproval(agent: String, approvalId: String, approved: Boolean): Boolean {
-        if (AppContainer.agents.store.get(agent) == null) return false
-        if (AppContainer.agents.repo(agent).answerApprovalIfConnected(approvalId, approved)) return true
+        if (AppContainer.agents.store.get(agent)?.provider != null || AppContainer.agents.store.get(agent) == null) return false
+        if (AppContainer.agents.gatewayRepo(agent)?.answerApprovalIfConnected(approvalId, approved) == true) return true
         return oneShot(agent, GatewayProtocol.approval(approvalId, approved)) {
             it.optString("type") == "approval_resolved" && it.optString("approval_id") == approvalId
         }

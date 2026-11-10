@@ -8,7 +8,11 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run && node --test tests/upload-recovery.test.cjs",
     "sync-dots": "node scripts/sync-dots.mjs"
+  },
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
   },
   "dependencies": {
     "dompurify": "3.4.17",
@@ -19,6 +23,7 @@
   "devDependencies": {
     "@preact/preset-vite": "2.10.5",
     "typescript": "5.9.3",
-    "vite": "6.4.5"
+    "vite": "6.4.5",
+    "vitest": "5.1.0"
   }
 }

@@ -46,6 +46,11 @@ class RoutingChatRepository(
         active.flatMapLatest(pick).stateIn(scope, SharingStarted.Eagerly, pick(active.value).value)
 
     override val profile: StateFlow<AgentProfile> = follow(scope) { it.profile }
+    override val gatewayFeatures = follow(scope) { it.gatewayFeatures }
+    override val voiceInput = follow(scope) { it.voiceInput }
+    override val directUsage = follow(scope) { it.directUsage }
+    override val requestIssue = follow(scope) { it.requestIssue }
+    override fun retryRequest() = active.value.retryRequest()
     override val connection: StateFlow<ConnectionState> = follow(scope) { it.connection }
     override val messages: StateFlow<List<ChatMessage>> = follow(scope) { it.messages }
     override val activity: StateFlow<AgentActivity> = follow(scope) { it.activity }
@@ -71,6 +76,8 @@ class RoutingChatRepository(
             agents.activeRepo.value.connect(config)
         }
     }
+
+    fun currentTarget(): ChatRepository = active.value
 
     val isDemo: Boolean get() = demoOn.value
 
