@@ -20,6 +20,7 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import re
 import secrets
 import threading
@@ -777,7 +778,14 @@ class DotsAdapter(BasePlatformAdapter):
                 except json.JSONDecodeError:
                     await self._push({"type": "error", "code": "bad_json"}, ws)
                     continue
-                await self._on_frame(frame, ws)
+                if not isinstance(frame, dict):
+                    await self._push({"type": "error", "code": "bad_frame"}, ws)
+                    continue
+                try:
+                    await self._on_frame(frame, ws)
+                except (ValueError, TypeError, OverflowError):
+                    # Une trame mal typée ne doit pas couper les autres échanges de cette socket.
+                    await self._push({"type": "error", "code": "bad_frame"}, ws)
         finally:
             self._clients.pop(ws, None)
             logger.info("[%s] App disconnected (%d open)", self.name, len(self._clients))
@@ -1200,14 +1208,28 @@ class DotsAdapter(BasePlatformAdapter):
         if not data or len(data) > MAX_VOICE_BYTES:
             await self._push({"type": "error", "code": "bad_voice", "client_id": client_id}, ws)
             return
+        # Valider les métadonnées avant de créer le fichier : aucun audio orphelin en cas de refus.
+        try:
+            raw_waveform = frame.get("waveform") or []
+            if not isinstance(raw_waveform, list):
+                raise ValueError("waveform must be a list")
+            values = [float(v) for v in raw_waveform[:64]]
+            if not all(math.isfinite(v) for v in values):
+                raise ValueError("waveform must be finite")
+            waveform = [round(min(max(v, 0.0), 1.0), 3) for v in values]
+            duration_ms = int(frame.get("duration_ms") or 0)
+            if duration_ms < 0:
+                raise ValueError("duration must be nonnegative")
+        except (ValueError, TypeError, OverflowError):
+            await self._push({"type": "error", "code": "bad_voice", "client_id": client_id}, ws)
+            return
         chat = self._chat_of(frame)
         event_id = uuid.uuid4().hex
         path = self._voice_dir / f"{event_id}{VOICE_TYPES[mime]}"
         path.write_bytes(data)
-        waveform = [round(min(max(float(v), 0.0), 1.0), 3) for v in (frame.get("waveform") or [])[:64]]
         event = self._history.add({
             "type": "message", "id": event_id, "role": "user", "kind": "voice", "text": "", "ts": _now_ms(), "chat": chat,
-            "final": True, "audio": path.name, "mime": mime, "duration_ms": int(frame.get("duration_ms") or 0),
+            "final": True, "audio": path.name, "mime": mime, "duration_ms": duration_ms,
             "waveform": waveform,
         })
         await self._ack({"type": "ack", "client_id": client_id, "id": event_id, "seq": event["seq"], "ts": event["ts"]}, ws)
