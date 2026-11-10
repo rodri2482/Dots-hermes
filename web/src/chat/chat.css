@@ -1074,6 +1074,15 @@
 .composer-notice .icon-btn { flex: none; width: 28px; height: 28px; border: 0; background: transparent; }
 
 .receipt.is-failed { color: var(--ink-danger); }
+button.receipt.is-action { cursor: pointer; }
+button.receipt.is-action:hover { text-decoration: underline; }
+
+/* Menu d'un envoi refusé : au-dessus du reçu, aligné sur son bord droit (côté des bulles utilisateur). */
+.menu.is-receipt {
+  top: auto;
+  bottom: calc(100% + 4px);
+  min-width: 150px;
+}
 
 .attachment-image {
   display: block;

@@ -636,8 +636,11 @@ export class GatewayClient {
     }
   }
 
+  /**
+   * Refus d'un envoi (`bad_voice` / `bad_file`) : la bulle passe à « Non envoyé ». La trame attend
+   * toujours dans la boîte d'envoi : « Réessayer » pourra la repartir, « Supprimer » l'ôtera.
+   */
   private markFailed(clientId: string): void {
-    this.outbox.delete(clientId);
     this.updateMessages(
       (m) => m.key === clientId && m.id == null,
       (m) => ({ ...m, failed: true }),
@@ -753,6 +756,37 @@ export class GatewayClient {
       (m) => ({ ...m, reactions: { ...m.reactions, user: next ?? undefined } }),
     );
     this.sendFrame({ type: "reaction", message_id: target.id, emoji: next });
+  }
+
+  /** Un envoi refusé peut repartir si sa trame attend encore dans la boîte d'envoi. */
+  canRetry(key: string): boolean {
+    return this.outbox.has(key);
+  }
+
+  /** « Réessayer » : retour à « Envoi… » ; la trame repart tout de suite si la socket est prête,
+   * sinon au prochain `welcome` (flushUnsent ne saute plus la bulle, `failed` ayant été effacé). */
+  retry(key: string): void {
+    const frame = this.outbox.get(key);
+    if (!frame) return;
+    this.updateMessages(
+      (m) => m.key === key,
+      (m) => ({ ...m, failed: false, delivery: "sending" }),
+    );
+    if (this.ready) this.sendFrame(frame);
+  }
+
+  /** « Supprimer » un envoi resté « Non envoyé » : la bulle disparaît, son blob local est libéré. */
+  discard(key: string): void {
+    const target = this.findMessage(key);
+    if (!target || target.id != null) return;
+    if (target.localUrl) URL.revokeObjectURL(target.localUrl);
+    this.outbox.delete(key);
+    for (const [id, c] of this.chats) {
+      if (!c.messages.some((m) => m.key === key)) continue;
+      this.chats.set(id, { ...c, messages: c.messages.filter((m) => m.key !== key) });
+      this.publish();
+      return;
+    }
   }
 
   /** Approuver = `once`, Refuser = `deny`, comme l'app. */

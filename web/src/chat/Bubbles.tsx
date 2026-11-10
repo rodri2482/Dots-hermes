@@ -39,7 +39,12 @@ export function MessageRow({
   return (
     <div class={`row ${fromUser ? "is-user" : "is-agent"}${tight ? " is-tight" : ""}`}>
       {body}
-      {row.showReceipt && <div class={`receipt${message.failed ? " is-failed" : ""}`}>{receiptLabel(message)}</div>}
+      {row.showReceipt &&
+        (message.failed ? (
+          <FailedReceipt message={message} client={client} />
+        ) : (
+          <div class="receipt">{receiptLabel(message)}</div>
+        ))}
     </div>
   );
 }
@@ -49,6 +54,58 @@ function receiptLabel(message: ChatMessage): string {
   if (message.delivery === "sending") return t.sending;
   if (message.delivery === "sent") return t.sent;
   return t.read(formatTime(message.ts));
+}
+
+/**
+ * Reçu rouge d'un envoi refusé, cliquable : propose de repartir (si la trame attend toujours dans la
+ * boîte d'envoi) ou d'effacer la bulle. Le menu se ferme sur une action ou un clic ailleurs.
+ */
+function FailedReceipt({ message, client }: { message: ChatMessage; client: GatewayClient }) {
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (!anchor.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  return (
+    <div class="menu-anchor" ref={anchor}>
+      <button type="button" class="receipt is-failed is-action" onClick={() => setOpen(!open)}>
+        {t.notSent}
+      </button>
+      {open && (
+        <div class="menu is-receipt" role="menu">
+          {client.canRetry(message.key) && (
+            <button
+              type="button"
+              class="menu-item"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                client.retry(message.key);
+              }}
+            >
+              {t.retryUpload}
+            </button>
+          )}
+          <button
+            type="button"
+            class="menu-item is-danger"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              client.discard(message.key);
+            }}
+          >
+            {t.discardUpload}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Coins resserrés côté auteur quand les bulles se suivent (façon iMessage). */
