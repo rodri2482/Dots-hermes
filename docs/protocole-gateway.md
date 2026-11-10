@@ -1,5 +1,7 @@
 # Protocole app Dots ↔ gateway Hermes
 
+*Traduction anglaise : [gateway-protocol.md](gateway-protocol.md).*
+
 Version 1, 2 novembre 2026.
 
 ## Architecture
@@ -24,7 +26,7 @@ Pixel (app Hermes) ──wss://<domaine>/dots/ws──▶ Caddy (TLS Let's Encry
 | `DOTS_BIND` | Adresse d'écoute, `127.0.0.1:8787` par défaut |
 | `DOTS_ALLOWED_USERS` | `owner` |
 | `DOTS_HOME_CHANNEL` | `owner` (cible des messages proactifs et des tâches cron) |
-| `DOTS_WEB_ORIGINS` | Origines de l'app web autorisées, séparées par des virgules. `install.sh` y met toujours `https://dots-hermes.vercel.app`. Vide : aucun navigateur accepté |
+| `DOTS_WEB_ORIGINS` | Origines de l'app web autorisées, séparées par des virgules. `install.sh` y met l'origine de l'app web principale (`https://dots-hermes.vercel.app` sauf configuration, voir son `--default-web-origin`). Vide : aucun navigateur accepté |
 
 ## Connexion
 
