@@ -152,8 +152,6 @@
     <string name="usage_previous_month">Mois précédent</string>
     <string name="usage_next_month">Mois suivant</string>
     <string name="usage_month_total">Total du mois</string>
-    <string name="usage_less">Moins</string>
-    <string name="usage_more">Plus</string>
     <string name="usage_unavailable">Consommation indisponible : mettez à jour le plugin Dots de votre gateway.</string>
     <plurals name="usage_tokens_count">
         <item quantity="one">%s token</item>
@@ -465,10 +463,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="local_limits">Hors ligne, Claydot peut quand même utiliser ton téléphone (apps, musique, messages, écran), en ménageant chaleur et batterie. Le téléchargement passe par Android et continue en arrière-plan ; le Wi-Fi est conseillé.</string>
     <string name="local_unsupported">Ce téléphone ne peut pas faire tourner de modèle hors ligne (il faut un processeur ARM 64 bits).</string>
     <string name="model_menu_open">Choisir un modèle</string>
-    <string name="model_menu_hint">Les modèles hors ligne marchent sans Internet ni clé d\'API, et pilotent aussi le téléphone (apps, musique, messages, écran), en ménageant la chaleur et la batterie.</string>
-    <string name="model_downloaded">Téléchargé</string>
-    <string name="model_delete">Supprimer</string>
-    <string name="settings_offline_models">Modèles hors ligne</string>
     <string name="model_online">en ligne</string>
     <string name="model_add">Ajouter un modèle</string>
     <string name="local_error_hot">Ton téléphone chauffe : Claydot a mis le modèle hors ligne en pause. Réessaie dans une minute.</string>

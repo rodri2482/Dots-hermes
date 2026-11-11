@@ -106,8 +106,8 @@ fun UsageCard(usage: UsageWindow?, onRequest: (Instant, Instant) -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MonthArrow(true, enabled = month > thisMonth.minusMonths(MONTHS_BACK)) { monthText = month.minusMonths(1).toString() }
             Text(
-                formatDate(start, "MMMMy", zone).replaceFirstChar { it.titlecase(locale) },
-                style = MaterialTheme.typography.titleSmall, color = Ink.Primary,
+                formatDate(start, "MMMy", zone).replaceFirstChar { it.titlecase(locale) },
+                style = MaterialTheme.typography.titleSmall, color = Ink.Primary, maxLines = 1, softWrap = false,
             )
             MonthArrow(false, enabled = month < thisMonth) { monthText = month.plusMonths(1).toString() }
             Spacer(Modifier.weight(1f))
@@ -153,11 +153,11 @@ fun UsageCard(usage: UsageWindow?, onRequest: (Instant, Instant) -> Unit) {
                         val focus = selected?.let { inMonth[it] ?: DayUsage() }
                         Text(
                             if (selected != null) {
-                                formatDate(selected.atStartOfDay(zone).toInstant(), "EEEEdMMMM", zone).replaceFirstChar { it.titlecase(locale) }
+                                formatDate(selected.atStartOfDay(zone).toInstant(), "EEEdMMM", zone).replaceFirstChar { it.titlecase(locale) }
                             } else {
                                 stringResource(R.string.usage_month_total)
                             },
-                            style = MaterialTheme.typography.labelLarge, color = Ink.Primary, maxLines = 2,
+                            style = MaterialTheme.typography.labelLarge, color = Ink.Primary, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         )
                         val total = focus ?: inMonth.values.fold(DayUsage()) { a, b -> a + b }
                         Text(tokensText(total, locale), style = MaterialTheme.typography.labelSmall, color = Ink.Secondary, maxLines = 1, softWrap = false,
@@ -262,6 +262,7 @@ private fun MetricToggle(metric: UsageMetric, onPick: (UsageMetric) -> Unit) {
                     stringResource(if (option == UsageMetric.Tokens) R.string.usage_tokens else R.string.usage_messages),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (on) Ink.Primary else Ink.Secondary,
+                    maxLines = 1, softWrap = false,
                 )
             }
         }
@@ -272,12 +273,9 @@ private fun MetricToggle(metric: UsageMetric, onPick: (UsageMetric) -> Unit) {
 @Composable
 private fun Legend(palette: DotPalette) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(stringResource(R.string.usage_less), style = MaterialTheme.typography.labelSmall, color = Ink.Tertiary)
-        Spacer(Modifier.width(2.dp))
+        // Les cases seules, de la plus claire à la plus foncée : plus de mots coupés sur les petits écrans.
         (0..4).forEach { level ->
             Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(heatColor(level, palette)))
         }
-        Spacer(Modifier.width(2.dp))
-        Text(stringResource(R.string.usage_more), style = MaterialTheme.typography.labelSmall, color = Ink.Tertiary)
     }
 }

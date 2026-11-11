@@ -215,9 +215,6 @@ fun AgentSettings(
                         ?.let { MemorySettings(it) }
                     RoutinesSettings(app.dotshermes.AppContainer.routines, app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value)
                 }
-                // Modèles du téléphone : téléchargés ici ou depuis le menu des modèles de l'en-tête.
-                OfflineModelsSettings(app.dotshermes.AppContainer.localModels,
-                    inUse = profile.tagline.takeIf { connected?.gatewayUrl == app.dotshermes.data.direct.ApiProvider.Local.title })
             }
 
             SectionLabel(stringResource(R.string.settings_app))

@@ -154,8 +154,6 @@
     <string name="usage_previous_month">Previous month</string>
     <string name="usage_next_month">Next month</string>
     <string name="usage_month_total">Month total</string>
-    <string name="usage_less">Less</string>
-    <string name="usage_more">More</string>
     <string name="usage_unavailable">Usage isn\'t available yet: update the Dots plugin on your gateway.</string>
     <plurals name="usage_tokens_count">
         <item quantity="one">%s token</item>
@@ -458,10 +456,6 @@ Paste a Groq API key to get started.</string>
     <string name="local_limits">Offline, Claydot can still use your phone (apps, music, texting, the screen), with care for heat and battery. Downloads go through Android and continue in the background; Wi-Fi is best.</string>
     <string name="local_unsupported">This phone can\'t run offline models (they need a 64-bit ARM processor).</string>
     <string name="model_menu_open">Choose a model</string>
-    <string name="model_menu_hint">Offline models work without internet or an API key, and can use your phone too (apps, music, texting, the screen), with care for heat and battery.</string>
-    <string name="model_downloaded">Downloaded</string>
-    <string name="model_delete">Delete</string>
-    <string name="settings_offline_models">Offline models</string>
     <string name="model_online">online</string>
     <string name="model_add">Add model</string>
     <string name="local_error_hot">Your phone is getting hot, so Claydot paused the offline model. Try again in a minute.</string>
