@@ -39,18 +39,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import app.dotshermes.data.model.AgentProfile
 import app.dotshermes.data.model.ConnectionState
 import app.dotshermes.ui.DEFAULT_AGENT_NAME
@@ -140,15 +128,6 @@ fun AgentSettings(
                             modifier = Modifier.fillMaxWidth().clickable(onClick = it).padding(horizontal = 16.dp, vertical = 13.dp))
                     }
                 }
-                companion?.let { CompanionSettings(it) }
-                // Les outils (Gmail) passent par les appels de fonction de Groq.
-                if (connected?.gatewayUrl == app.dotshermes.data.direct.ApiProvider.Groq.title) {
-                    GmailSettings(app.dotshermes.AppContainer.gmail)
-                    PhoneSettings(app.dotshermes.AppContainer.phoneActions)
-                    (app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value?.let { app.dotshermes.AppContainer.agents.repo(it) } as? app.dotshermes.data.direct.DirectChatRepository)
-                        ?.let { MemorySettings(it) }
-                    RoutinesSettings(app.dotshermes.AppContainer.routines, app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value)
-                }
             }
 
             if (gatewayFeatures) {
@@ -184,58 +163,57 @@ fun AgentSettings(
                 }
             }
 
-            // Apparence repliée par défaut : la fiche reste courte, tout est à un appui.
-            var lookOpen by rememberSaveable { mutableStateOf(false) }
-            SectionLabel(stringResource(R.string.settings_appearance))
+            SectionLabel(stringResource(R.string.settings_mascot))
             GroupedCard {
-                Row(Modifier.fillMaxWidth().clickable { lookOpen = !lookOpen }.padding(horizontal = 16.dp, vertical = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.settings_appearance_row), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, modifier = Modifier.weight(1f))
-                    val turn by animateFloatAsState(if (lookOpen) 180f else 0f, label = "look-chevron")
-                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.ExpandMore, null, tint = Ink.Tertiary,
-                        modifier = Modifier.graphicsLayer { rotationZ = turn })
+                Row(
+                    Modifier.fillMaxWidth().padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    DotSpecies.entries.forEach { species ->
+                        SpeciesOption(species, appearance, selected = species == appearance.species) { onSpecies(species) }
+                    }
                 }
             }
-            AnimatedVisibility(lookOpen, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                Column {
-                SectionLabel(stringResource(R.string.settings_mascot))
-                GroupedCard {
-                    Row(
-                        Modifier.fillMaxWidth().padding(8.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                    ) {
-                        DotSpecies.entries.forEach { species ->
-                            SpeciesOption(species, appearance, selected = species == appearance.species) { onSpecies(species) }
-                        }
+
+            SectionLabel(stringResource(R.string.settings_display))
+            GroupedCard {
+                ThemePicker(appearance.theme, onTheme)
+            }
+
+            SectionLabel(stringResource(R.string.settings_color))
+            GroupedCard {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    DotPalettes.all.forEach { option ->
+                        Swatch(option, selected = option.id == appearance.palette.id) { onPalette(option) }
                     }
                 }
+            }
 
-                SectionLabel(stringResource(R.string.settings_display))
-                GroupedCard {
-                    ThemePicker(appearance.theme, onTheme)
-                    Hairline()
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        DotPalettes.all.forEach { option ->
-                            Swatch(option, selected = option.id == appearance.palette.id) { onPalette(option) }
-                        }
+            SectionLabel(stringResource(R.string.settings_accessory))
+            GroupedCard {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    DotAccessory.entries.forEach { accessory ->
+                        AccessoryOption(accessory, appearance.species, selected = accessory == appearance.accessory) { onAccessory(accessory) }
                     }
                 }
+            }
 
-                SectionLabel(stringResource(R.string.settings_accessory))
-                GroupedCard {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        DotAccessory.entries.forEach { accessory ->
-                            AccessoryOption(accessory, appearance.species, selected = accessory == appearance.accessory) { onAccessory(accessory) }
-                        }
-                    }
-                }
-
+            // Compte direct (Claydot) : personnalité, voix et outils, sous l'apparence comme dans la fiche d'origine.
+            if (!gatewayFeatures) {
+                companion?.let { CompanionSettings(it) }
+                // Les outils (Gmail) passent par les appels de fonction de Groq.
+                if (connected?.gatewayUrl == app.dotshermes.data.direct.ApiProvider.Groq.title) {
+                    GmailSettings(app.dotshermes.AppContainer.gmail)
+                    PhoneSettings(app.dotshermes.AppContainer.phoneActions)
+                    (app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value?.let { app.dotshermes.AppContainer.agents.repo(it) } as? app.dotshermes.data.direct.DirectChatRepository)
+                        ?.let { MemorySettings(it) }
+                    RoutinesSettings(app.dotshermes.AppContainer.routines, app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value)
                 }
             }
 

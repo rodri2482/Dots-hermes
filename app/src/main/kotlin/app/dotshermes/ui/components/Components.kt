@@ -29,7 +29,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.dotshermes.ui.theme.Ink
 
 /** Carte de liste groupée iOS (fond uni, coins arrondis, lignes séparées par [Hairline]). */
@@ -51,8 +50,7 @@ fun Hairline(startIndent: Dp = 16.dp) {
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text.uppercase(),
-        // Des capitales serrées se lisent mal : un peu d'espacement (tracking) entre les lettres.
-        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.6.sp),
+        style = MaterialTheme.typography.labelSmall,
         color = Ink.Secondary,
         modifier = modifier.fillMaxWidth().padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
     )
@@ -95,13 +93,10 @@ fun CircleIconButton(
     container: Color = Ink.Fill,
     tint: Color = Ink.Primary,
 ) {
-    // Le rond garde sa taille ; la zone qu'on peut toucher fait au moins 48 dp (cible tactile Android).
     Box(
-        modifier = modifier.size(maxOf(size, 48.dp)).clip(CircleShape).clickable(role = Role.Button, onClick = onClick),
+        modifier = modifier.size(size).clip(CircleShape).background(container).clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(size).background(container, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(size * 0.5f))
-        }
+        Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(size * 0.5f))
     }
 }

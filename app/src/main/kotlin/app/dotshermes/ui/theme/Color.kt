@@ -23,18 +23,13 @@ data class DotPalette(
     val onBase: Color,
 )
 
-/**
- * Teintes dérivées en OKLCH à partir de la couleur de base (celle des illustrations, inchangée) :
- * « deep » à la même teinte, luminance ~0,55, la plus claire qui reste lisible (≥ 4,5:1 sur blanc
- * et sur « light ») ; « light » à L 0,965 et chroma 0,03, d'intensité égale pour toutes les couleurs.
- */
 object DotPalettes {
-    val Tangerine = DotPalette("tangerine", R.string.color_tangerine, Color(0xFFFF8A3D), Color(0xFFB35403), Color(0xFFFEF0E9), Color.White)
-    val Bubblegum = DotPalette("bubblegum", R.string.color_bubblegum, Color(0xFFFF5FA2), Color(0xFFCC2B77), Color(0xFFFEEFF3), Color.White)
-    val Sky = DotPalette("sky", R.string.color_sky, Color(0xFF2F8CFF), Color(0xFF026DDB), Color(0xFFEDF4FE), Color.White)
-    val Lime = DotPalette("lime", R.string.color_lime, Color(0xFF9AD83A), Color(0xFF537C04), Color(0xFFEDF8E3), Color(0xFF1F3300))
-    val Sun = DotPalette("sun", R.string.color_sun, Color(0xFFFFC531), Color(0xFF8D6A02), Color(0xFFFDF2DD), Color(0xFF3B2800))
-    val Grape = DotPalette("grape", R.string.color_grape, Color(0xFF8E6BFF), Color(0xFF7953E5), Color(0xFFF3F2FE), Color.White)
+    val Tangerine = DotPalette("tangerine", R.string.color_tangerine, Color(0xFFFF8A3D), Color(0xFFE5611C), Color(0xFFFFEDE0), Color.White)
+    val Bubblegum = DotPalette("bubblegum", R.string.color_bubblegum, Color(0xFFFF5FA2), Color(0xFFDD3A80), Color(0xFFFFE6F0), Color.White)
+    val Sky = DotPalette("sky", R.string.color_sky, Color(0xFF2F8CFF), Color(0xFF1764D6), Color(0xFFE3EEFF), Color.White)
+    val Lime = DotPalette("lime", R.string.color_lime, Color(0xFF9AD83A), Color(0xFF6AAE18), Color(0xFFEFF8DE), Color(0xFF1F3300))
+    val Sun = DotPalette("sun", R.string.color_sun, Color(0xFFFFC531), Color(0xFFE29E00), Color(0xFFFFF5D9), Color(0xFF3B2800))
+    val Grape = DotPalette("grape", R.string.color_grape, Color(0xFF8E6BFF), Color(0xFF6844E8), Color(0xFFEEE8FF), Color.White)
 
     val all = listOf(Tangerine, Bubblegum, Sky, Lime, Sun, Grape)
 }

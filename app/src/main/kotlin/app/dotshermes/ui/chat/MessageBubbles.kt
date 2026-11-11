@@ -194,7 +194,7 @@ private fun TextBubble(
     // pas la largeur de la bulle, et surtout ne pas toucher à l'alignement Start/End
     // de la Column parente (une bulle fillMaxWidth() casserait l'alignement à droite).
     val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
-    val bubbleMaxWidth = if (screenWidthDp < 600.dp) 296.dp else (screenWidthDp * 0.72f).coerceIn(296.dp, 560.dp) // ~75 caractères : au-delà, l'œil perd la ligne
+    val bubbleMaxWidth = if (screenWidthDp < 600.dp) 296.dp else (screenWidthDp * 0.72f).coerceIn(296.dp, 720.dp)
 
     // Séparation des gestes : l'appui long SUR le texte sélectionne (menu Copier),
     // l'appui long HORS texte ouvre le picker de réactions. Il faut donc savoir où

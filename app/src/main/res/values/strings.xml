@@ -390,8 +390,6 @@ Paste a Groq API key to get started.</string>
     <string name="gmail_error_setup">Gmail isn\'t set up for this app yet: it needs a Google Cloud sign-in client (see docs/gmail-setup.md).</string>
     <string name="agents_add_hermes">Connect a Hermes server</string>
     <string name="conn_online">Online</string>
-    <string name="settings_appearance">Appearance</string>
-    <string name="settings_appearance_row">Mascot, colours and accessory</string>
     <string name="phone_section">Phone</string>
     <string name="phone_title">Let Claydot use your phone</string>
     <string name="phone_hint">Alarms, timers, opening apps and calendar events. Claydot always asks before doing anything.</string>

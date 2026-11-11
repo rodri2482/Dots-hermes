@@ -416,9 +416,9 @@ private fun ChatHeader(
         modifier
             .fillMaxWidth()
             // Blanc franc sous la barre d'état, qui s'évanouit vers le bas : les messages passent dessous.
-            .background(Brush.verticalGradient(0f to Ink.Surface, 0.8f to Ink.Surface, 1f to Ink.Surface.copy(alpha = 0f)))
+            .background(Brush.verticalGradient(0f to Ink.Surface, 0.7f to Ink.Surface.copy(alpha = 0.92f), 1f to Ink.Surface.copy(alpha = 0f)))
             .statusBarsPadding()
-            .padding(top = 4.dp, bottom = 22.dp),
+            .padding(top = 4.dp, bottom = 18.dp),
     ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
@@ -472,7 +472,7 @@ private fun ChatHeader(
                 )
             }
         }
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.End)) {
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
             CircleIconButton(Icons.Rounded.Insights, stringResource(R.string.activity_title), onOpenActivity, container = Ink.Raised.copy(alpha = 0.85f))
             Box {
                 CircleIconButton(Icons.Rounded.MoreHoriz, stringResource(R.string.cd_my_dots), onOpenAgent, container = Ink.Raised.copy(alpha = 0.85f))
@@ -621,20 +621,20 @@ private fun Composer(
                 icon = Icons.Rounded.Add,
                 contentDescription = stringResource(R.string.cd_suggestions),
                 onClick = onToggleSuggestions,
-                size = 44.dp,
+                size = 40.dp,
                 modifier = Modifier.graphicsLayer { rotationZ = plusRotation },
             )
             Spacer(Modifier.width(8.dp))
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 44.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .heightIn(min = 40.dp)
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Ink.Fill)
-                    .padding(start = 16.dp),
+                    .padding(start = 16.dp, end = 4.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                Box(Modifier.weight(1f).padding(vertical = 11.dp)) {
+                Box(Modifier.weight(1f).padding(vertical = 9.dp)) {
                     if (draft.isEmpty()) {
                         Text(
                             if (room.isEmpty()) stringResource(R.string.composer_placeholder, agentName) else stringResource(R.string.room_placeholder),
@@ -656,6 +656,7 @@ private fun Composer(
                     voiceEnabled && sendingEnabled -> ComposerAction.Mic
                     else -> ComposerAction.Idle
                 }
+                Box(Modifier.padding(bottom = 4.dp).size(32.dp), contentAlignment = Alignment.Center) {
                 AnimatedContent(
                     targetState = action,
                     transitionSpec = { (scaleIn(initialScale = 0.6f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.6f) + fadeOut()) },
@@ -669,6 +670,7 @@ private fun Composer(
                         ComposerAction.Idle -> ComposerButton(Icons.Rounded.ArrowUpward, stringResource(R.string.cd_send), filled = true, enabled = false) {}
                     }
                 }
+                }
             }
         }
     }
@@ -676,22 +678,17 @@ private fun Composer(
 
 private enum class ComposerAction { Send, Mic, Idle }
 
-/** Bouton rond du champ de saisie : pastille de 34 dp dans une zone tactile de 44 dp. */
+/** Bouton rond de 32 dp dans le champ de saisie, comme dans l'app d'origine (envoi plein, micro nu). */
 @Composable
 private fun ComposerButton(icon: ImageVector, label: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val palette = LocalDotPalette.current
     Box(
-        Modifier.size(44.dp).clip(CircleShape)
+        Modifier.size(32.dp).clip(CircleShape).graphicsLayer { alpha = if (enabled) 1f else 0.35f }
+            .then(if (filled) Modifier.background(palette.base) else Modifier)
             .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier.size(34.dp).graphicsLayer { alpha = if (enabled) 1f else 0.35f }
-                .then(if (filled) Modifier.background(palette.base, CircleShape) else Modifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, label, tint = if (filled) palette.onBase else palette.deep, modifier = Modifier.size(if (filled) 19.dp else 23.dp))
-        }
+        Icon(icon, label, tint = if (filled) palette.onBase else palette.deep, modifier = Modifier.size(if (filled) 18.dp else 22.dp))
     }
 }
 

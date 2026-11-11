@@ -397,8 +397,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="gmail_error_setup">Gmail n\'est pas encore configuré pour cette app : il faut un client de connexion Google Cloud (voir docs/gmail-setup.md).</string>
     <string name="agents_add_hermes">Brancher un serveur Hermes</string>
     <string name="conn_online">En ligne</string>
-    <string name="settings_appearance">Apparence</string>
-    <string name="settings_appearance_row">Mascotte, couleurs et accessoire</string>
     <string name="phone_section">Téléphone</string>
     <string name="phone_title">Laisser Claydot utiliser ton téléphone</string>
     <string name="phone_hint">Réveils, minuteurs, ouvrir une app, événements d\'agenda. Claydot demande toujours avant de faire quoi que ce soit.</string>
