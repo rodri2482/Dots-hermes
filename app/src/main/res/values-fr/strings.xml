@@ -469,6 +469,9 @@ Colle une clé API Groq pour commencer.</string>
     <string name="local_error_battery">Batterie trop faible pour le modèle hors ligne. Branche ton téléphone ou utilise Groq.</string>
     <string name="local_error_memory">Pas assez de mémoire libre pour le modèle hors ligne. Ferme quelques apps et réessaie.</string>
     <string name="gmail_opening">Ouverture de Google…</string>
+    <string name="routine_channel">Routines en cours</string>
+    <string name="routine_running">Claydot fait une routine</string>
+    <string name="routines_exact">Autoriser l\'heure exacte des routines</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

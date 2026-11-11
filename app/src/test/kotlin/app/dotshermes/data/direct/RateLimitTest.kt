@@ -65,4 +65,38 @@ class RateLimitTest {
         val assistant = JSONObject().put("role", "assistant").put("content", "y".repeat(2_000))
         assertEquals(2_000, shrinkOldToolResult(assistant).getString("content").length)
     }
+
+    /** Le modèle choisi refuse les outils (400) : la tâche continue avec le modèle « agent ». */
+    private class NoToolsClient : ProviderClient {
+        val usedModels = mutableListOf<String>()
+        override suspend fun models(provider: ApiProvider, key: String) = listOf("gemma-no-tools", "meta-llama/llama-4-scout-17b-16e-instruct")
+        override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) = error("unused")
+        override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+            extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+            usedModels += model
+            if (model == "gemma-no-tools" && tools != null) throw ApiException(ApiFailure.InvalidRequest)
+            onDelta("Timer set.")
+            return emptyList()
+        }
+    }
+
+    private class Memory : DirectTools {
+        override fun definitions() = JSONArray().put(JSONObject().put("type", "function").put("function", JSONObject().put("name", "set_timer")))
+        override fun label(call: ApiToolCall) = ToolKeys.of("timer")
+        override suspend fun run(call: ApiToolCall) = "{}"
+    }
+
+    @Test fun `a model without tools hands the task to one that has them`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage(); val client = NoToolsClient()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "gemma-no-tools", scope, storage, client, toolbox = { Memory() })
+            repo.restore(); repo.send("Set a timer for 5 minutes")
+            withTimeout(10_000) {
+                while (storage.transcript.messages.lastOrNull()?.state != DirectEntryState.Complete || repo.activity.value != AgentActivity.Idle) delay(20)
+            }
+            assertEquals(listOf("gemma-no-tools", "meta-llama/llama-4-scout-17b-16e-instruct"), client.usedModels)
+            assertEquals("Timer set.", storage.transcript.messages.last().text)
+        } finally { scope.cancel() }
+    }
 }

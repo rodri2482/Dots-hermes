@@ -462,6 +462,9 @@ Paste a Groq API key to get started.</string>
     <string name="local_error_battery">Battery is too low to run the offline model. Plug in your phone or use Groq.</string>
     <string name="local_error_memory">Not enough free memory for the offline model. Close a few apps and try again.</string>
     <string name="gmail_opening">Opening Google…</string>
+    <string name="routine_channel">Routines running</string>
+    <string name="routine_running">Claydot is running a routine</string>
+    <string name="routines_exact">Allow exact timing for routines</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

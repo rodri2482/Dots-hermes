@@ -193,7 +193,17 @@ fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: 
     val mine = all.filter { it.accountId == accountId }
     Column(Modifier.fillMaxWidth()) {
         SectionLabel(stringResource(R.string.routines_section))
+        val context = androidx.compose.ui.platform.LocalContext.current
         GroupedCard {
+            // Android 12+ : sans « alarmes et rappels », une routine peut partir quelques minutes en retard.
+            if (mine.isNotEmpty() && !app.dotshermes.data.direct.RoutineAlarms.canBeExact(context) && android.os.Build.VERSION.SDK_INT >= 31) {
+                Text(stringResource(R.string.routines_exact), style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                            android.net.Uri.parse("package:" + context.packageName)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }.padding(horizontal = 16.dp, vertical = 13.dp))
+                Hairline()
+            }
             if (mine.isEmpty()) {
                 Text(stringResource(R.string.routines_empty), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp))

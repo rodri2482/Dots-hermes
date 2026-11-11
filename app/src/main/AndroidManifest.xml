@@ -12,6 +12,11 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Actions confirmées par l'utilisateur : réveil et minuteur dans l'app Horloge. -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <!-- Routines : à l'heure exacte, reprises après un redémarrage, et longues tâches en arrière-plan. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- « Ouvre WhatsApp » : voir les apps de l'écran d'accueil (Android 11+). -->
     <queries>
         <intent>
@@ -91,6 +96,23 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service" />
         </service>
+
+        <!-- Routines : réveil à l'heure dite, et reprogrammation après redémarrage ou mise à jour. -->
+        <receiver
+            android:name=".data.direct.RoutineAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Une routine longue tourne comme tâche de premier plan (WorkManager). -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
         <receiver
             android:name=".push.ReplyReceiver"

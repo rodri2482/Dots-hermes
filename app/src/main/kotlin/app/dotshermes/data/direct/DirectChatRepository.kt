@@ -299,6 +299,11 @@ class DirectChatRepository(
             }
             break
             } catch (e: ApiException) {
+                // Modèle choisi qui ne sait pas appeler d'outils : la tâche continue avec un modèle qui sait.
+                if (e.failure == ApiFailure.InvalidRequest && offered != null && provider == ApiProvider.Groq && attempt < 3) {
+                    val agent = agentModel(key)?.takeIf { it != turnModel }
+                    if (agent != null) { attempt++; turnModel = agent; continue }
+                }
                 // Quota par minute dépassé : courte attente puis on reprend ; sinon, le modèle au quota large.
                 if (e.failure != ApiFailure.RateLimited || attempt >= 3 || provider != ApiProvider.Groq) throw e
                 attempt++
@@ -454,12 +459,14 @@ class DirectChatRepository(
      * Routine programmée : envoie [text] comme un message et attend la réponse (3 min au plus).
      * null si le compte n'est pas prêt, déjà occupé, en attente de quota, ou sans réponse complète.
      */
-    suspend fun runRoutine(text: String): String? {
+    suspend fun runRoutine(text: String, timeoutMs: Long = ROUTINE_TIMEOUT_MS): String? {
         if (!ready) restore()
+        // Une réponse en cours (l'utilisateur discute) : on attend qu'elle finisse au lieu d'abandonner.
+        kotlinx.coroutines.withTimeoutOrNull(60_000) { activity.first { it == AgentActivity.Idle } }
         val before = synchronized(lock) { if (!ready || busy) return null; transcript.messages.size }
         begin(text, null)
         if (activity.value == AgentActivity.Idle) return null
-        kotlinx.coroutines.withTimeoutOrNull(180_000) { activity.first { it == AgentActivity.Idle } } ?: return null
+        kotlinx.coroutines.withTimeoutOrNull(timeoutMs) { activity.first { it == AgentActivity.Idle } } ?: return null
         return synchronized(lock) {
             transcript.messages.drop(before).lastOrNull { it.role == "assistant" && it.state == DirectEntryState.Complete }?.text
         }
@@ -687,6 +694,9 @@ internal const val TOOL_RULE = "You run on the user's Android phone and have too
     "When a request matches a tool, call it instead of saying you can't; only say you can't when no tool fits. " +
     "Finish the job: if an app opens but the task is not done yet (a song still needs a tap, a message still needs typing), " +
     "When a screen task ends or gets stuck, call take_screenshot so the user sees where it stopped and can continue. " +
+    "For long or complicated tasks: work out the steps first, then do one step at a time; after every screen action, " +
+    "read the screen to check it worked; if something fails, try another way (scroll, go back, search, open the app again) " +
+    "instead of giving up; keep going until the whole task is done, then say briefly what you did. " +
     "For questions about something (a person, place, food, how-to, comparison), answer like a polished assistant: a direct first " +
     "sentence, then ## headings or **bold** labels, short bullet points, a table when comparing, and a one-line tip at the end; " +
     "call show_image when a picture helps. Keep small talk short and casual. " +
@@ -735,14 +745,17 @@ internal class ReactionTag {
 
 /** Échanges d'outils au plus par message (recherche, lecture, …), pour borner le coût. */
 // Assez pour une petite tâche à l'écran (lire, toucher, écrire…) ; le dernier tour force une réponse.
-private const val MAX_TOOL_ROUNDS = 12
-private const val LOCAL_TOOL_ROUNDS = 6
+private const val MAX_TOOL_ROUNDS = 30
+private const val LOCAL_TOOL_ROUNDS = 12
+/** Une routine peut travailler jusqu'à 15 minutes (tâches à plusieurs étapes). */
+private const val ROUTINE_TIMEOUT_MS = 15 * 60_000L
 
 /** Les outils proposés au modèle du téléphone : l'essentiel pour piloter le téléphone, une invite plus courte. */
 private val LocalToolNames = setOf(
     "remember", "forget", "phone_info", "open_app", "play_music", "media_control", "set_alarm", "set_timer",
     "add_calendar_event", "find_contact", "send_sms", "send_whatsapp", "start_screen_control", "read_screen", "tap",
-    "type_text", "scroll", "swipe", "press_key", "take_screenshot",
+    "type_text", "scroll", "swipe", "press_key", "take_screenshot", "launch_app", "long_press", "open_link", "wait",
+    "search_web", "get_news", "read_webpage", "create_routine", "list_routines",
 )
 
 internal fun localToolset(all: org.json.JSONArray): org.json.JSONArray = org.json.JSONArray().apply {

@@ -141,10 +141,17 @@ class RoutineStore(private val context: Context) {
 
 /** Exécute une routine à l'heure dite, puis programme la suivante. */
 class RoutineWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    /** Notification discrète « Routine en cours » : la routine peut travailler longtemps sans être coupée. */
+    override suspend fun getForegroundInfo(): androidx.work.ForegroundInfo {
+        val routine = inputData.getString(KEY_ID)?.let { AppContainer.routines.get(it) }
+        return RoutineAlarms.foregroundInfo(applicationContext, routine?.name.orEmpty())
+    }
+
     override suspend fun doWork(): Result {
         val id = inputData.getString(KEY_ID) ?: return Result.success()
         val store = AppContainer.routines
         val routine = store.get(id)?.takeIf { it.enabled } ?: return Result.success()
+        runCatching { setForeground(getForegroundInfo()) }
         val repo = AppContainer.agents.repo(routine.accountId) as? DirectChatRepository
         val reply = repo?.runRoutine("${routine.name}: ${routine.prompt}")
         if (reply == null && runAttemptCount < 2) return Result.retry()
@@ -159,18 +166,23 @@ class RoutineWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         private const val KEY_ID = "routine"
         private fun name(id: String) = "routine-$id"
 
-        fun schedule(context: Context, routine: Routine) {
-            val next = routine.nextRun(ZonedDateTime.now(ZoneId.systemDefault())) ?: return
-            val delay = (next.toInstant().toEpochMilli() - System.currentTimeMillis()).coerceAtLeast(0)
+        /** Prochain passage : une alarme à l'heure exacte (voir [RoutineAlarms]). */
+        fun schedule(context: Context, routine: Routine) = RoutineAlarms.schedule(context, routine)
+
+        /** L'heure est venue : la routine part tout de suite, en priorité, dès qu'il y a du réseau. */
+        fun runNow(context: Context, id: String) {
             val request = OneTimeWorkRequestBuilder<RoutineWorker>()
-                .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-                .setInputData(workDataOf(KEY_ID to routine.id))
+                .setInputData(workDataOf(KEY_ID to id))
+                .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(name(routine.id), ExistingWorkPolicy.REPLACE, request)
+            WorkManager.getInstance(context).enqueueUniqueWork(name(id), ExistingWorkPolicy.KEEP, request)
         }
 
-        fun cancel(context: Context, id: String) { WorkManager.getInstance(context).cancelUniqueWork(name(id)) }
+        fun cancel(context: Context, id: String) {
+            RoutineAlarms.cancel(context, id)
+            WorkManager.getInstance(context).cancelUniqueWork(name(id))
+        }
     }
 }
 
@@ -230,4 +242,67 @@ class RoutineTools(
     private fun fn(name: String, description: String, properties: JSONObject, vararg required: String) = JSONObject()
         .put("type", "function").put("function", JSONObject().put("name", name).put("description", description)
             .put("parameters", JSONObject().put("type", "object").put("properties", properties).put("required", JSONArray(required.toList()))))
+}
+
+
+/**
+ * Heure exacte des routines : AlarmManager les réveille à la minute près, même en veille (WorkManager seul
+ * les décalait parfois de plusieurs minutes). Sans l'autorisation « alarmes exactes », Android les
+ * déclenche au plus près qu'il peut.
+ */
+object RoutineAlarms {
+    private const val CHANNEL = "claydot_routines"
+    private const val EXTRA_ID = "routine"
+
+    private fun intent(context: Context, id: String) = android.app.PendingIntent.getBroadcast(
+        context, id.hashCode(), android.content.Intent(context, RoutineAlarmReceiver::class.java).putExtra(EXTRA_ID, id),
+        android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    fun canBeExact(context: Context): Boolean {
+        val alarms = context.getSystemService(android.app.AlarmManager::class.java) ?: return false
+        return android.os.Build.VERSION.SDK_INT < 31 || alarms.canScheduleExactAlarms()
+    }
+
+    fun schedule(context: Context, routine: Routine) {
+        if (!routine.enabled) return
+        val next = routine.nextRun(ZonedDateTime.now(ZoneId.systemDefault()))?.toInstant()?.toEpochMilli() ?: return
+        val alarms = context.getSystemService(android.app.AlarmManager::class.java) ?: return
+        val pending = intent(context, routine.id)
+        if (canBeExact(context)) alarms.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, next, pending)
+        else alarms.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, next, pending)
+    }
+
+    fun cancel(context: Context, id: String) {
+        context.getSystemService(android.app.AlarmManager::class.java)?.cancel(intent(context, id))
+    }
+
+    fun idFrom(intent: android.content.Intent?) = intent?.getStringExtra(EXTRA_ID)
+
+    fun foregroundInfo(context: Context, name: String): androidx.work.ForegroundInfo {
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null) {
+            manager.createNotificationChannel(android.app.NotificationChannel(CHANNEL,
+                context.getString(app.dotshermes.R.string.routine_channel), android.app.NotificationManager.IMPORTANCE_LOW))
+        }
+        val notification = androidx.core.app.NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(app.dotshermes.R.drawable.ic_stat_hermes)
+            .setContentTitle(context.getString(app.dotshermes.R.string.routine_running))
+            .setContentText(name)
+            .setOngoing(true).setSilent(true)
+            .build()
+        return if (android.os.Build.VERSION.SDK_INT >= 29) androidx.work.ForegroundInfo(4242, notification,
+            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else androidx.work.ForegroundInfo(4242, notification)
+    }
+}
+
+/** Réveil d'une routine à son heure ; et après un redémarrage du téléphone, toutes les routines sont reprogrammées. */
+class RoutineAlarmReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: android.content.Intent?) {
+        when (intent?.action) {
+            android.content.Intent.ACTION_BOOT_COMPLETED, android.content.Intent.ACTION_MY_PACKAGE_REPLACED,
+            "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" -> AppContainer.routines.rescheduleAll()
+            else -> RoutineAlarms.idFrom(intent)?.let { RoutineWorker.runNow(context, it) }
+        }
+    }
 }
