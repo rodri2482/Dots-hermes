@@ -1,0 +1,180 @@
+package app.dotshermes.data.gmail
+
+import android.content.Context
+import android.util.Base64
+import androidx.core.content.edit
+import com.google.android.gms.auth.GoogleAuthUtil
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.AuthorizationResult
+import com.google.android.gms.auth.api.identity.Identity
+import com.google.android.gms.common.api.Scope
+import com.google.android.gms.tasks.Task
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+/** Pourquoi Gmail ne répond pas : à reconnecter (consentement), pas encore configuré, ou réseau. */
+class GmailException(val reason: Reason) : IOException(reason.name) {
+    enum class Reason { NotConnected, NeedsConsent, NotSetUp, Network, NotFound }
+}
+
+/**
+ * Lecture seule de Gmail pour le compagnon, avec l'API d'autorisation de Google (Play Services) :
+ * l'utilisateur accepte la portée `gmail.readonly` une fois ; le jeton d'accès (une heure) est
+ * redemandé en silence ensuite. Aucun secret dans l'app : Google reconnaît l'app à son nom de paquet
+ * et à l'empreinte de sa clé de signature (client OAuth « Android » du projet Google Cloud).
+ */
+class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpClient()) {
+    private val prefs = context.getSharedPreferences("gmail", Context.MODE_PRIVATE)
+    private val http = client.newBuilder().followRedirects(false)
+        .connectTimeout(20, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
+
+    private val _connected = MutableStateFlow(prefs.getBoolean("connected", false))
+    /** L'utilisateur a branché Gmail (il peut encore falloir redonner l'accord à Google). */
+    val connected: StateFlow<Boolean> = _connected.asStateFlow()
+
+    val request: AuthorizationRequest = AuthorizationRequest.builder()
+        .setRequestedScopes(listOf(Scope(GMAIL_READONLY))).build()
+
+    /** Première étape du branchement : soit un jeton tout de suite, soit l'écran d'accord de Google à lancer. */
+    suspend fun authorize(): AuthorizationResult = Identity.getAuthorizationClient(context).authorize(request).await()
+
+    /** Résultat de l'écran d'accord de Google. */
+    fun resultFrom(data: android.content.Intent?): AuthorizationResult =
+        Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(data)
+
+    fun markConnected(on: Boolean) {
+        prefs.edit { putBoolean("connected", on) }
+        _connected.value = on
+    }
+
+    /** Débranche : l'accès est révoqué chez Google (au mieux), puis oublié ici. */
+    suspend fun disconnect() = withContext(Dispatchers.IO) {
+        val token = try { silentToken() } catch (_: Exception) { null }
+        if (token != null) {
+            try {
+                http.newCall(Request.Builder().url("https://oauth2.googleapis.com/revoke")
+                    .post("token=$token".toRequestBody(FORM)).build()).execute().close()
+                GoogleAuthUtil.clearToken(context, token)
+            } catch (_: Exception) { /* révocation au mieux : l'accès est de toute façon oublié ici */ }
+        }
+        markConnected(false)
+    }
+
+    private suspend fun silentToken(): String {
+        if (!_connected.value) throw GmailException(GmailException.Reason.NotConnected)
+        val result = try { authorize() } catch (e: com.google.android.gms.common.api.ApiException) {
+            throw GmailException(if (e.statusCode == DEVELOPER_ERROR) GmailException.Reason.NotSetUp else GmailException.Reason.Network)
+        }
+        if (result.hasResolution()) throw GmailException(GmailException.Reason.NeedsConsent)
+        return result.accessToken ?: throw GmailException(GmailException.Reason.NeedsConsent)
+    }
+
+    /** Recherche Gmail (syntaxe de la barre de recherche) : expéditeur, objet, date et aperçu de chaque message. */
+    suspend fun search(query: String, max: Int): JSONArray = withContext(Dispatchers.IO) {
+        val list = get("messages", mapOf("q" to query, "maxResults" to max.coerceIn(1, 10).toString()))
+        val out = JSONArray()
+        val ids = list.optJSONArray("messages") ?: JSONArray()
+        for (i in 0 until ids.length()) {
+            val id = ids.optJSONObject(i)?.optString("id").orEmpty().takeIf { it.isNotBlank() } ?: continue
+            val meta = get("messages/$id", mapOf("format" to "metadata"), listOf("From", "Subject", "Date"))
+            out.put(JSONObject().put("id", id).put("snippet", meta.optString("snippet"))
+                .apply { headers(meta).forEach { (k, v) -> put(k.lowercase(), v) } })
+        }
+        out
+    }
+
+    /** Un message : en-têtes et texte brut (le HTML est réduit à son texte), tronqué. */
+    suspend fun read(id: String): JSONObject = withContext(Dispatchers.IO) {
+        if (!id.matches(Regex("[A-Za-z0-9_-]{1,64}"))) throw GmailException(GmailException.Reason.NotFound)
+        val full = get("messages/$id", mapOf("format" to "full"))
+        val payload = full.optJSONObject("payload") ?: JSONObject()
+        val body = (part(payload, "text/plain") ?: part(payload, "text/html")?.let(::htmlToText) ?: full.optString("snippet"))
+            .replace(Regex("\\n{3,}"), "\n\n").trim()
+        JSONObject().put("id", id).put("body", body.take(MAX_BODY_CHARS))
+            .put("truncated", body.length > MAX_BODY_CHARS)
+            .apply { headers(full).forEach { (k, v) -> put(k.lowercase(), v) } }
+    }
+
+    private suspend fun get(path: String, query: Map<String, String>, metadata: List<String> = emptyList(), retried: Boolean = false): JSONObject {
+        val token = silentToken()
+        val url = "$API/$path".toHttpUrl().newBuilder().apply {
+            query.forEach { (k, v) -> addQueryParameter(k, v) }
+            metadata.forEach { addQueryParameter("metadataHeaders", it) }
+        }.build()
+        val request = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
+        val (code, text) = try {
+            http.newCall(request).execute().use { it.code to (it.body?.string().orEmpty()) }
+        } catch (_: IOException) { throw GmailException(GmailException.Reason.Network) }
+        return when {
+            code == 401 && !retried -> {
+                // Jeton expiré dans le cache de Google : on l'oublie et on en redemande un, une fois.
+                try { GoogleAuthUtil.clearToken(context, token) } catch (_: Exception) {}
+                get(path, query, metadata, retried = true)
+            }
+            code == 401 || code == 403 -> throw GmailException(GmailException.Reason.NeedsConsent)
+            code == 404 -> throw GmailException(GmailException.Reason.NotFound)
+            code !in 200..299 -> throw GmailException(GmailException.Reason.Network)
+            else -> try { JSONObject(text) } catch (_: Exception) { throw GmailException(GmailException.Reason.Network) }
+        }
+    }
+
+    companion object {
+        const val GMAIL_READONLY = "https://www.googleapis.com/auth/gmail.readonly"
+        private const val API = "https://gmail.googleapis.com/gmail/v1/users/me"
+        private const val MAX_BODY_CHARS = 6000
+        /** CommonStatusCodes.DEVELOPER_ERROR : pas de client OAuth pour ce paquet et cette signature. */
+        private const val DEVELOPER_ERROR = 10
+        private val FORM = "application/x-www-form-urlencoded".toMediaType()
+
+        private fun headers(message: JSONObject): List<Pair<String, String>> {
+            val rows = message.optJSONObject("payload")?.optJSONArray("headers") ?: return emptyList()
+            return (0 until rows.length()).mapNotNull { i ->
+                val h = rows.optJSONObject(i) ?: return@mapNotNull null
+                val name = h.optString("name")
+                if (name in setOf("From", "To", "Subject", "Date")) name to h.optString("value").take(300) else null
+            }
+        }
+
+        /** Premier morceau du type voulu, en descendant dans les pièces jointes multipart. */
+        private fun part(node: JSONObject, mime: String): String? {
+            if (node.optString("mimeType") == mime) {
+                val data = node.optJSONObject("body")?.optString("data").orEmpty()
+                if (data.isNotEmpty()) return try {
+                    String(Base64.decode(data, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING), Charsets.UTF_8)
+                } catch (_: IllegalArgumentException) { null }
+            }
+            val parts = node.optJSONArray("parts") ?: return null
+            for (i in 0 until parts.length()) parts.optJSONObject(i)?.let { part(it, mime) }?.let { return it }
+            return null
+        }
+
+        internal fun htmlToText(html: String): String = html
+            .replace(Regex("(?is)<(script|style)[^>]*>.*?</\\1>"), " ")
+            .replace(Regex("(?i)<br\\s*/?>|</p>|</div>|</tr>|</li>"), "\n")
+            .replace(Regex("<[^>]+>"), " ")
+            .replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'")
+            .replace(Regex("[ \\t]+"), " ")
+            .replace(Regex(" *\\n *"), "\n")
+    }
+}
+
+private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->
+    addOnSuccessListener { continuation.resume(it) }
+    addOnFailureListener { continuation.resumeWithException(it) }
+    addOnCanceledListener { continuation.cancel() }
+}

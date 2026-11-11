@@ -122,6 +122,8 @@ dependencies {
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
     implementation(libs.mlkit.barcode.scanning)
+    // Gmail en lecture seule : écran d'accord de Google et jeton d'accès (API d'autorisation d'Identity).
+    implementation(libs.play.services.auth)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

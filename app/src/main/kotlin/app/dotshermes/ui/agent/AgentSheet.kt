@@ -122,6 +122,8 @@ fun AgentSettings(
                     }
                 }
                 companion?.let { CompanionSettings(it) }
+                // Les outils (Gmail) passent par les appels de fonction de Groq.
+                if (connected?.gatewayUrl == app.dotshermes.data.direct.ApiProvider.Groq.title) GmailSettings(app.dotshermes.AppContainer.gmail)
             }
 
             if (gatewayFeatures) {

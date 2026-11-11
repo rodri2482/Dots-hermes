@@ -35,6 +35,13 @@ interface ProviderClient {
     suspend fun streamCounted(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
         onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit) =
         streamWithUsage(provider, key, model, turns, onLimits, onDelta)
+    /** [streamCounted] avec des outils : renvoie les appels demandés par le modèle (vide : réponse finie). */
+    suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+        extra: List<org.json.JSONObject>, tools: org.json.JSONArray?,
+        onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+        streamCounted(provider, key, model, turns, onLimits, onTokens, onDelta)
+        return emptyList()
+    }
     /** Vocal → texte. Seul Groq (Whisper) le propose ici ; une seule requête par vocal envoyé. */
     suspend fun transcribe(provider: ApiProvider, key: String, audio: java.io.File): String = throw ApiException(ApiFailure.InvalidRequest)
 }

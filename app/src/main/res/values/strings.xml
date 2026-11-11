@@ -380,6 +380,14 @@ Paste a Groq API key to get started.</string>
     <string name="api_choose_model">Choose model</string>
     <string name="settings_account">Account</string>
     <string name="companion_voice_other">Other</string>
+    <string name="gmail_section">Gmail</string>
+    <string name="gmail_title">Let Claydot read your Gmail</string>
+    <string name="gmail_connected">Gmail connected · read-only</string>
+    <string name="gmail_hint">Ask things like “any new emails from the bank?”. Claydot can search and read emails, never send, delete or change them.</string>
+    <string name="gmail_connect">Connect Gmail</string>
+    <string name="gmail_disconnect">Disconnect Gmail</string>
+    <string name="gmail_error">Couldn\'t connect to Gmail. Try again.</string>
+    <string name="gmail_error_setup">Gmail isn\'t set up for this app yet: it needs a Google Cloud sign-in client (see docs/gmail-setup.md).</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

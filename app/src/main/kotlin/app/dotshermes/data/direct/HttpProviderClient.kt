@@ -91,6 +91,12 @@ class HttpProviderClient(client: OkHttpClient = OkHttpClient()) : ProviderClient
 
     override suspend fun streamCounted(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
         onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit) {
+        streamTools(provider, key, model, turns, emptyList(), null, onLimits, onTokens, onDelta)
+    }
+
+    override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+        extra: List<JSONObject>, tools: org.json.JSONArray?,
+        onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
         val path = when (provider) {
             ApiProvider.OpenAI -> "responses"
             ApiProvider.Anthropic -> "messages"
@@ -98,9 +104,9 @@ class HttpProviderClient(client: OkHttpClient = OkHttpClient()) : ProviderClient
         }
         val request = request(provider, key, "${provider.origin}/$path")
             .header("Accept", "text/event-stream")
-            .post(ProviderProtocol.requestBody(provider, model, turns).toRequestBody("application/json; charset=utf-8".toMediaType()))
+            .post(ProviderProtocol.requestBody(provider, model, turns, extra, tools).toRequestBody("application/json; charset=utf-8".toMediaType()))
             .build()
-        exchange(request, { response ->
+        return exchange(request, { response ->
             if (provider == ApiProvider.Groq) groqLimits(response::header, System.currentTimeMillis())?.let(onLimits)
         }) { response ->
             val body = response.body ?: throw ApiException(ApiFailure.InvalidResponse)

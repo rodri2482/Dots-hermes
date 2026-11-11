@@ -7,16 +7,23 @@ import java.io.Reader
 
 /** Formats HTTP/SSE officiels, séparés du réseau et sans jamais manipuler la clé d'API. */
 internal object ProviderProtocol {
-    fun requestBody(provider: ApiProvider, model: String, turns: List<ApiTurn>): String {
+    /**
+     * [extra] : échanges d'outils du tour en cours (message assistant avec `tool_calls`, puis résultats),
+     * ajoutés après le dernier message ; [tools] : définitions proposées au modèle. Groq seulement.
+     */
+    fun requestBody(provider: ApiProvider, model: String, turns: List<ApiTurn>,
+        extra: List<JSONObject> = emptyList(), tools: JSONArray? = null): String {
         if (model.isBlank() || turns.isEmpty() || turns.last().role != "user") throw ApiException(ApiFailure.InvalidRequest)
         val system = turns.filter { it.role == "system" }.joinToString("\n\n") { it.text }.trim()
         val messages = JSONArray().apply {
             if (system.isNotEmpty() && provider != ApiProvider.Anthropic) put(JSONObject().put("role", "system").put("content", system))
             turns.filter { it.role != "system" }.forEach { put(JSONObject().put("role", it.role).put("content", it.text)) }
+            if (provider == ApiProvider.Groq) extra.forEach { put(it) }
         }
         val body = JSONObject().put("model", model.trim()).put("stream", true)
         // Groq (format OpenAI) : un dernier fragment donne le total de jetons de la réponse.
         if (provider == ApiProvider.Groq) body.put("stream_options", JSONObject().put("include_usage", true))
+        if (provider == ApiProvider.Groq && tools != null && tools.length() > 0) body.put("tools", tools).put("tool_choice", "auto")
         if (system.isNotEmpty() && provider == ApiProvider.Anthropic) body.put("system", system)
         if (provider == ApiProvider.OpenAI) {
             body.put("input", messages).put("store", false).put("max_output_tokens", 4096)
@@ -24,6 +31,17 @@ internal object ProviderProtocol {
             body.put("messages", messages).put(if (provider == ApiProvider.Groq) "max_completion_tokens" else "max_tokens", 4096)
         }
         return body.toString()
+    }
+
+    /** Le message « assistant » qui rejoue les appels d'outils, puis un résultat par appel. */
+    fun toolExchange(calls: List<ApiToolCall>, results: List<String>): List<JSONObject> {
+        val assistant = JSONObject().put("role", "assistant").put("content", JSONObject.NULL).put("tool_calls", JSONArray().apply {
+            calls.forEach { c -> put(JSONObject().put("id", c.id).put("type", "function")
+                .put("function", JSONObject().put("name", c.name).put("arguments", c.arguments))) }
+        })
+        return listOf(assistant) + calls.zip(results).map { (c, r) ->
+            JSONObject().put("role", "tool").put("tool_call_id", c.id).put("content", r)
+        }
     }
 
     fun httpFailure(status: Int, body: String, waitSeconds: Long = 0): ApiException {
@@ -44,10 +62,12 @@ internal object ProviderProtocol {
         return ApiException(failure, waitSeconds)
     }
 
-    fun consume(provider: ApiProvider, reader: Reader, onDelta: (String) -> Unit) = consumeCounted(provider, reader, {}, onDelta)
+    fun consume(provider: ApiProvider, reader: Reader, onDelta: (String) -> Unit) { consumeCounted(provider, reader, {}, onDelta) }
 
     /** Comme [consume], et [onTokens] reçoit le total de jetons (entrée + sortie) annoncé par le fournisseur. */
-    fun consumeCounted(provider: ApiProvider, reader: Reader, onTokens: (Long) -> Unit, onDelta: (String) -> Unit) {
+    fun consumeCounted(provider: ApiProvider, reader: Reader, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+        // Appels d'outils Groq : le nom et les arguments arrivent par morceaux, rangés par index.
+        val calls = sortedMapOf<Int, Triple<StringBuilder, StringBuilder, StringBuilder>>()
         var tokensIn = 0L
         var tokensOut = 0L
         var completed = false
@@ -93,10 +113,24 @@ internal object ProviderProtocol {
                 (frame.optJSONObject("usage") ?: frame.optJSONObject("x_groq")?.optJSONObject("usage"))
                     ?.let { tokensIn = it.optLong("total_tokens") }
                 val choice = frame.optJSONArray("choices")?.optJSONObject(0)
-                choice?.optJSONObject("delta")?.let { text(it.optString("content")) }
+                choice?.optJSONObject("delta")?.let { delta ->
+                    if (!delta.isNull("content")) text(delta.optString("content"))
+                    delta.optJSONArray("tool_calls")?.let { parts ->
+                        for (i in 0 until parts.length()) {
+                            val part = parts.optJSONObject(i) ?: continue
+                            val slot = calls.getOrPut(part.optInt("index", i)) { Triple(StringBuilder(), StringBuilder(), StringBuilder()) }
+                            part.optString("id").takeIf { it.isNotEmpty() }?.let { slot.first.setLength(0); slot.first.append(it) }
+                            part.optJSONObject("function")?.let { f ->
+                                if (!f.isNull("name")) slot.second.append(f.optString("name"))
+                                if (!f.isNull("arguments")) slot.third.append(f.optString("arguments"))
+                            }
+                            if (slot.third.length > 65_536) throw ApiException(ApiFailure.InvalidResponse)
+                        }
+                    }
+                }
                 when (choice?.optString("finish_reason")) {
                     "length" -> limited = true
-                    "stop" -> Unit
+                    "stop", "tool_calls" -> Unit
                     null, "", "null" -> Unit
                     else -> throw ApiException(ApiFailure.InvalidResponse)
                 }
@@ -135,7 +169,11 @@ internal object ProviderProtocol {
         if (!completed && data.isNotEmpty()) event(data.toString())
         if (limited) throw ApiException(ApiFailure.OutputLimit)
         if (!completed) throw ApiException(ApiFailure.Interrupted)
-        if (!textSeen) throw ApiException(ApiFailure.InvalidResponse)
+        val tools = calls.values.mapNotNull { (id, name, args) ->
+            ApiToolCall(id.toString().ifEmpty { "call_${name}" }, name.toString(), args.toString()).takeIf { it.name.isNotBlank() }
+        }
+        if (!textSeen && tools.isEmpty()) throw ApiException(ApiFailure.InvalidResponse)
         (tokensIn + tokensOut).takeIf { it > 0 }?.let(onTokens)
+        return tools
     }
 }

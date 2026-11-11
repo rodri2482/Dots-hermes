@@ -33,7 +33,8 @@ object AppContainer {
      */
     val agents: AgentRegistry by lazy {
         AgentRegistry(appContext, appScope, AgentStore(appContext), onApprovalResolved = { _, approvalId -> Notifications.cancelApproval(appContext, approvalId) },
-            persona = { name -> companion.persona(name) })
+            persona = { name -> companion.persona(name) },
+            directTools = { app.dotshermes.data.direct.GmailTools(gmail).takeIf { gmail.connected.value } })
     }
 
     val chatRepository: RoutingChatRepository by lazy {
@@ -44,6 +45,8 @@ object AppContainer {
     val voiceRecorder: VoiceRecorder by lazy { VoiceRecorder(appContext, appScope) }
     val voicePlayer: VoicePlayer by lazy { VoicePlayer(appScope) }
     /** Personnalité et voix (Fish Audio) des comptes API directs. */
+    /** Gmail en lecture seule pour les comptes Groq (outils de recherche et de lecture). */
+    val gmail: app.dotshermes.data.gmail.GmailAccess by lazy { app.dotshermes.data.gmail.GmailAccess(appContext) }
     val companion: CompanionVoice by lazy { CompanionVoice(appContext, appScope, app.dotshermes.data.direct.androidApiVault(appContext)) }
     val attachments: Attachments by lazy { Attachments(appContext) }
     val updater: AppUpdater by lazy { AppUpdater(appContext) }

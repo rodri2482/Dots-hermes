@@ -73,6 +73,8 @@ class AgentRegistry(
     private val providerClient: ProviderClient = createProviderClient(),
     /** Texte « system » d'un compte direct, d'après le nom de son dot ; relu à chaque message. */
     private val persona: (name: String) -> String = { "" },
+    /** Outils des comptes directs (Gmail en lecture seule), relus à chaque message. */
+    private val directTools: () -> DirectTools? = { null },
 ) {
     private val selectionRevision = AtomicLong()
     private val accountWrites = Mutex()
@@ -151,7 +153,7 @@ class AgentRegistry(
         if (link?.provider != null) {
             appearance(id).adoptServerName(COMPANION_NAME)
             return DirectChatRepository(id, link.provider, link.model, scope, apiStorage, providerClient,
-                persona = { persona(appearance(id).state.value.displayName) }).apply { setShown(id == _activeId.value) }
+                persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools).apply { setShown(id == _activeId.value) }
         }
         // L'agent historique garde son cache d'avant ; les autres ont le leur, à part.
         val cache = if (id == AgentStore.PRIMARY_ID) File(context.cacheDir, "voice") else File(context.cacheDir, "agents/$id/voice")
@@ -300,7 +302,7 @@ class AgentRegistry(
                 apiStorage.saveKey(id, key)
                 val knownCooldown = (repos[id] as? DirectChatRepository)?.cooldownFor(provider, model.trim(), key) ?: 0
                 val direct = DirectChatRepository(id, provider, model.trim(), scope, apiStorage, providerClient,
-                    inheritedCooldownUntilMs = knownCooldown, persona = { persona(appearance(id).state.value.displayName) })
+                    inheritedCooldownUntilMs = knownCooldown, persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools)
                 direct.restore()
                 currentCoroutineContext().ensureActive()
                 if (direct.connection.value !is ConnectionState.Connected) return@withLock false

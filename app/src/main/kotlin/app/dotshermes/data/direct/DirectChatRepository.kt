@@ -26,6 +26,8 @@ class DirectChatRepository(
     inheritedCooldownUntilMs: Long = 0,
     /** Personnalité choisie dans les réglages (texte « system »), relue à chaque message. */
     private val persona: () -> String = { "" },
+    /** Outils proposés au modèle (Gmail en lecture seule) ; null = aucun. Groq seulement. */
+    private val toolbox: () -> DirectTools? = { null },
 ) : ChatRepository {
     private val lock = Any()
     private var transcript = DirectTranscript()
@@ -154,14 +156,19 @@ class DirectChatRepository(
             }
             val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
             var replyTokens: Long? = null
-            client.streamCounted(provider, key, model, turns, { limits ->
+            val extra = ArrayList<org.json.JSONObject>()
+            // Jusqu'à MAX_TOOL_ROUNDS échanges d'outils ; le dernier tour n'en propose plus, pour obtenir une réponse.
+            for (round in 0 until MAX_TOOL_ROUNDS) {
+            val toolset = if (provider == ApiProvider.Groq) toolbox() else null
+            val offered = toolset?.definitions()?.takeIf { round < MAX_TOOL_ROUNDS - 1 }
+            val calls = client.streamTools(provider, key, model, turns, extra, offered, { limits ->
                 synchronized(lock) {
                     if (token == generation) {
                         memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, limits.exhaustedUntilMs())
                         commit(transcript.copy(limits = limits, cooldownUntilMs = memoryCooldownUntilMs))
                     }
                 }
-            }, { tokens -> replyTokens = tokens }) { delta ->
+            }, { tokens -> replyTokens = (replyTokens ?: 0) + tokens }) { delta ->
                 synchronized(lock) {
                     if (token == generation) {
                         commit(transcript.copy(messages = transcript.messages.map {
@@ -174,6 +181,11 @@ class DirectChatRepository(
                         _activity.value = AgentActivity.Typing
                     }
                 }
+            }
+            if (calls.isEmpty() || toolset == null) break
+            synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working(toolset.label(calls.first())) }
+            val results = calls.map { toolset.run(it) }
+            extra += ProviderProtocol.toolExchange(calls, results)
             }
             synchronized(lock) {
                 if (token == generation) {
@@ -343,6 +355,9 @@ internal fun replyFooter(model: String, durationMs: Long): String {
     val time = if (seconds < 10) String.format(java.util.Locale.ROOT, "%.1f s", seconds) else "${Math.round(seconds)} s"
     return "$name · $time"
 }
+
+/** Échanges d'outils au plus par message (recherche, lecture, …), pour borner le coût. */
+private const val MAX_TOOL_ROUNDS = 4
 
 /** Libellé de l'en-tête pendant la transcription ; neutre, pour les deux langues. */
 private const val VOICE_LABEL = "🎙…"
