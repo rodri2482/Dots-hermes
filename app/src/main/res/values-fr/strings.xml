@@ -462,15 +462,18 @@ Colle une clé API Groq pour commencer.</string>
     <string name="local_failed">Le téléchargement s\'est arrêté. Réessaie.</string>
     <string name="local_loading">Chargement du modèle… la première fois prend quelques secondes.</string>
     <string name="local_back">Utiliser plutôt une clé Groq</string>
-    <string name="local_limits">Hors ligne, Claydot discute seulement : pas de web, d\'écran, de messages ni de vocaux. Le téléchargement passe par Android et continue en arrière-plan ; le Wi-Fi est conseillé.</string>
+    <string name="local_limits">Hors ligne, Claydot peut quand même utiliser ton téléphone (apps, musique, messages, écran), en ménageant chaleur et batterie. Le téléchargement passe par Android et continue en arrière-plan ; le Wi-Fi est conseillé.</string>
     <string name="local_unsupported">Ce téléphone ne peut pas faire tourner de modèle hors ligne (il faut un processeur ARM 64 bits).</string>
     <string name="model_menu_open">Choisir un modèle</string>
-    <string name="model_menu_hint">Les modèles hors ligne marchent sans Internet ni clé d\'API, mais ne font que discuter : pas de web, d\'écran ni de messages.</string>
+    <string name="model_menu_hint">Les modèles hors ligne marchent sans Internet ni clé d\'API, et pilotent aussi le téléphone (apps, musique, messages, écran), en ménageant la chaleur et la batterie.</string>
     <string name="model_downloaded">Téléchargé</string>
     <string name="model_delete">Supprimer</string>
     <string name="settings_offline_models">Modèles hors ligne</string>
     <string name="model_online">en ligne</string>
     <string name="model_add">Ajouter un modèle</string>
+    <string name="local_error_hot">Ton téléphone chauffe : Claydot a mis le modèle hors ligne en pause. Réessaie dans une minute.</string>
+    <string name="local_error_battery">Batterie trop faible pour le modèle hors ligne. Branche ton téléphone ou utilise Groq.</string>
+    <string name="local_error_memory">Pas assez de mémoire libre pour le modèle hors ligne. Ferme quelques apps et réessaie.</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

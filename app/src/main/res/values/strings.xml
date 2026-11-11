@@ -455,15 +455,18 @@ Paste a Groq API key to get started.</string>
     <string name="local_failed">The download stopped. Try again.</string>
     <string name="local_loading">Loading the model… the first time takes a few seconds.</string>
     <string name="local_back">Use a Groq key instead</string>
-    <string name="local_limits">Offline, Claydot chats only: no web, screen, texting or voice notes. Downloads go through Android and continue in the background; Wi-Fi is best.</string>
+    <string name="local_limits">Offline, Claydot can still use your phone (apps, music, texting, the screen), with care for heat and battery. Downloads go through Android and continue in the background; Wi-Fi is best.</string>
     <string name="local_unsupported">This phone can\'t run offline models (they need a 64-bit ARM processor).</string>
     <string name="model_menu_open">Choose a model</string>
-    <string name="model_menu_hint">Offline models work without internet or an API key, but only chat: no web, screen or texting.</string>
+    <string name="model_menu_hint">Offline models work without internet or an API key, and can use your phone too (apps, music, texting, the screen), with care for heat and battery.</string>
     <string name="model_downloaded">Downloaded</string>
     <string name="model_delete">Delete</string>
     <string name="settings_offline_models">Offline models</string>
     <string name="model_online">online</string>
     <string name="model_add">Add model</string>
+    <string name="local_error_hot">Your phone is getting hot, so Claydot paused the offline model. Try again in a minute.</string>
+    <string name="local_error_battery">Battery is too low to run the offline model. Plug in your phone or use Groq.</string>
+    <string name="local_error_memory">Not enough free memory for the offline model. Close a few apps and try again.</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

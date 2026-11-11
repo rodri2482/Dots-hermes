@@ -133,7 +133,8 @@ class PhoneActions(
                 .putExtra(AlarmClock.EXTRA_SKIP_UI, true))
         }
         "set_timer" -> {
-            val seconds = a.optInt("seconds", 0).also { require(it in 1..86_400) { "seconds must be 1-86400" } }
+            // Les petits modèles écrivent parfois « minutes » ou « 1 minute » : on accepte ces formes aussi.
+            val seconds = timerSeconds(a).also { require(it in 1..86_400) { "seconds must be 1-86400" } }
             val label = a.optString("label").take(80)
             Plan(ToolKeys.title("timer", formatDuration(seconds)), label, Intent(AlarmClock.ACTION_SET_TIMER)
                 .putExtra(AlarmClock.EXTRA_LENGTH, seconds)
@@ -341,6 +342,20 @@ class PhoneActions(
         internal fun parseLocal(text: String): LocalDateTime? = text.trim().takeIf { it.isNotEmpty() }?.let {
             try { LocalDateTime.parse(it.removeSuffix("Z").substringBefore('+').let { s -> if (s.length == 16) "$s:00" else s }) }
             catch (_: Exception) { null }
+        }
+
+        /** Durée d'un minuteur : « seconds », sinon « minutes »/« hours », sinon un texte comme « 1 minute » ou « 90s ». */
+        internal fun timerSeconds(a: JSONObject): Int {
+            a.optInt("seconds", 0).takeIf { it > 0 }?.let { return it }
+            val minutes = a.optDouble("minutes", 0.0); val hours = a.optDouble("hours", 0.0)
+            if (minutes > 0 || hours > 0) return (minutes * 60 + hours * 3600).toInt()
+            val text = listOf("duration", "time", "seconds", "length").firstNotNullOfOrNull { a.optString(it).takeIf(String::isNotBlank) }?.lowercase() ?: return 0
+            var total = 0.0
+            Regex("""(\d+(?:[.,]\d+)?)\s*(h|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)?""").findAll(text).forEach { m ->
+                val n = m.groupValues[1].replace(',', '.').toDouble()
+                total += when (m.groupValues[2]) { "h", "hour", "hours" -> n * 3600; "m", "min", "mins", "minute", "minutes" -> n * 60; else -> n }
+            }
+            return total.toInt()
         }
 
         internal fun formatDuration(seconds: Int): String {

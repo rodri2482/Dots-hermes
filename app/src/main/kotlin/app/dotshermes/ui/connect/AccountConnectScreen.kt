@@ -192,5 +192,8 @@ fun apiFailureMessage(failure: ApiFailure): Int = when (failure) {
     ApiFailure.Cancelled -> R.string.api_error_stopped
     ApiFailure.ContextLimit, ApiFailure.OutputLimit -> R.string.api_error_limit
     ApiFailure.Network, ApiFailure.Unavailable, ApiFailure.Interrupted -> R.string.api_error_network
+    ApiFailure.DeviceHot -> R.string.local_error_hot
+    ApiFailure.LowBattery -> R.string.local_error_battery
+    ApiFailure.LowMemory -> R.string.local_error_memory
     else -> R.string.api_error_response
 }

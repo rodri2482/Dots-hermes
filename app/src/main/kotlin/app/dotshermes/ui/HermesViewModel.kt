@@ -53,7 +53,7 @@ import app.dotshermes.voice.VoiceRecorder
 data class ActiveLook(val appearance: DotAppearance, val subDot: SubDot?)
 
 data class ChatUiState(
-    val agentName: String = "Hermes",
+    val agentName: String = "Claydot",
     val activity: AgentActivity = AgentActivity.Idle,
     val rows: List<ChatRow> = emptyList(),
     val messageCount: Int = 0,

@@ -45,3 +45,15 @@ class PlayTargetTest {
     @Test fun `nothing that matches and no play button`() =
         assertNull(PhoneActions.pickPlayTarget(results.take(1) + ScreenElement(9, "Home", "button", "0,2200,100,2300"), "Burna Boy", false))
 }
+
+class TimerSecondsTest {
+    private fun t(json: String) = PhoneActions.timerSeconds(org.json.JSONObject(json))
+    @Test fun `seconds, minutes, hours and plain text`() {
+        assertEquals(90, t("""{"seconds":90}"""))
+        assertEquals(60, t("""{"minutes":1}"""))
+        assertEquals(5400, t("""{"hours":1.5}"""))
+        assertEquals(60, t("""{"duration":"1 minute"}"""))
+        assertEquals(150, t("""{"duration":"2 min 30 s"}"""))
+        assertEquals(60, t("""{"seconds":"60"}"""))
+    }
+}

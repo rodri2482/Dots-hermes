@@ -21,7 +21,7 @@ data class DotAppearance(
     val theme: ThemeMode = ThemeMode.System,
 )
 
-const val DEFAULT_AGENT_NAME = "Hermes"
+const val DEFAULT_AGENT_NAME = "Claydot"
 const val AGENT_NAME_MAX = 24
 
 /**

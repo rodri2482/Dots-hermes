@@ -241,9 +241,9 @@ class DirectChatRepository(
                 val answer = DirectEntry(UUID.randomUUID().toString(), "assistant", "", System.currentTimeMillis(), DirectEntryState.Streaming, user.id)
                 answerId = answer.id
                 commit(transcript.copy(messages = retained + user.copy(state = DirectEntryState.Pending) + answer, retryUserId = user.id, failure = null, cooldownUntilMs = 0))
-                val known = if (provider == ApiProvider.Groq) loadedFacts() else emptyList()
+                val known = if (provider.hasTools) loadedFacts() else emptyList()
                 // Avec des outils, le modèle doit s'en servir au lieu de répondre « je ne peux pas ».
-                val toolLine = if (provider == ApiProvider.Groq && toolbox()?.definitions() != null) "\n\n" + TOOL_RULE else ""
+                val toolLine = if (provider.hasTools && toolbox()?.definitions() != null) "\n\n" + TOOL_RULE else ""
                 val memoryLine = if (known.isEmpty()) "" else "\n\nWhat you remember about the user (from earlier chats):\n" + known.joinToString("\n") { "- $it" }
                 listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE + toolLine + memoryLine + "\n\n" + nowLine()) }) +
                     completedContext(retained) + ApiTurn("user", user.text.ifBlank { if (user.image != null) "What do you see in this photo?" else user.text },
@@ -258,9 +258,12 @@ class DirectChatRepository(
             val tag = ReactionTag()
             val extra = ArrayList<org.json.JSONObject>()
             // Jusqu'à MAX_TOOL_ROUNDS échanges d'outils ; le dernier tour n'en propose plus, pour obtenir une réponse.
-            for (round in 0 until MAX_TOOL_ROUNDS) {
-            val toolset = if (provider == ApiProvider.Groq) CombinedTools(listOfNotNull(memoryTools, toolbox())) else null
-            val offered = toolset?.definitions()?.takeIf { round < MAX_TOOL_ROUNDS - 1 }
+            // Modèle du téléphone : moins de tours (chaque tour fait chauffer le processeur).
+            val rounds = if (provider == ApiProvider.Local) LOCAL_TOOL_ROUNDS else MAX_TOOL_ROUNDS
+            for (round in 0 until rounds) {
+            val toolset = if (provider.hasTools) CombinedTools(listOfNotNull(memoryTools, toolbox())) else null
+            val offered = toolset?.definitions()?.takeIf { round < rounds - 1 }
+                ?.let { if (provider == ApiProvider.Local) localToolset(it) else it }
             // Tâche à plusieurs tours (écran, WhatsApp…) : un modèle au petit quota par minute (gpt-oss : 8 000
             // jetons) s'épuise dès le 2e tour. La suite passe alors par un modèle au quota large (Llama 4 Scout).
             if (round >= 1 && provider == ApiProvider.Groq && (transcript.limits?.tokenLimit ?: 0L) in 1L until AGENT_TPM) {
@@ -566,7 +569,7 @@ class DirectChatRepository(
 
     private fun issue(failure: ApiFailure, cooldownOnly: Boolean = false) = DirectRequestIssue(failure,
         !cooldownOnly && transcript.retryUserId != null && failure in setOf(ApiFailure.Network, ApiFailure.Interrupted,
-            ApiFailure.Unavailable, ApiFailure.RateLimited, ApiFailure.Quota, ApiFailure.Cancelled),
+            ApiFailure.Unavailable, ApiFailure.RateLimited, ApiFailure.Quota, ApiFailure.Cancelled, ApiFailure.DeviceHot, ApiFailure.LowMemory),
         cooldownSeconds(maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs), clockMs()),
         maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs), cooldownOnly)
 
@@ -733,6 +736,21 @@ internal class ReactionTag {
 /** Échanges d'outils au plus par message (recherche, lecture, …), pour borner le coût. */
 // Assez pour une petite tâche à l'écran (lire, toucher, écrire…) ; le dernier tour force une réponse.
 private const val MAX_TOOL_ROUNDS = 12
+private const val LOCAL_TOOL_ROUNDS = 6
+
+/** Les outils proposés au modèle du téléphone : l'essentiel pour piloter le téléphone, une invite plus courte. */
+private val LocalToolNames = setOf(
+    "remember", "forget", "phone_info", "open_app", "play_music", "media_control", "set_alarm", "set_timer",
+    "add_calendar_event", "find_contact", "send_sms", "send_whatsapp", "start_screen_control", "read_screen", "tap",
+    "type_text", "scroll", "swipe", "press_key", "take_screenshot",
+)
+
+internal fun localToolset(all: org.json.JSONArray): org.json.JSONArray = org.json.JSONArray().apply {
+    for (i in 0 until all.length()) {
+        val tool = all.optJSONObject(i) ?: continue
+        if (tool.optJSONObject("function")?.optString("name") in LocalToolNames) put(tool)
+    }
+}
 
 /** Libellé de l'en-tête pendant la transcription ; neutre, pour les deux langues. */
 private val VOICE_LABEL = ToolKeys.of("voice")

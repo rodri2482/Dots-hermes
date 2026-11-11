@@ -10,6 +10,9 @@ enum class ApiProvider(val id: String, val title: String, val origin: String) {
     /** Modèle téléchargé, qui tourne sur le téléphone : aucune clé, aucun réseau. */
     Local("local", "On this phone", "local://device");
 
+    /** Fournisseurs qui reçoivent les outils (téléphone, écran, Gmail…) et la mémoire. */
+    val hasTools: Boolean get() = this == Groq || this == Local
+
     companion object {
         fun fromId(id: String): ApiProvider? = entries.firstOrNull { it.id == id }
     }
@@ -24,6 +27,8 @@ data class ApiTurn(val role: String, val text: String, val image: String? = null
 enum class ApiFailure {
     MissingKey, InvalidKey, Forbidden, ModelUnavailable, InvalidRequest, Quota, RateLimited,
     Unavailable, Network, Interrupted, InvalidResponse, OutputLimit, ContextLimit, Storage, Cancelled,
+    /** Modèle du téléphone : pause pour laisser refroidir, batterie trop basse, mémoire insuffisante. */
+    DeviceHot, LowBattery, LowMemory,
 }
 
 /** Pas de message du fournisseur, corps HTTP, clé, URL ou cause brute dans une erreur d'interface. */
