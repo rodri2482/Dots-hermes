@@ -34,6 +34,8 @@ interface ChatRepository {
     val gatewayFeatures: StateFlow<Boolean> get() = GatewayFeatures
     /** Micro disponible : le gateway Hermes, ou un compte direct qui sait transcrire (Groq). */
     val voiceInput: StateFlow<Boolean> get() = gatewayFeatures
+    /** Photos acceptées : le gateway Hermes, ou un compte direct avec un modèle de vision (Groq). */
+    val imageInput: StateFlow<Boolean> get() = gatewayFeatures
     val directUsage: StateFlow<app.dotshermes.data.direct.DirectApiUsage?> get() = NoDirectUsage
     val requestIssue: StateFlow<app.dotshermes.data.direct.DirectRequestIssue?> get() = NoRequestIssue
     fun retryRequest() {}

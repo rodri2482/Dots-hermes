@@ -155,7 +155,8 @@ class AgentRegistry(
         if (link?.provider != null) {
             appearance(id).adoptServerName(COMPANION_NAME)
             return DirectChatRepository(id, link.provider, link.model, scope, apiStorage, providerClient,
-                persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools).apply { setShown(id == _activeId.value) }
+                persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools,
+                imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }).apply { setShown(id == _activeId.value) }
         }
         // L'agent historique garde son cache d'avant ; les autres ont le leur, à part.
         val cache = if (id == AgentStore.PRIMARY_ID) File(context.cacheDir, "voice") else File(context.cacheDir, "agents/$id/voice")
@@ -307,7 +308,8 @@ class AgentRegistry(
                 apiStorage.saveKey(id, key)
                 val knownCooldown = (repos[id] as? DirectChatRepository)?.cooldownFor(provider, model.trim(), key) ?: 0
                 val direct = DirectChatRepository(id, provider, model.trim(), scope, apiStorage, providerClient,
-                    inheritedCooldownUntilMs = knownCooldown, persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools)
+                    inheritedCooldownUntilMs = knownCooldown, persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools,
+                    imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) })
                 direct.restore()
                 currentCoroutineContext().ensureActive()
                 if (direct.connection.value !is ConnectionState.Connected) return@withLock false
@@ -341,6 +343,7 @@ class AgentRegistry(
             drop(id)
             if (store.get(id)?.provider != null) {
                 runCatching { apiStorage.load(id).conversations.filter { it.id != id }.forEach { apiStorage.remove(it.id) } }
+                File(context.filesDir, "direct-images/$id").deleteRecursively()
                 apiStorage.remove(id)
             }
             // Navigation et métadonnées d'éditeur publiées ensemble, comme les gestes utilisateur.

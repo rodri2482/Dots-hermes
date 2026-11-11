@@ -7,7 +7,7 @@ import kotlinx.coroutines.delay
 fun createProviderClient(): ProviderClient = if (BuildConfig.DIRECT_API_MOCK) OfflineProviderClient() else HttpProviderClient()
 
 private class OfflineProviderClient : ProviderClient {
-    override suspend fun models(provider: ApiProvider, key: String) = listOf("offline-text", "offline-slow")
+    override suspend fun models(provider: ApiProvider, key: String) = listOf("offline-text", "offline-slow", "meta-llama/llama-4-scout-17b-16e-instruct")
     override suspend fun transcribe(provider: ApiProvider, key: String, audio: java.io.File): String {
         delay(600)
         return "Offline voice note (${audio.length()} bytes)"
@@ -45,6 +45,11 @@ private class OfflineProviderClient : ProviderClient {
         if (turns.last().text == "offline error") throw ApiException(ApiFailure.Unavailable)
         // Comme un vrai modèle : une balise de réaction en tête (👍, ou 🎉 si le message parle de bonne nouvelle).
         val react = if (turns.last().text.contains("news", ignoreCase = true)) "🎉" else "👍"
+        if (turns.last().image != null) {
+            val seen = "[[react:👀]] Nice photo! (offline fixture: model $model got a ${turns.last().image!!.length / 1024} KB image)"
+            for (part in seen.chunked(10)) { delay(60); onDelta(part) }
+            return
+        }
         if (turns.last().text.contains("code", ignoreCase = true)) {
             // Réponse Markdown d'exemple : titre, liste, code coloré, pour voir le rendu.
             val md = """[[react:👀]] ## Sorting a list

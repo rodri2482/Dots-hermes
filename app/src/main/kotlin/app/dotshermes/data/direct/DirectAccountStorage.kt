@@ -14,6 +14,8 @@ data class DirectEntry(
     val tokens: Long? = null,
     /** Réaction emoji : celle de Claydot sur un message de l'utilisateur, celle de l'utilisateur sur une réponse. */
     val reaction: String? = null,
+    /** Photo jointe (message de l'utilisateur) : nom du fichier JPEG dans le dossier privé du compte. */
+    val image: String? = null,
 ) {
     init {
         require(role == "user" || role == "assistant")
@@ -78,7 +80,8 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                     if (row.isNull("reply_to")) null else row.getString("reply_to"),
                     if (row.has("duration_ms") && !row.isNull("duration_ms")) row.getLong("duration_ms").coerceAtLeast(0) else null,
                     if (row.has("tokens") && !row.isNull("tokens")) row.getLong("tokens").coerceAtLeast(0) else null,
-                    row.optString("reaction").takeIf { it in Reactions })
+                    row.optString("reaction").takeIf { it in Reactions },
+                    row.optString("image").takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,64}\\.jpg")) })
             }
             val retry = if (root.isNull("retry_user_id")) null else root.getString("retry_user_id")
             val failure = if (root.isNull("failure")) null else ApiFailure.valueOf(root.getString("failure"))
@@ -105,7 +108,7 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                 put(JSONObject().put("id", row.id).put("role", row.role).put("text", row.text)
                     .put("timestamp_ms", row.timestampMs).put("state", row.state.name)
                     .put("reply_to", row.replyTo ?: JSONObject.NULL)
-                    .apply { row.durationMs?.let { put("duration_ms", it) }; row.tokens?.let { put("tokens", it) }; row.reaction?.let { put("reaction", it) } })
+                    .apply { row.durationMs?.let { put("duration_ms", it) }; row.tokens?.let { put("tokens", it) }; row.reaction?.let { put("reaction", it) }; row.image?.let { put("image", it) } })
             }
         }
         val limits = transcript.limits?.let { row ->

@@ -40,6 +40,7 @@ class RoutingChatRepository(
     override val profile: StateFlow<AgentProfile> = follow(scope) { it.profile }
     override val gatewayFeatures = follow(scope) { it.gatewayFeatures }
     override val voiceInput = follow(scope) { it.voiceInput }
+    override val imageInput = follow(scope) { it.imageInput }
     override val directUsage = follow(scope) { it.directUsage }
     override val requestIssue = follow(scope) { it.requestIssue }
     override fun retryRequest() = active.value.retryRequest()

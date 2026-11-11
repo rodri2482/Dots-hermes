@@ -13,7 +13,8 @@ enum class ApiProvider(val id: String, val title: String, val origin: String) {
     }
 }
 
-data class ApiTurn(val role: String, val text: String) {
+/** [image] : photo jointe à ce message, en « data URL » JPEG (modèles de vision Groq). */
+data class ApiTurn(val role: String, val text: String, val image: String? = null) {
     // « system » : la personnalité de l'agent, toujours en tête de conversation.
     init { require(role == "user" || role == "assistant" || role == "system") }
 }

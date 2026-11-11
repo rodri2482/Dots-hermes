@@ -28,6 +28,10 @@ class DirectChatRepository(
     private val persona: () -> String = { "" },
     /** Outils proposés au modèle (Gmail en lecture seule) ; null = aucun. Groq seulement. */
     private val toolbox: () -> DirectTools? = { null },
+    /** Dossier privé des photos envoyées (null : pas de photos, tests). */
+    private val imageDir: File? = null,
+    /** Réduit et recompresse une photo avant l'envoi (Android : BitmapFactory). */
+    private val encodeImage: (File) -> ByteArray? = { null },
 ) : ChatRepository {
     private val lock = Any()
     private var transcript = DirectTranscript()
@@ -53,6 +57,9 @@ class DirectChatRepository(
     override val gatewayFeatures = MutableStateFlow(false).asStateFlow()
     /** Micro : Groq transcrit les vocaux (Whisper) ; les autres fournisseurs restent en texte. */
     override val voiceInput = MutableStateFlow(provider == ApiProvider.Groq).asStateFlow()
+    /** Photos : les modèles de vision de Groq les lisent. */
+    override val imageInput = MutableStateFlow(provider == ApiProvider.Groq && imageDir != null).asStateFlow()
+    @Volatile private var visionModelId: String? = null
     override fun retryRequest() = retry()
     override val profile = MutableStateFlow(AgentProfile(name = provider.title, tagline = model)).asStateFlow()
     override val tools = MutableStateFlow<List<ToolCall>>(emptyList()).asStateFlow()
@@ -117,6 +124,31 @@ class DirectChatRepository(
         begin(trimmed, null)
     }
 
+    /**
+     * Photo choisie sur le téléphone : réduite, gardée dans le dossier privé du compte, puis envoyée
+     * avec la légende au modèle de vision du compte. Les autres fichiers ne sont pas pris en charge.
+     */
+    override fun sendFile(file: File, name: String, mime: String, caption: String) {
+        val dir = imageDir
+        if (dir == null || provider != ApiProvider.Groq || !mime.startsWith("image/")) { file.delete(); return }
+        scope.launch(Dispatchers.IO) {
+            val bytes = try { encodeImage(file) } finally { file.delete() }
+            if (bytes == null) { synchronized(lock) { _failure.value = DirectRequestIssue(ApiFailure.InvalidRequest, canRetry = false) }; return@launch }
+            val stored = UUID.randomUUID().toString().replace("-", "").take(20) + ".jpg"
+            try { dir.mkdirs(); File(dir, stored).writeBytes(bytes) }
+            catch (_: Exception) { synchronized(lock) { _failure.value = issue(ApiFailure.Storage) }; return@launch }
+            begin(caption.trim(), null, stored)
+        }
+    }
+
+    override suspend fun attachmentFile(messageId: String): File? = synchronized(lock) {
+        transcript.messages.firstOrNull { it.id == messageId }?.image?.let { name -> imageDir?.let { File(it, name) } }?.takeIf { it.isFile }
+    }
+
+    /** Le modèle de vision du compte, demandé une fois à Groq puis gardé. */
+    private suspend fun visionModel(key: String): String =
+        visionModelId ?: (visionModel(client.models(provider, key)) ?: throw ApiException(ApiFailure.ModelUnavailable)).also { visionModelId = it }
+
     fun retry() {
         synchronized(lock) {
             val id = transcript.retryUserId ?: return
@@ -125,7 +157,7 @@ class DirectChatRepository(
         }
     }
 
-    private fun begin(text: String?, retryId: String?) {
+    private fun begin(text: String?, retryId: String?, image: String? = null) {
         synchronized(lock) {
             if (!ready || busy) return
             if (maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs) > clockMs()) {
@@ -137,11 +169,11 @@ class DirectChatRepository(
             val token = ++generation
             _failure.value = null
             _activity.value = AgentActivity.Thinking
-            job = scope.launch(Dispatchers.IO) { runTurn(token, text, retryId) }
+            job = scope.launch(Dispatchers.IO) { runTurn(token, text, retryId, image) }
         }
     }
 
-    private suspend fun runTurn(token: Long, text: String?, retryId: String?) {
+    private suspend fun runTurn(token: Long, text: String?, retryId: String?, image: String? = null) {
         var userId: String? = retryId
         var answerId: String? = null
         try {
@@ -149,16 +181,21 @@ class DirectChatRepository(
                 if (token != generation) return
                 val previous = transcript.messages
                 val user = if (retryId != null) previous.first { it.id == retryId && it.role == "user" }
-                    else DirectEntry(UUID.randomUUID().toString(), "user", requireNotNull(text), System.currentTimeMillis(), DirectEntryState.Pending)
+                    else DirectEntry(UUID.randomUUID().toString(), "user", requireNotNull(text), System.currentTimeMillis(), DirectEntryState.Pending, image = image)
                 userId = user.id
                 val retained = if (retryId == null) previous else previous.filterNot { it.id == retryId || it.replyTo == retryId }
                 val answer = DirectEntry(UUID.randomUUID().toString(), "assistant", "", System.currentTimeMillis(), DirectEntryState.Streaming, user.id)
                 answerId = answer.id
                 commit(transcript.copy(messages = retained + user.copy(state = DirectEntryState.Pending) + answer, retryUserId = user.id, failure = null, cooldownUntilMs = 0))
                 listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE + "\n\n" + nowLine()) }) +
-                    completedContext(retained) + ApiTurn("user", user.text)
+                    completedContext(retained) + ApiTurn("user", user.text.ifBlank { if (user.image != null) "What do you see in this photo?" else user.text },
+                        user.image?.let { name -> imageDir?.let { File(it, name) } }?.takeIf { it.isFile }?.let { photo ->
+                            "data:image/jpeg;base64," + java.util.Base64.getEncoder().encodeToString(photo.readBytes())
+                        })
             }
             val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
+            // Une photo dans ce tour : le modèle de vision du compte répond à la place du modèle choisi.
+            val turnModel = if (turns.lastOrNull()?.image != null) visionModel(key) else model
             var replyTokens: Long? = null
             val tag = ReactionTag()
             val extra = ArrayList<org.json.JSONObject>()
@@ -166,7 +203,7 @@ class DirectChatRepository(
             for (round in 0 until MAX_TOOL_ROUNDS) {
             val toolset = if (provider == ApiProvider.Groq) toolbox() else null
             val offered = toolset?.definitions()?.takeIf { round < MAX_TOOL_ROUNDS - 1 }
-            val calls = client.streamTools(provider, key, model, turns, extra, offered, { limits ->
+            val calls = client.streamTools(provider, key, turnModel, turns, extra, offered, { limits ->
                 synchronized(lock) {
                     if (token == generation) {
                         memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, limits.exhaustedUntilMs())
@@ -387,7 +424,10 @@ class DirectChatRepository(
         _messages.value = value.messages.filterNot { it.role == "assistant" && it.state == DirectEntryState.Streaming && it.text.isEmpty() }
             .map { entry -> ChatMessage(
             id = entry.id, sender = if (entry.role == "user") Sender.User else Sender.Agent,
-            content = MessageContent.Text(entry.text), sentAt = Instant.ofEpochMilli(entry.timestampMs),
+            content = entry.image?.let { name ->
+                MessageContent.File(name = "photo.jpg", mime = "image/jpeg", size = imageDir?.let { File(it, name).length() } ?: 0,
+                    localPath = imageDir?.let { File(it, name).path }, caption = entry.text)
+            } ?: MessageContent.Text(entry.text), sentAt = Instant.ofEpochMilli(entry.timestampMs),
             delivery = if (entry.role == "user") Delivery.Sent else Delivery.Read,
             remoteId = entry.id, turn = entry.replyTo, failed = entry.role == "user" && entry.state == DirectEntryState.Failed,
             footer = if (entry.id == newestDone) replyFooter(model, entry.durationMs ?: 0) else null,
@@ -448,8 +488,6 @@ class DirectChatRepository(
             if (!text.isNullOrBlank()) send(text)
         }
     }
-    override fun sendFile(file: File, name: String, mime: String, caption: String) {}
-    override suspend fun attachmentFile(messageId: String): File? = null
 }
 
 /**
@@ -534,6 +572,6 @@ private const val VOICE_LABEL = "🎙…"
 internal fun completedContext(entries: List<DirectEntry>): List<ApiTurn> {
     val completeReplies = entries.filter { it.role == "assistant" && it.state == DirectEntryState.Complete }.associateBy { it.replyTo }
     return entries.filter { it.role == "user" && it.state == DirectEntryState.Complete }.flatMap { user ->
-        completeReplies[user.id]?.let { listOf(ApiTurn("user", user.text), ApiTurn("assistant", it.text)) } ?: emptyList()
+        completeReplies[user.id]?.let { listOf(ApiTurn("user", if (user.image != null) "[photo] ${user.text}".trim() else user.text), ApiTurn("assistant", it.text)) } ?: emptyList()
     }
 }

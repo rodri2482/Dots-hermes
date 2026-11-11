@@ -181,6 +181,8 @@ fun ChatScreen(
     gatewayFeatures: Boolean = true,
     /** Micro affiché : Hermes, ou un compte Groq (vocal transcrit en texte). */
     voiceInput: Boolean = gatewayFeatures,
+    /** Bouton « Photo » : Hermes, ou un compte Groq (modèle de vision). */
+    imageInput: Boolean = gatewayFeatures,
     /** Une réponse est lue à voix haute : le bouton Arrêter la coupe. */
     speaking: Boolean = false,
     onStopSpeaking: () -> Unit = {},
@@ -234,7 +236,7 @@ fun ChatScreen(
     val newestToolsKey = state.rows.firstOrNull { it is ChatRow.Tools }?.key
 
     fun attach(uri: Uri) {
-        if (!gatewayFeatures) return
+        if (!gatewayFeatures && !imageInput) return
         onSendFile(uri, draft) { Toast.makeText(context, R.string.chat_file_too_big, Toast.LENGTH_SHORT).show() }
         draft = ""
         suggestionsOpen = false
@@ -348,6 +350,7 @@ fun ChatScreen(
             Composer(
                 mediaEnabled = gatewayFeatures,
                 voiceEnabled = voiceInput,
+                imageEnabled = imageInput,
                 // Compte direct : pendant la réponse, le bouton d'envoi devient « Arrêter ».
                 busy = speaking || (!gatewayFeatures && state.activity != AgentActivity.Idle),
                 onStop = { if (speaking && state.activity == AgentActivity.Idle) onStopSpeaking() else onStopRequest() },
@@ -528,6 +531,7 @@ private fun Composer(
     draft: String,
     mediaEnabled: Boolean = true,
     voiceEnabled: Boolean = mediaEnabled,
+    imageEnabled: Boolean = mediaEnabled,
     sendingEnabled: Boolean = true,
     busy: Boolean = false,
     onStop: () -> Unit = {},
@@ -574,9 +578,10 @@ private fun Composer(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 10.dp),
             ) {
-                if (mediaEnabled) item {
+                if (mediaEnabled || imageEnabled) item {
                     AttachChip(Modifier.staggerIn(0), Icons.Rounded.PhotoLibrary, stringResource(R.string.attach_photo)) {
-                        pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                        pickMedia.launch(PickVisualMediaRequest(if (mediaEnabled) ActivityResultContracts.PickVisualMedia.ImageAndVideo
+                            else ActivityResultContracts.PickVisualMedia.ImageOnly))
                     }
                 }
                 if (mediaEnabled) item { AttachChip(Modifier.staggerIn(1), Icons.Rounded.AttachFile, stringResource(R.string.attach_file)) { pickDocument.launch(arrayOf("*/*")) } }

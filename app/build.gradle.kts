@@ -131,6 +131,8 @@ dependencies {
     // Réponses en Markdown : titres, listes, tableaux, et coloration du code (mikepenz, Apache-2.0).
     implementation(libs.markdown.renderer.m3)
     implementation(libs.markdown.renderer.code)
+    // Photos envoyées aux modèles de vision : remises droites selon l'EXIF avant compression.
+    implementation(libs.androidx.exifinterface)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

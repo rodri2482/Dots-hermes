@@ -17,7 +17,13 @@ internal object ProviderProtocol {
         val system = turns.filter { it.role == "system" }.joinToString("\n\n") { it.text }.trim()
         val messages = JSONArray().apply {
             if (system.isNotEmpty() && provider != ApiProvider.Anthropic) put(JSONObject().put("role", "system").put("content", system))
-            turns.filter { it.role != "system" }.forEach { put(JSONObject().put("role", it.role).put("content", it.text)) }
+            turns.filter { it.role != "system" }.forEach { turn ->
+                val content: Any = if (turn.image != null && provider == ApiProvider.Groq) JSONArray()
+                    .put(JSONObject().put("type", "text").put("text", turn.text))
+                    .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", turn.image)))
+                else turn.text
+                put(JSONObject().put("role", turn.role).put("content", content))
+            }
             if (provider == ApiProvider.Groq) extra.forEach { put(it) }
         }
         val body = JSONObject().put("model", model.trim()).put("stream", true)

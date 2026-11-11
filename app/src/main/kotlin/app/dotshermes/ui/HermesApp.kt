@@ -65,6 +65,7 @@ fun HermesApp(
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val gatewayFeatures by viewModel.gatewayFeatures.collectAsStateWithLifecycle()
     val voiceInput by viewModel.voiceInput.collectAsStateWithLifecycle()
+    val imageInput by viewModel.imageInput.collectAsStateWithLifecycle()
     val companion by AppContainer.companion.state.collectAsStateWithLifecycle()
     val speech by AppContainer.companion.status.collectAsStateWithLifecycle()
     val requestIssue by viewModel.requestIssue.collectAsStateWithLifecycle()
@@ -177,7 +178,7 @@ fun HermesApp(
                 key(activeAgent, activeChat) {
                 ChatScreen(
                     state = chat,
-                    gatewayFeatures = gatewayFeatures, voiceInput = voiceInput, requestIssue = requestIssue,
+                    gatewayFeatures = gatewayFeatures, voiceInput = voiceInput, imageInput = imageInput, requestIssue = requestIssue,
                     speaking = speech.speaking, onStopSpeaking = viewModel::stopSpeaking,
                     onNewChat = if (!gatewayFeatures) viewModel::newConversation else null,
                     onOpenChats = if (!gatewayFeatures) ({ chatsOpen = true }) else null,

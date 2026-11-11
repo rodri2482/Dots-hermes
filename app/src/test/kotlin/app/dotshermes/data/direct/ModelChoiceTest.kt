@@ -71,3 +71,19 @@ class TokenUsageTest {
         assertEquals(listOf(app.dotshermes.data.model.UsageHour(10, 40, 2)), window.hours)
     }
 }
+
+class VisionTest {
+    @Test fun `the strongest vision model the account has is picked`() {
+        assertEquals("meta-llama/llama-4-scout-17b-16e-instruct",
+            visionModel(listOf("llama-3.3-70b-versatile", "meta-llama/llama-4-scout-17b-16e-instruct")))
+        assertNull(visionModel(listOf("llama-3.3-70b-versatile", "whisper-large-v3")))
+    }
+
+    @Test fun `a photo goes into the groq message as text plus image_url`() {
+        val body = org.json.JSONObject(ProviderProtocol.requestBody(ApiProvider.Groq, "m",
+            listOf(ApiTurn("user", "What is this?", "data:image/jpeg;base64,AAAA"))))
+        val content = body.getJSONArray("messages").getJSONObject(0).getJSONArray("content")
+        assertEquals("text", content.getJSONObject(0).getString("type"))
+        assertEquals("data:image/jpeg;base64,AAAA", content.getJSONObject(1).getJSONObject("image_url").getString("url"))
+    }
+}

@@ -174,6 +174,7 @@ class HermesViewModel(
     fun cancelEditDirect() { agents.activeId.value?.let { id -> viewModelScope.launch { agents.resumeDirect(id) } } }
     val gatewayFeatures = repository.gatewayFeatures
     val voiceInput = repository.voiceInput
+    val imageInput = repository.imageInput
     val requestIssue = repository.requestIssue
     fun retryRequest() { val target = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { target.retryRequest() } }
     suspend fun availableModels(provider: app.dotshermes.data.direct.ApiProvider, key: String) = agents.availableModels(provider, key)
@@ -342,7 +343,7 @@ class HermesViewModel(
     /** Fichier choisi sur le téléphone : copié en privé puis envoyé, avec le brouillon comme légende. */
     fun sendAttachment(uri: Uri, caption: String, onTooBig: () -> Unit) {
         val target = repository.currentTarget()
-        if (!target.gatewayFeatures.value) return
+        if (!target.gatewayFeatures.value && !target.imageInput.value) return
         viewModelScope.launch {
             attachments.import(uri, onTooBig)?.let { target.sendFile(it.file, it.name, it.mime, caption.trim()) }
         }
