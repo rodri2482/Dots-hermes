@@ -397,7 +397,7 @@ Paste a Groq API key to get started.</string>
     <string name="chats_delete_title">Delete this chat?</string>
     <string name="chats_delete_warning">Its messages are erased from this phone. This can\'t be undone.</string>
     <string name="routines_section">Routines</string>
-    <string name="routines_empty">Ask Claydot, for example: “Every weekday at 8:00, summarise my unread emails.” It runs on schedule and notifies you.</string>
+    <string name="routines_empty">Ask Claydot, for example: “Every day at 8:00, post today\'s attendance in the Team WhatsApp group.” You approve it once; it then runs every day and shows a banner while it works.</string>
     <string name="memory_section">Memory</string>
     <string name="memory_empty">Nothing yet. Tell Claydot “remember that…” and it will know it in every chat.</string>
     <string name="memory_forget">Forget</string>
@@ -465,6 +465,9 @@ Paste a Groq API key to get started.</string>
     <string name="routine_channel">Routines running</string>
     <string name="routine_running">Claydot is running a routine</string>
     <string name="routines_exact">Allow exact timing for routines</string>
+    <string name="chatwatch_title">Read WhatsApp notifications</string>
+    <string name="chatwatch_hint">For routines like a daily attendance in a group: Claydot reads WhatsApp messages from notifications and can reply even with the phone locked. Tap to allow Claydot.</string>
+    <string name="chatwatch_on">On. Only WhatsApp messages are kept, on this phone, for 3 days.</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

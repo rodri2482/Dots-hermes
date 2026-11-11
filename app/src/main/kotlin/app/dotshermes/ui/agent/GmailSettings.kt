@@ -165,6 +165,16 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
                         modifier = Modifier.fillMaxWidth().clickable { ask.launch(app.dotshermes.data.direct.MessagingTools.PERMISSIONS) }
                             .padding(horizontal = 16.dp, vertical = 13.dp))
                 }
+                // Notifications WhatsApp : pour faire l'appel d'un groupe et répondre téléphone verrouillé.
+                val watching = remember(enabled) { app.dotshermes.data.direct.ChatLog.accessGranted(context0) }
+                Hairline()
+                Column(Modifier.fillMaxWidth().clickable {
+                    runCatching { context0.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Text(stringResource(R.string.chatwatch_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                    Text(stringResource(if (watching) R.string.chatwatch_on else R.string.chatwatch_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                }
                 // Contrôle de l'écran : seul Android peut l'activer (Réglages > Accessibilité).
                 val screenOn by app.dotshermes.screen.ClaydotAccessibilityService.running.collectAsStateWithLifecycle()
                 val context = androidx.compose.ui.platform.LocalContext.current

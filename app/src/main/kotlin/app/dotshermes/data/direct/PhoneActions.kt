@@ -76,6 +76,8 @@ class PhoneActions(
 
     /** Fenêtre « Claydot veut… » : true si l'utilisateur appuie sur « Faire » (2 min, sinon refus). */
     suspend fun ask(title: String, detail: String): Boolean {
+        // Routine en cours, dont l'utilisateur a approuvé ce genre d'action à sa création.
+        ToolKeys.splitTitle(title).first?.let(ToolKeys::kind)?.let { kind -> if (kind in autoApprove) return true }
         val action = PendingPhoneAction(title, detail, CompletableDeferred())
         _pending.value = action
         return try { withTimeoutOrNull(120_000) { action.answer.await() } ?: false } finally {
@@ -294,6 +296,9 @@ class PhoneActions(
     data class MusicApp(val name: String, val packageName: String, val searchUrl: String?)
 
     companion object {
+        /** Genres d'actions approuvés d'avance pour la routine qui s'exécute (vide hors routine). */
+        @Volatile var autoApprove: Set<String> = emptySet()
+
         /** Par ordre de préférence quand l'utilisateur n'en nomme aucune. */
         val MUSIC_APPS = listOf(
             MusicApp("Spotify", "com.spotify.music", "spotify:search:"),

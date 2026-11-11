@@ -56,6 +56,7 @@ class ClaydotAccessibilityService : AccessibilityService() {
 
 /** Le pilote réel : l'arbre d'accessibilité de la fenêtre active, réduit aux éléments utiles. */
 class AccessibilityScreenDriver(private val context: Context, private val phone: PhoneActions) : ScreenDriver {
+    private companion object { const val SCREEN_NOTIFICATION = 4243 }
     /** Les nœuds de la dernière lecture, par numéro. */
     @Volatile private var nodes: Map<Int, AccessibilityNodeInfo> = emptyMap()
     private val main = Handler(Looper.getMainLooper())
@@ -64,7 +65,13 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
 
     override fun connected() = service != null
 
-    override fun showActive(on: Boolean) { main.post { service?.overlay?.setActive(on) } }
+    override fun showActive(on: Boolean) {
+        main.post { service?.overlay?.setActive(on) }
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        if (!on) { manager?.cancel(SCREEN_NOTIFICATION); return }
+        runCatching { manager?.notify(SCREEN_NOTIFICATION, app.dotshermes.data.direct.RoutineAlarms.liveNotification(context,
+            context.getString(app.dotshermes.R.string.screen_overlay_working), "")) }
+    }
 
     private fun showTap(r: Rect, long: Boolean = false) { main.post { service?.overlay?.tapAt(r.exactCenterX(), r.exactCenterY(), long) } }
 

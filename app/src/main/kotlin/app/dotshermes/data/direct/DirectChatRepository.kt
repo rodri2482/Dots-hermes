@@ -755,7 +755,7 @@ private val LocalToolNames = setOf(
     "remember", "forget", "phone_info", "open_app", "play_music", "media_control", "set_alarm", "set_timer",
     "add_calendar_event", "find_contact", "send_sms", "send_whatsapp", "start_screen_control", "read_screen", "tap",
     "type_text", "scroll", "swipe", "press_key", "take_screenshot", "launch_app", "long_press", "open_link", "wait",
-    "search_web", "get_news", "read_webpage", "create_routine", "list_routines",
+    "search_web", "get_news", "read_webpage", "create_routine", "list_routines", "chat_messages", "take_attendance", "reply_in_chat",
 )
 
 internal fun localToolset(all: org.json.JSONArray): org.json.JSONArray = org.json.JSONArray().apply {

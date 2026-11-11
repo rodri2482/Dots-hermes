@@ -44,6 +44,8 @@ data class Routine(
     val enabled: Boolean = true,
     val lastRunMs: Long = 0,
     val lastResult: String = "",
+    /** Actions approuvées une fois pour toutes à la création (whatsapp, sms, screen, apps…) : pas de fenêtre à 8 h. */
+    val allowed: Set<String> = emptySet(),
 ) {
     /** Prochain passage après [now] (ou null si aucun jour n'est choisi). */
     fun nextRun(now: ZonedDateTime): ZonedDateTime? {
@@ -106,7 +108,8 @@ class RoutineStore(private val context: Context) {
             val r = rows.getJSONObject(i)
             Routine(r.getString("id"), r.getString("account"), r.getString("name"), r.getString("prompt"), r.getInt("minute"),
                 r.getJSONArray("days").let { d -> List(d.length()) { d.getInt(it) }.toSet() }, r.optBoolean("enabled", true),
-                r.optLong("last_run"), r.optString("last_result"))
+                r.optLong("last_run"), r.optString("last_result"),
+                r.optJSONArray("allow")?.let { a -> List(a.length()) { a.optString(it) }.toSet() }.orEmpty())
         }
     } catch (_: JSONException) { emptyList() }
 
@@ -115,7 +118,7 @@ class RoutineStore(private val context: Context) {
         prefs.edit { putString("list", JSONArray().apply {
             list.forEach { r -> put(JSONObject().put("id", r.id).put("account", r.accountId).put("name", r.name).put("prompt", r.prompt)
                 .put("minute", r.minuteOfDay).put("days", JSONArray(r.days.sorted())).put("enabled", r.enabled)
-                .put("last_run", r.lastRunMs).put("last_result", r.lastResult.take(500))) }
+                .put("last_run", r.lastRunMs).put("last_result", r.lastResult.take(500)).put("allow", JSONArray(r.allowed.sorted()))) }
         }.toString()) }
     }
 
@@ -153,7 +156,9 @@ class RoutineWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val routine = store.get(id)?.takeIf { it.enabled } ?: return Result.success()
         runCatching { setForeground(getForegroundInfo()) }
         val repo = AppContainer.agents.repo(routine.accountId) as? DirectChatRepository
-        val reply = repo?.runRoutine("${routine.name}: ${routine.prompt}")
+        // Ce que l'utilisateur a approuvé à la création passe sans fenêtre pendant cette exécution seulement.
+        PhoneActions.autoApprove = routine.allowed.flatMap { ALLOW_KINDS[it].orEmpty() }.toSet()
+        val reply = try { repo?.runRoutine("${routine.name}: ${routine.prompt}") } finally { PhoneActions.autoApprove = emptySet() }
         if (reply == null && runAttemptCount < 2) return Result.retry()
         val text = reply?.takeIf { it.isNotBlank() } ?: "Couldn't run this routine (no connection or the account is busy)."
         store.recordRun(id, text)
@@ -186,6 +191,12 @@ class RoutineWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     }
 }
 
+/** Ce qu'une routine peut être autorisée à faire seule, et les fenêtres d'accord que cela couvre. */
+val ALLOW_KINDS = mapOf(
+    "whatsapp" to setOf("whatsapp"), "sms" to setOf("sms"), "screen" to setOf("screen"),
+    "apps" to setOf("app"), "alarms" to setOf("alarm", "timer"), "music" to setOf("music"),
+)
+
 /** Outils de la conversation : créer (après accord), lister et supprimer des routines. */
 class RoutineTools(
     private val store: RoutineStore,
@@ -200,7 +211,9 @@ class RoutineTools(
                 .put("name", str("Short name, e.g. 'Morning email summary'"))
                 .put("prompt", str("The task to perform at each run, written as an instruction to yourself"))
                 .put("time", str("Local time HH:MM, 24h"))
-                .put("days", str("'daily', 'weekdays', 'weekends' or a list like 'mon,wed,fri'")),
+                .put("days", str("'daily', 'weekdays', 'weekends' or a list like 'mon,wed,fri'"))
+                .put("allow", str("Actions the routine may do without asking at run time, comma separated: whatsapp, sms, screen, apps, alarms, music. " +
+                    "Include what the task needs (e.g. 'whatsapp' to post attendance in a group).")),
             "name", "prompt", "time"))
         .put(fn("list_routines", "List the user's routines with their schedule and last result.", JSONObject()))
         .put(fn("delete_routine", "Delete a routine by id (from list_routines).", JSONObject().put("id", str("Routine id")), "id"))
@@ -215,9 +228,11 @@ class RoutineTools(
                 val minute = Routine.parseTime(args.optString("time")) ?: return err("time must be HH:MM")
                 val days = Routine.parseDays(args.optString("days"))
                 if (days.isEmpty()) return err("days not understood")
+                val allowed = args.optString("allow").split(',', ' ').map { it.trim().lowercase() }.filter { it in ALLOW_KINDS }.toSet()
                 val routine = Routine(UUID.randomUUID().toString().take(8), account, args.optString("name").trim().take(60).ifEmpty { "Routine" },
-                    args.optString("prompt").trim().take(600).ifEmpty { return err("prompt is required") }, minute, days)
-                if (!confirm(ToolKeys.title("routine", routine.name), "${routine.scheduleLabel()}\n${routine.prompt}")) return JSONObject().put("status", "cancelled").toString()
+                    args.optString("prompt").trim().take(600).ifEmpty { return err("prompt is required") }, minute, days, allowed = allowed)
+                val may = if (allowed.isEmpty()) "" else "\nAllowed without asking: " + allowed.sorted().joinToString(", ")
+                if (!confirm(ToolKeys.title("routine", routine.name), "${routine.scheduleLabel()}\n${routine.prompt}$may")) return JSONObject().put("status", "cancelled").toString()
                 store.add(routine)
                 JSONObject().put("status", "created").put("id", routine.id).put("schedule", routine.scheduleLabel()).toString()
             }
@@ -279,6 +294,28 @@ object RoutineAlarms {
 
     fun idFrom(intent: android.content.Intent?) = intent?.getStringExtra(EXTRA_ID)
 
+    /** Notification « Claydot travaille » : en cours, discrète, mise en avant sur Android 16. */
+    fun liveNotification(context: Context, title: String, text: String): android.app.Notification {
+        ensureChannel(context)
+        return androidx.core.app.NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(app.dotshermes.R.drawable.ic_stat_hermes)
+            .setContentTitle(title).setContentText(text)
+            .setOngoing(true).setSilent(true)
+            .setCategory(androidx.core.app.NotificationCompat.CATEGORY_PROGRESS)
+            .setProgress(0, 0, true)
+            .setRequestPromotedOngoing(true)
+            .setShortCriticalText("Claydot")
+            .build()
+    }
+
+    private fun ensureChannel(context: Context) {
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null) {
+            manager.createNotificationChannel(android.app.NotificationChannel(CHANNEL,
+                context.getString(app.dotshermes.R.string.routine_channel), android.app.NotificationManager.IMPORTANCE_LOW))
+        }
+    }
+
     fun foregroundInfo(context: Context, name: String): androidx.work.ForegroundInfo {
         val manager = context.getSystemService(android.app.NotificationManager::class.java)
         if (android.os.Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null) {
@@ -290,6 +327,11 @@ object RoutineAlarms {
             .setContentTitle(context.getString(app.dotshermes.R.string.routine_running))
             .setContentText(name)
             .setOngoing(true).setSilent(true)
+            .setCategory(androidx.core.app.NotificationCompat.CATEGORY_PROGRESS)
+            .setProgress(0, 0, true)
+            // Android 16 : « notification en cours mise en avant » (puce de la barre d'état ; Now Bar chez Samsung).
+            .setRequestPromotedOngoing(true)
+            .setShortCriticalText("Claydot")
             .build()
         return if (android.os.Build.VERSION.SDK_INT >= 29) androidx.work.ForegroundInfo(4242, notification,
             android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else androidx.work.ForegroundInfo(4242, notification)
