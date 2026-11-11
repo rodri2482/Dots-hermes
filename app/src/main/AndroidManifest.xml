@@ -57,6 +57,10 @@
         android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.DotsHermes">
+        <!-- Modèles hors ligne sur la puce graphique : Android 12+ ne donne OpenCL qu'aux apps qui le déclarent. -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+
 
         <!-- Google Analytics : pas d'identifiant publicitaire ni de personnalisation des annonces ;
              les écrans sont signalés à la main (une seule activité Compose, cf. analytics/Analytics.kt). -->

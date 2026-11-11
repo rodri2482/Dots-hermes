@@ -586,4 +586,7 @@ Paste a Groq API key to get started.</string>
         <item>Set up a routine: every day at 19:00, send me the top 5 news headlines for my country.</item>
         <item>Set up a routine: when someone writes my name in my WhatsApp group, reply that I will answer soon. Ask me the group and my name.</item>
     </string-array>
+    <string name="local_note_gemma4">Fastest and smartest on most phones. Good at phone tasks.</string>
+    <string name="local_note_qwen">Many languages. Needs about 4 GB of RAM.</string>
+    <string name="local_note_lfm">Light and quick, for phones with less space.</string>
 </resources>

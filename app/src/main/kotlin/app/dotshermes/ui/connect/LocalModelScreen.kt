@@ -105,7 +105,7 @@ private fun ModelRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(model.name, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                Text("${gigabytes(model.sizeBytes)} · ${model.note}", style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                Text("${gigabytes(model.sizeBytes)} · ${stringResource(model.note)}", style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
             }
         }
         Spacer(Modifier.height(10.dp))

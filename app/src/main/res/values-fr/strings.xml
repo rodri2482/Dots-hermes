@@ -594,4 +594,7 @@ Colle une clé API Groq pour commencer.</string>
         <item>Crée une routine : chaque jour à 19 h, envoie-moi les 5 grands titres de l\'actualité de mon pays.</item>
         <item>Crée une routine : quand quelqu\'un écrit mon prénom dans mon groupe WhatsApp, réponds que je reviens vite. Demande-moi le groupe et mon prénom.</item>
     </string-array>
+    <string name="local_note_gemma4">Le plus rapide et le plus malin sur la plupart des téléphones. Doué pour les tâches.</string>
+    <string name="local_note_qwen">Beaucoup de langues. Demande environ 4 Go de mémoire vive.</string>
+    <string name="local_note_lfm">Léger et rapide, pour les téléphones avec moins de place.</string>
 </resources>

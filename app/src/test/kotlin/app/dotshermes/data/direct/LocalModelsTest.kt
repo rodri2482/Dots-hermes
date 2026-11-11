@@ -16,11 +16,11 @@ class LocalModelsTest {
         assertEquals("2 < 3 and <b>", listOf("2 < 3 and ", "<b>").joinToString("") { f.feed(it) })
     }
 
-    @Test fun `catalog models are public litertlm files under 2,2 GB`() {
+    @Test fun `catalog models are public litertlm files under 2,7 GB`() {
         LocalModels.CATALOG.forEach { m ->
             assertTrue(m.url.startsWith("https://huggingface.co/litert-community/"))
             assertTrue(m.file.endsWith(".litertlm") && m.url.endsWith(m.file))
-            assertTrue(m.sizeBytes in 100_000_000..2_200_000_000)
+            assertTrue(m.sizeBytes in 100_000_000..2_700_000_000)
         }
     }
 }

@@ -26,8 +26,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** Un modèle qui tourne sur le téléphone, sans clé ni Internet une fois téléchargé. */
-data class LocalModel(val id: String, val name: String, val sizeBytes: Long, val url: String, val file: String, val note: String, val maker: String)
+/**
+ * Un modèle qui tourne sur le téléphone, sans clé ni Internet une fois téléchargé. [note] : texte (anglais
+ * et français) montré sous son nom. [freshEngine] : modèle à état récurrent (Qwen 3.5) dont le moteur
+ * garde l'état d'une conversation à l'autre (bogue connu de LiteRT-LM ≤ 0.19.1) : un moteur neuf par conversation.
+ */
+data class LocalModel(val id: String, val name: String, val sizeBytes: Long, val url: String, val file: String,
+    @param:androidx.annotation.StringRes val note: Int, val maker: String, val freshEngine: Boolean = false)
 
 /** État du téléchargement d'un modèle. */
 sealed interface LocalModelState {
@@ -131,12 +136,16 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
         const val LOCAL_KEY = "on-device"
 
         val CATALOG = listOf(
+            // Gemma 4 E2B : le plus rapide sur la puce graphique (premier mot en ~0,3 s), appels d'outils natifs.
+            LocalModel("gemma4-e2b", "Gemma 4 E2B", 2_588_147_712,
+                "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+                "gemma-4-E2B-it.litertlm", app.dotshermes.R.string.local_note_gemma4, "Google"),
             LocalModel("qwen3.5-2b", "Qwen 3.5 2B", 2_119_744_416,
                 "https://huggingface.co/litert-community/Qwen3.5-2B/resolve/main/Qwen3.5-2B_int8.litertlm",
-                "Qwen3.5-2B_int8.litertlm", "Best answers, many languages. Needs about 4 GB of RAM.", "Alibaba Qwen"),
+                "Qwen3.5-2B_int8.litertlm", app.dotshermes.R.string.local_note_qwen, "Alibaba Qwen", freshEngine = true),
             LocalModel("lfm2.5-1.2b", "LFM 2.5 1.2B", 736_015_744,
                 "https://huggingface.co/litert-community/LFM2.5-1.2B-Instruct/resolve/main/LFM2.5-1.2B-Instruct_int4.litertlm",
-                "LFM2.5-1.2B-Instruct_int4.litertlm", "Light and quick, for phones with less space.", "Liquid AI"),
+                "LFM2.5-1.2B-Instruct_int4.litertlm", app.dotshermes.R.string.local_note_lfm, "Liquid AI"),
         )
 
         fun byId(id: String) = CATALOG.firstOrNull { it.id == id }
@@ -161,6 +170,15 @@ class LocalProviderClient(private val context: Context, private val models: () -
     private val idle = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Default)
     private var releaseJob: Job? = null
     private val guard = DeviceGuard(context)
+    private val gpuPrefs = context.getSharedPreferences("local-gpu", Context.MODE_PRIVATE)
+
+    init {
+        // Un essai de la puce graphique n'a jamais fini (l'app s'est arrêtée pendant le chargement) :
+        // ce modèle restera sur le processeur sur ce téléphone.
+        gpuPrefs.all.keys.filter { it.startsWith("trying:") }.forEach { k ->
+            gpuPrefs.edit().putBoolean("off:" + k.removePrefix("trying:"), true).remove(k).commit()
+        }
+    }
 
     /** Au repos depuis quelques minutes : le moteur est fermé (mémoire rendue, processeur au calme). */
     private fun scheduleRelease() {
@@ -177,16 +195,31 @@ class LocalProviderClient(private val context: Context, private val models: () -
     override suspend fun models(provider: ApiProvider, key: String): List<String> =
         LocalModels.CATALOG.filter { models().isReady(it) }.map { it.id }
 
-    private fun engineFor(path: String): Engine {
-        engine?.takeIf { loadedPath == path }?.let { return it }
+    private fun engineFor(entry: LocalModel, path: String, fresh: Boolean = false): Engine {
+        engine?.takeIf { loadedPath == path && !fresh }?.let { return it }
+        runCatching { taskConversation?.close() }; taskConversation = null; taskKey = null
         runCatching { engine?.close() }
-        engine = null
-        // Quatre fils au plus : les cœurs restants gardent le téléphone fluide et moins chaud.
+        engine = null; loadedPath = null
+        // La puce graphique (OpenCL) d'abord : réponses bien plus rapides, moins de mémoire et de chaleur.
+        // Refusée ou en échec sur ce téléphone : le processeur, et on ne la réessaie plus pour ce modèle.
+        if (!gpuPrefs.getBoolean("off:" + entry.id, false)) {
+            gpuPrefs.edit().putBoolean("trying:" + entry.id, true).commit()
+            val gpu = try {
+                Engine(EngineConfig(modelPath = path, backend = Backend.GPU(), cacheDir = context.cacheDir.path)).also { it.initialize() }
+            } catch (_: Throwable) {
+                gpuPrefs.edit().putBoolean("off:" + entry.id, true).commit()
+                null
+            } finally {
+                gpuPrefs.edit().remove("trying:" + entry.id).commit()
+            }
+            if (gpu != null) { engine = gpu; loadedPath = path; return gpu }
+        }
+        // Quatre fils au plus : les cœurs restants gardent le téléphone fluide.
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 8).let { minOf(4, it - 1).coerceAtLeast(2) }
-        val fresh = Engine(EngineConfig(modelPath = path, backend = Backend.CPU(threads, null), cacheDir = context.cacheDir.path))
-        fresh.initialize()
-        engine = fresh; loadedPath = path
-        return fresh
+        val cpu = Engine(EngineConfig(modelPath = path, backend = Backend.CPU(threads, null), cacheDir = context.cacheDir.path))
+        cpu.initialize()
+        engine = cpu; loadedPath = path
+        return cpu
     }
 
     override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) {
@@ -210,7 +243,6 @@ class LocalProviderClient(private val context: Context, private val models: () -
 
     private suspend fun runTurn(entry: LocalModel, turns: List<ApiTurn>, extra: List<org.json.JSONObject>, tools: org.json.JSONArray?,
         mode: DeviceGuard.Mode, onDelta: (String) -> Unit): List<ApiToolCall> {
-        val engine = try { engineFor(models().fileOf(entry).path) } catch (_: Throwable) { throw ApiException(ApiFailure.ModelUnavailable) }
         val history = turns.filter { it.role != "system" }
         val last = history.lastOrNull { it.role == "user" } ?: return emptyList()
         val key = turns.hashCode()
@@ -218,6 +250,8 @@ class LocalProviderClient(private val context: Context, private val models: () -
         val conversation: com.google.ai.edge.litertlm.Conversation
         val message: Message
         val reuse = extra.isNotEmpty() && taskKey == key && taskConversation?.isAlive == true
+        val engine = try { engineFor(entry, models().fileOf(entry).path, fresh = entry.freshEngine && !reuse) }
+            catch (_: Throwable) { throw ApiException(ApiFailure.ModelUnavailable) }
         if (reuse) {
             conversation = taskConversation!!
             val results = extra.takeLastWhile { it.optString("role") == "tool" }
