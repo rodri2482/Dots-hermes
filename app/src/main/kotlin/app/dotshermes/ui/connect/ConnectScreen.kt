@@ -66,6 +66,8 @@ import app.dotshermes.ui.theme.Ink
 import app.dotshermes.ui.theme.LocalDotPalette
 import androidx.compose.ui.res.stringResource
 import app.dotshermes.R
+import app.dotshermes.ui.dot.mascotElement
+import app.dotshermes.ui.theme.balanced
 
 /**
  * Écran d'appairage avec le gateway d'un agent Hermes (plugin « dots »). Sert au premier agent, à
@@ -176,7 +178,7 @@ internal fun ConnectLayout(
                 val heroSize = (headerHeight - 104.dp).coerceIn(0.dp, 220.dp)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     if (heroSize >= 48.dp) {
-                        ClayDot(palette, Modifier.size(heroSize), mood = mood,
+                        ClayDot(palette, Modifier.mascotElement().size(heroSize), mood = mood,
                             accessory = appearance.accessory, species = appearance.species)
                     }
                     if (headerHeight >= 44.dp) {
@@ -186,7 +188,7 @@ internal fun ConnectLayout(
                     }
                     if (!tight && headerHeight >= 140.dp) {
                         Spacer(Modifier.height(6.dp))
-                        Text(tagline, style = MaterialTheme.typography.bodyLarge, color = Ink.Secondary,
+                        Text(tagline, style = MaterialTheme.typography.bodyLarge.balanced(), color = Ink.Secondary,
                             textAlign = TextAlign.Center)
                     }
                 }

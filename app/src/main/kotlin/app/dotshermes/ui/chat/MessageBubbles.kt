@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import app.dotshermes.ui.theme.tabular
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
@@ -112,7 +113,7 @@ fun MessageRow(
         }
         if (!fromUser && (message.footer != null)) {
             Row(Modifier.padding(top = 4.dp, start = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(message.footer, style = MaterialTheme.typography.labelSmall, color = Ink.Tertiary)
+                Text(message.footer, style = MaterialTheme.typography.labelSmall.tabular(), color = Ink.Tertiary)
                 onListen?.let { listen ->
                     Text(
                         stringResource(R.string.chat_listen),

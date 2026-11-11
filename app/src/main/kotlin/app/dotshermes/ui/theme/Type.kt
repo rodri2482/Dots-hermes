@@ -21,3 +21,10 @@ val DotsTypography = Typography(
     labelMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 16.sp),
     labelSmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.1.sp),
 )
+
+/** Chiffres de largeur fixe (« tnum ») : chronos, durées, compteurs ne bougent plus à chaque seconde. */
+fun androidx.compose.ui.text.TextStyle.tabular(): androidx.compose.ui.text.TextStyle = copy(fontFeatureSettings = "tnum")
+
+/** Lignes équilibrées pour les titres et accroches : pas de mot seul (« veuve ») sur la dernière ligne. */
+fun androidx.compose.ui.text.TextStyle.balanced(): androidx.compose.ui.text.TextStyle =
+    copy(lineBreak = androidx.compose.ui.text.style.LineBreak.Heading)

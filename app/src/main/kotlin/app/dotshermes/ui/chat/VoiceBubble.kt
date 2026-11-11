@@ -1,5 +1,7 @@
 package app.dotshermes.ui.chat
 
+import app.dotshermes.ui.theme.tabular
+import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
@@ -99,7 +101,8 @@ fun VoiceBubble(
                     when (state) {
                         2 -> CircularProgressIndicator(Modifier.size(16.dp), color = if (fromUser) ink else palette.base, strokeWidth = 2.dp)
                         1 -> Icon(Icons.Rounded.Pause, stringResource(R.string.cd_pause), tint = if (fromUser) ink else palette.deep, modifier = Modifier.size(22.dp))
-                        else -> Icon(Icons.Rounded.PlayArrow, stringResource(R.string.cd_play), tint = if (fromUser) ink else palette.deep, modifier = Modifier.size(24.dp))
+                        // Centre optique : un triangle centré « par les maths » paraît trop à gauche.
+                        else -> Icon(Icons.Rounded.PlayArrow, stringResource(R.string.cd_play), tint = if (fromUser) ink else palette.deep, modifier = Modifier.offset(x = 1.5.dp).size(24.dp))
                     }
                 }
             }
@@ -115,7 +118,7 @@ fun VoiceBubble(
                     .pointerInput(messageId, mine) { detectTapGestures { if (mine) onSeek(it.x / size.width) else onToggle() } },
             )
             Spacer(Modifier.width(10.dp))
-            Text(formatClock(remaining), style = MaterialTheme.typography.labelMedium, color = ink.copy(alpha = 0.85f))
+            Text(formatClock(remaining), style = MaterialTheme.typography.labelMedium.tabular(), color = ink.copy(alpha = 0.85f))
         }
         AnimatedVisibility(visible = !voice.transcript.isNullOrBlank(), enter = expandVertically() + fadeIn()) {
             Text(

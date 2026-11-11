@@ -11,6 +11,7 @@ import app.dotshermes.R
 import app.dotshermes.data.direct.*
 import app.dotshermes.ui.formatDate
 import app.dotshermes.ui.theme.Ink
+import app.dotshermes.ui.theme.tabular
 import kotlinx.coroutines.delay
 import java.time.Instant
 
@@ -24,7 +25,7 @@ internal fun DirectUsageCard(usage: DirectApiUsage?) {
             style = MaterialTheme.typography.titleSmall, color = Ink.Primary)
         val remaining = cooldownSeconds(usage?.cooldownUntilMs ?: 0, now)
         // Le délai ne s'affiche que s'il court ; « aucun délai » n'apprend rien.
-        if (remaining > 0) Text(stringResource(R.string.api_retry_wait, remaining), style = MaterialTheme.typography.bodyMedium, color = Ink.Danger)
+        if (remaining > 0) Text(stringResource(R.string.api_retry_wait, remaining), style = MaterialTheme.typography.bodyMedium.tabular(), color = Ink.Danger)
         val limits = usage?.limits
         // Une fenêtre dont l'heure de remise à zéro est passée ne dit plus rien de vrai : on la cache.
         val fresh = limits?.let { listOf(it.requestsResetAtMs, it.tokensResetAtMs).any { reset -> reset == null || reset > now } } == true
@@ -53,7 +54,7 @@ private fun LimitLine(label: String, remaining: Long?, limit: Long?, resetAt: Lo
             limit == null -> stringResource(R.string.api_limits_remaining, remaining)
             else -> stringResource(R.string.api_limits_balance, remaining, limit)
         }
-        Text(value, style = MaterialTheme.typography.titleMedium, color = Ink.Primary)
+        Text(value, style = MaterialTheme.typography.titleMedium.tabular(), color = Ink.Primary)
         resetAt?.takeIf { it > now }?.let {
             Text(stringResource(R.string.api_limits_resets, formatDate(Instant.ofEpochMilli(it), "MMM d, HH:mm:ss")),
                 style = MaterialTheme.typography.labelSmall, color = Ink.Secondary)

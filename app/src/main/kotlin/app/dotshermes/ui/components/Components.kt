@@ -93,10 +93,13 @@ fun CircleIconButton(
     container: Color = Ink.Fill,
     tint: Color = Ink.Primary,
 ) {
+    // Le rond garde sa taille ; la zone qu'on peut toucher fait au moins 48 dp (cible tactile Android).
     Box(
-        modifier = modifier.size(size).clip(CircleShape).background(container).clickable(role = Role.Button, onClick = onClick),
+        modifier = modifier.size(maxOf(size, 48.dp)).clip(CircleShape).clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(size * 0.5f))
+        Box(Modifier.size(size).background(container, CircleShape), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(size * 0.5f))
+        }
     }
 }

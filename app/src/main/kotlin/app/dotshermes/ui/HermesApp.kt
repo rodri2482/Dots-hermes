@@ -160,11 +160,17 @@ fun HermesApp(
             connection is ConnectionState.Connecting && !gatewayFeatures -> RootScreen.Launch
             else -> RootScreen.Connect
         }
+        @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+        androidx.compose.animation.SharedTransitionLayout {
+        val sharedScope = this
         AnimatedContent(
             targetState = root,
             transitionSpec = { (fadeIn(tween(450)) + scaleIn(tween(450), initialScale = 0.97f)) togetherWith fadeOut(tween(200)) },
             label = "root",
         ) { shown ->
+            androidx.compose.runtime.CompositionLocalProvider(
+                app.dotshermes.ui.dot.LocalMascotTransition provides app.dotshermes.ui.dot.MascotTransition(sharedScope, this),
+            ) {
             if (shown == RootScreen.Chat) {
                 key(activeAgent, activeChat) {
                 ChatScreen(
@@ -237,6 +243,8 @@ fun HermesApp(
                     onSelectAgent = viewModel::selectAgent,
                 )
                 }
+            }
+        }
             }
         }
 

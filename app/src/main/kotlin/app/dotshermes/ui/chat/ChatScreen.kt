@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -41,6 +42,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import app.dotshermes.ui.dot.mascotElement
+import app.dotshermes.ui.dot.staggerIn
+import app.dotshermes.ui.theme.tabular
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -193,6 +198,9 @@ fun ChatScreen(
     var roomSheetOpen by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val streamingReply = state.activity == AgentActivity.Typing
+    val stopVisible = speaking || (!gatewayFeatures && state.activity != AgentActivity.Idle)
+    // Place de la pastille « Arrêter » sous la dernière bulle, gagnée en douceur plutôt que d'un coup.
+    val listBottom by animateDpAsState(if (stopVisible) 64.dp else 12.dp, label = "stop-room")
     var cooldownRemaining by remember(requestIssue) { mutableStateOf(
         app.dotshermes.data.direct.cooldownSeconds(requestIssue?.retryAtMs ?: 0, System.currentTimeMillis())) }
     LaunchedEffect(requestIssue) {
@@ -243,7 +251,7 @@ fun ChatScreen(
                 state = listState,
                 reverseLayout = true,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = headerHeight, bottom = 12.dp),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = headerHeight, bottom = listBottom),
             ) {
                 items(state.rows, key = { it.key }, contentType = { it::class }) { row ->
                     // Pendant qu'une réponse grandit, pas d'animation de position : les bulles au-dessus
@@ -290,8 +298,24 @@ fun ChatScreen(
                 onOpenAgents = onOpenAgents,
                 otherAgentsUnread = otherAgentsUnread,
             )
+            // « Arrêter » flotte au-dessus du champ, comme la pastille de navigation : le fil ne saute pas.
+            androidx.compose.animation.AnimatedVisibility(stopVisible, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
+                enter = fadeIn() + scaleIn(initialScale = 0.85f), exit = fadeOut() + scaleOut(targetScale = 0.85f)) {
+                Row(
+                    Modifier.clip(CircleShape).background(Ink.Raised).border(0.5.dp, Ink.Separator, CircleShape)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button) {
+                            if (speaking && state.activity == AgentActivity.Idle) onStopSpeaking() else onStopRequest()
+                        }
+                        .heightIn(min = 40.dp).padding(horizontal = 16.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Stop, null, tint = palette.deep, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.api_stop), style = MaterialTheme.typography.labelLarge, color = Ink.Primary)
+                }
+            }
             BrowsingPill(
-                visible = browsing && screen.hasFrame,
+                visible = browsing && screen.hasFrame && !stopVisible,
                 agentName = state.agentName,
                 onClick = onOpenScreen,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
@@ -303,10 +327,11 @@ fun ChatScreen(
                         Text(stringResource(app.dotshermes.ui.connect.apiFailureMessage(issue.failure)),
                             color = Ink.Secondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                         if (issue.canRetry) androidx.compose.material3.TextButton(onClick = onRetryRequest, enabled = cooldownRemaining == 0L) {
-                            Text(if (cooldownRemaining > 0) stringResource(R.string.api_retry_wait, cooldownRemaining) else stringResource(R.string.api_retry))
+                            Text(if (cooldownRemaining > 0) stringResource(R.string.api_retry_wait, cooldownRemaining) else stringResource(R.string.api_retry),
+                                style = MaterialTheme.typography.labelLarge.tabular())
                         } else if (cooldownRemaining > 0) {
                             Text(stringResource(R.string.api_retry_wait, cooldownRemaining),
-                                style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                                style = MaterialTheme.typography.bodySmall.tabular(), color = Ink.Secondary)
                         }
                     }
                 }
@@ -397,7 +422,7 @@ private fun ChatHeader(
             if (heroDots.size > 1) {
                 HeroDots(heroDots, activeChat, activity.toMood(), 68.dp, onSwitch = onSwitchDot)
             } else {
-                ClayDot(palette, Modifier.size(68.dp), mood = activity.toMood(), accessory = appearance.accessory, species = appearance.species)
+                ClayDot(palette, Modifier.mascotElement().size(68.dp), mood = activity.toMood(), accessory = appearance.accessory, species = appearance.species)
             }
             if (onOpenAgents == null) {
                 Text(name, style = MaterialTheme.typography.titleSmall, color = Ink.Primary)
@@ -433,7 +458,7 @@ private fun ChatHeader(
                 )
             }
         }
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.End)) {
             CircleIconButton(Icons.Rounded.Insights, stringResource(R.string.activity_title), onOpenActivity, container = Ink.Raised.copy(alpha = 0.85f))
             Box {
                 CircleIconButton(Icons.Rounded.MoreHoriz, stringResource(R.string.cd_my_dots), onOpenAgent, container = Ink.Raised.copy(alpha = 0.85f))
@@ -525,21 +550,6 @@ private fun Composer(
     val suggestions = stringArrayResource(if (mediaEnabled) R.array.chat_suggestions else R.array.chat_suggestions_direct)
 
     Column(Modifier.fillMaxWidth().background(Ink.Surface).navigationBarsPadding()) {
-        // Réponse en cours (ou lue à voix haute) : une petite pastille « Arrêter » au-dessus du champ ;
-        // le bouton d'envoi, lui, ne change jamais de rôle.
-        AnimatedVisibility(visible = busy, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically(),
-            modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Row(
-                Modifier.padding(top = 8.dp).clip(CircleShape).background(Ink.Raised).border(0.5.dp, Ink.Separator, CircleShape)
-                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onStop)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Rounded.Stop, null, tint = palette.deep, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.api_stop), style = MaterialTheme.typography.labelLarge, color = Ink.Primary)
-            }
-        }
         AnimatedVisibility(
             visible = suggestionsOpen,
             enter = expandVertically() + fadeIn(),
@@ -551,18 +561,19 @@ private fun Composer(
                 modifier = Modifier.padding(top = 10.dp),
             ) {
                 if (mediaEnabled) item {
-                    AttachChip(Icons.Rounded.PhotoLibrary, stringResource(R.string.attach_photo)) {
+                    AttachChip(Modifier.staggerIn(0), Icons.Rounded.PhotoLibrary, stringResource(R.string.attach_photo)) {
                         pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
                     }
                 }
-                if (mediaEnabled) item { AttachChip(Icons.Rounded.AttachFile, stringResource(R.string.attach_file)) { pickDocument.launch(arrayOf("*/*")) } }
-                if (canOpenRoom) item { AttachChip(Icons.Rounded.Groups, stringResource(R.string.room_chip), onClick = onOpenRoom) }
-                items(suggestions) { suggestion ->
+                if (mediaEnabled) item { AttachChip(Modifier.staggerIn(1), Icons.Rounded.AttachFile, stringResource(R.string.attach_file)) { pickDocument.launch(arrayOf("*/*")) } }
+                if (canOpenRoom) item { AttachChip(Modifier.staggerIn(2), Icons.Rounded.Groups, stringResource(R.string.room_chip), onClick = onOpenRoom) }
+                itemsIndexed(suggestions) { index, suggestion ->
                     Text(
                         suggestion,
                         style = MaterialTheme.typography.bodyMedium,
                         color = palette.deep,
                         modifier = Modifier
+                            .staggerIn(index + 2)
                             .clip(CircleShape)
                             .background(palette.light)
                             // Compte direct : l'amorce se place dans le champ, à compléter ; rien ne part (ni n'est facturé) sans envoi.
@@ -679,7 +690,7 @@ private fun RecordingBar(recording: RecordingState, onCancel: () -> Unit, onSend
         ) {
             RecordingDot()
             Spacer(Modifier.width(8.dp))
-            Text(formatClock(recording.elapsedMs), style = MaterialTheme.typography.labelLarge, color = Ink.Primary)
+            Text(formatClock(recording.elapsedMs), style = MaterialTheme.typography.labelLarge.tabular(), color = Ink.Primary)
             Spacer(Modifier.width(12.dp))
             // Les derniers niveaux défilent de droite à gauche, la barre la plus récente au bord.
             Waveform(
@@ -702,10 +713,10 @@ private fun RecordingBar(recording: RecordingState, onCancel: () -> Unit, onSend
 
 /** Pièce jointe : pastille au début des suggestions du bouton « + ». */
 @Composable
-private fun AttachChip(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun AttachChip(modifier: Modifier, icon: ImageVector, label: String, onClick: () -> Unit) {
     val palette = LocalDotPalette.current
     Row(
-        Modifier.clip(CircleShape).background(palette.base).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
+        modifier.clip(CircleShape).background(palette.base).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = palette.onBase, modifier = Modifier.size(16.dp))
