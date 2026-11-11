@@ -151,7 +151,7 @@ class DirectChatRepository(
                 val answer = DirectEntry(UUID.randomUUID().toString(), "assistant", "", System.currentTimeMillis(), DirectEntryState.Streaming, user.id)
                 answerId = answer.id
                 commit(transcript.copy(messages = retained + user.copy(state = DirectEntryState.Pending) + answer, retryUserId = user.id, failure = null, cooldownUntilMs = 0))
-                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE) }) +
+                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE + "\n\n" + nowLine()) }) +
                     completedContext(retained) + ApiTurn("user", user.text)
             }
             val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
@@ -287,7 +287,9 @@ class DirectChatRepository(
         memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, value.cooldownUntilMs)
         _directUsage.value = DirectApiUsage(provider, model, value.limits, value.cooldownUntilMs)
         val newestDone = value.messages.lastOrNull { it.role == "assistant" && it.state == DirectEntryState.Complete && it.durationMs != null }?.id
-        _messages.value = value.messages.map { entry -> ChatMessage(
+        // Réponse pas encore commencée (outil en cours) : pas de bulle vide, l'indicateur « écrit… » suffit.
+        _messages.value = value.messages.filterNot { it.role == "assistant" && it.state == DirectEntryState.Streaming && it.text.isEmpty() }
+            .map { entry -> ChatMessage(
             id = entry.id, sender = if (entry.role == "user") Sender.User else Sender.Agent,
             content = MessageContent.Text(entry.text), sentAt = Instant.ofEpochMilli(entry.timestampMs),
             delivery = if (entry.role == "user") Delivery.Sent else Delivery.Read,
@@ -381,6 +383,10 @@ private const val STREAM_SAVE_MS = 750L
 
 /** Les réactions possibles, celles de la barre de réactions de l'app. */
 internal val Reactions = setOf("❤️", "👍", "😂", "😮", "🎉", "👀", "🔥", "😢")
+
+/** « Now: Wednesday 2026-11-11 10:40 (Africa/Lagos) » : le modèle ne connaît pas la date du jour. */
+internal fun nowLine(now: java.time.ZonedDateTime = java.time.ZonedDateTime.now()): String =
+    "Now: " + now.format(java.time.format.DateTimeFormatter.ofPattern("EEEE yyyy-MM-dd HH:mm", java.util.Locale.ENGLISH)) + " (" + now.zone.id + ")."
 
 /** Consigne ajoutée à la personnalité : une réaction en tête de chaque réponse, retirée du texte. */
 internal val REACTION_RULE = "Start every reply with a reaction to the user's latest message, written exactly as " +

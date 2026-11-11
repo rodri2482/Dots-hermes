@@ -262,6 +262,25 @@ fun HermesApp(
                 } },
             )
         }
+        val phoneAction by AppContainer.phoneActions.pending.collectAsStateWithLifecycle()
+        phoneAction?.let { action ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = action::cancel,
+                title = { androidx.compose.material3.Text(stringResource(R.string.phone_confirm_title)) },
+                text = {
+                    androidx.compose.foundation.layout.Column {
+                        androidx.compose.material3.Text(action.title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                        if (action.detail.isNotBlank()) androidx.compose.material3.Text(action.detail)
+                    }
+                },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = action::confirm) {
+                    androidx.compose.material3.Text(stringResource(R.string.phone_do))
+                } },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = action::cancel) {
+                    androidx.compose.material3.Text(stringResource(android.R.string.cancel))
+                } },
+            )
+        }
         if (clearingChat) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { clearingChat = false },

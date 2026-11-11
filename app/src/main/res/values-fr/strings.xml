@@ -399,6 +399,11 @@ Colle une clé API Groq pour commencer.</string>
     <string name="conn_online">En ligne</string>
     <string name="settings_appearance">Apparence</string>
     <string name="settings_appearance_row">Mascotte, couleurs et accessoire</string>
+    <string name="phone_section">Téléphone</string>
+    <string name="phone_title">Laisser Claydot utiliser ton téléphone</string>
+    <string name="phone_hint">Réveils, minuteurs, ouvrir une app, événements d\'agenda. Claydot demande toujours avant de faire quoi que ce soit.</string>
+    <string name="phone_confirm_title">Claydot veut</string>
+    <string name="phone_do">Faire</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

@@ -23,6 +23,18 @@ private class OfflineProviderClient : ProviderClient {
         }
         stream(provider, key, model, turns, onDelta)
     }
+    // Comme un vrai modèle à outils : « timer » dans le message demande un minuteur de 5 min (confirmé à l'écran).
+    override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+        extra: List<org.json.JSONObject>, tools: org.json.JSONArray?,
+        onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+        val offersTimer = tools?.toString()?.contains("set_timer") == true
+        if (offersTimer && extra.isEmpty() && turns.last().text.contains("timer", ignoreCase = true)) {
+            delay(400)
+            return listOf(ApiToolCall("offline-timer", "set_timer", "{\"seconds\":300,\"label\":\"Tea\"}"))
+        }
+        streamCounted(provider, key, model, turns, onLimits, onTokens, onDelta)
+        return emptyList()
+    }
     override suspend fun streamCounted(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
         onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit) {
         streamWithUsage(provider, key, model, turns, onLimits, onDelta)

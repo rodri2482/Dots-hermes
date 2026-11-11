@@ -10,6 +10,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Messages vocaux : demandée au premier appui sur le micro. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Actions confirmées par l'utilisateur : réveil et minuteur dans l'app Horloge. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <!-- « Ouvre WhatsApp » : voir les apps de l'écran d'accueil (Android 11+). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
     <!-- Appairage de l'app web : scan du QR code affiché par le navigateur ; demandée à l'ouverture du scanner. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />

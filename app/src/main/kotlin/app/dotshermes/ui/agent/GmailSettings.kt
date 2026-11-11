@@ -93,3 +93,24 @@ fun GmailSettings(gmail: GmailAccess) {
         }
     }
 }
+
+/** Actions sur le téléphone : un interrupteur ; chaque action reste confirmée au moment voulu. */
+@Composable
+fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
+    val enabled by actions.enabled.collectAsStateWithLifecycle()
+    Column(Modifier.fillMaxWidth()) {
+        SectionLabel(stringResource(R.string.phone_section))
+        GroupedCard {
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.phone_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                    Text(stringResource(R.string.phone_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                }
+                androidx.compose.material3.Switch(checked = enabled, onCheckedChange = actions::setEnabled,
+                    colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,
+                        checkedThumbColor = androidx.compose.ui.graphics.Color.White))
+            }
+        }
+    }
+}
