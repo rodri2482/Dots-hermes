@@ -103,7 +103,9 @@ class AgentRegistry(
         val link = id?.let(store::get)
         return ConnectionEditor(UUID.randomUUID().toString(), link?.id,
             // Nouveau compte : Groq d'abord, il suffit d'y coller sa clé API (Hermes reste à un onglet).
-            if (link != null) link.provider?.id ?: "hermes" else ApiProvider.Groq.id,
+            // Déjà un compte Groq : « ajouter » sert alors à brancher un serveur Hermes.
+            if (link != null) link.provider?.id ?: "hermes"
+            else if (store.agents.value.any { it.provider == ApiProvider.Groq }) "hermes" else ApiProvider.Groq.id,
             link?.model.orEmpty(), link?.url?.takeIf { it.isNotBlank() } ?: gatewayHint)
     }
 
@@ -290,7 +292,10 @@ class AgentRegistry(
             if (directTarget() != target) return@withLock false
             val activeBefore = target.activeId
             val pendingBefore = target.pendingId
-            val existing = activeBefore?.let(store::get)?.takeIf { it.provider == provider && pendingBefore == null }
+            // Un seul compte par fournisseur : une clé Groq de plus remplace celle du compte Groq existant
+            // (conversation, voix et réglages gardés) au lieu de créer un deuxième « Claydot ».
+            val existing = activeBefore?.let(store::get)?.takeIf { it.provider == provider }
+                ?: store.agents.value.firstOrNull { it.provider == provider }
             // Identité unique : une opération annulée ne peut effacer le coffre d'une suivante.
             val id = existing?.id ?: "api-" + UUID.randomUUID().toString()
             val oldKey = existing?.let { apiStorage.key(id) }

@@ -388,6 +388,7 @@ Paste a Groq API key to get started.</string>
     <string name="gmail_disconnect">Disconnect Gmail</string>
     <string name="gmail_error">Couldn\'t connect to Gmail. Try again.</string>
     <string name="gmail_error_setup">Gmail isn\'t set up for this app yet: it needs a Google Cloud sign-in client (see docs/gmail-setup.md).</string>
+    <string name="agents_add_hermes">Connect a Hermes server</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>
