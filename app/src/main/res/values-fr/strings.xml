@@ -390,7 +390,7 @@ Colle une clé API Groq pour commencer.</string>
     <string name="gmail_connect">Connecter Gmail</string>
     <string name="gmail_disconnect">Déconnecter Gmail</string>
     <string name="gmail_error">Impossible de se connecter à Gmail. Réessaie.</string>
-    <string name="gmail_error_setup">Gmail n\'est pas encore configuré pour cette app : il faut un client de connexion Google Cloud (voir docs/gmail-setup.md).</string>
+    <string name="gmail_error_setup">Gmail n\'est pas encore configuré pour cette version : ajoute un client de connexion Android dans Google Cloud avec l\'empreinte ci-dessous (voir docs/gmail-setup.md).</string>
     <string name="conn_online">En ligne</string>
     <string name="phone_section">Téléphone</string>
     <string name="phone_title">Laisser Claydot utiliser ton téléphone</string>
@@ -474,6 +474,7 @@ Colle une clé API Groq pour commencer.</string>
     <string name="local_error_hot">Ton téléphone chauffe : Claydot a mis le modèle hors ligne en pause. Réessaie dans une minute.</string>
     <string name="local_error_battery">Batterie trop faible pour le modèle hors ligne. Branche ton téléphone ou utilise Groq.</string>
     <string name="local_error_memory">Pas assez de mémoire libre pour le modèle hors ligne. Ferme quelques apps et réessaie.</string>
+    <string name="gmail_opening">Ouverture de Google…</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

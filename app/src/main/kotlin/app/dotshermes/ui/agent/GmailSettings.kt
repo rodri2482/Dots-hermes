@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,32 +43,49 @@ fun GmailSettings(gmail: GmailAccess) {
     var problem by remember { mutableStateOf<Int?>(null) }
     var working by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Écran de Google préparé à l'avance : le toucher sur « Connecter » l'ouvre sans attente.
+    var prepared by remember { mutableStateOf<com.google.android.gms.auth.api.identity.AuthorizationResult?>(null) }
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         working = false
+        prepared = null
         if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
         try {
-            if (gmail.resultFrom(result.data).accessToken != null) gmail.markConnected(true) else problem = R.string.gmail_error
+            val token = gmail.resultFrom(result.data).accessToken
+            if (token != null) gmail.markConnected(true, token) else problem = R.string.gmail_error
         } catch (_: Exception) { problem = R.string.gmail_error }
+    }
+
+    fun failure(e: Exception) {
+        // 10 (DEVELOPER_ERROR) : pas de client OAuth Android pour ce paquet et cette signature.
+        problem = if (e is com.google.android.gms.common.api.ApiException && e.statusCode == 10) R.string.gmail_error_setup else R.string.gmail_error
+    }
+
+    androidx.compose.runtime.LaunchedEffect(connected) {
+        if (!connected) try { prepared = gmail.prepare() } catch (e: CancellationException) { throw e } catch (e: Exception) { failure(e) }
+    }
+
+    fun open(result: com.google.android.gms.auth.api.identity.AuthorizationResult): Boolean {
+        val pending = result.pendingIntent
+        if (result.hasResolution() && pending != null) {
+            consent.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+            return true
+        }
+        result.accessToken?.let { gmail.markConnected(true, it); working = false; return true }
+        return false
     }
 
     fun connect() {
         problem = null
         working = true
+        // Prêt d'avance : on ouvre tout de suite ; sinon on demande à Google, avec le cercle de chargement.
+        prepared?.let { ready -> if (runCatching { open(ready) }.getOrDefault(false)) return }
         scope.launch {
             try {
-                val result = gmail.authorize()
-                val pending = result.pendingIntent
-                if (result.hasResolution() && pending != null) {
-                    consent.launch(IntentSenderRequest.Builder(pending.intentSender).build())
-                    return@launch
-                }
-                gmail.markConnected(result.accessToken != null)
+                if (!open(gmail.authorize())) problem = R.string.gmail_error
             } catch (e: CancellationException) { throw e }
-            catch (e: com.google.android.gms.common.api.ApiException) {
-                // 10 (DEVELOPER_ERROR) : pas de client OAuth Android pour ce paquet et cette signature.
-                problem = if (e.statusCode == 10) R.string.gmail_error_setup else R.string.gmail_error
-            } catch (_: Exception) { problem = R.string.gmail_error }
-            working = false
+            catch (e: Exception) { failure(e) }
+            if (problem != null) working = false
         }
     }
 
@@ -80,18 +98,32 @@ fun GmailSettings(gmail: GmailAccess) {
                 Text(stringResource(R.string.gmail_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
             }
             Hairline()
-            Text(
-                stringResource(if (connected) R.string.gmail_disconnect else R.string.gmail_connect),
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (connected) Ink.Danger else LocalDotPalette.current.deep,
-                modifier = Modifier.fillMaxWidth()
+            androidx.compose.foundation.layout.Row(
+                Modifier.fillMaxWidth()
                     .clickable(enabled = !working) { if (connected) scope.launch { gmail.disconnect() } else connect() }
                     .padding(horizontal = 16.dp, vertical = 13.dp),
-            )
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(if (working) R.string.gmail_opening else if (connected) R.string.gmail_disconnect else R.string.gmail_connect),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (connected) Ink.Danger else LocalDotPalette.current.deep,
+                    modifier = Modifier.weight(1f),
+                )
+                if (working) androidx.compose.material3.CircularProgressIndicator(Modifier.padding(start = 8.dp).size(18.dp),
+                    color = LocalDotPalette.current.base, strokeWidth = 2.dp)
+            }
         }
         problem?.let {
             Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = Ink.Danger,
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 16.dp))
+            // Client Google manquant : l'empreinte exacte à déclarer, sélectionnable pour la copier.
+            if (it == R.string.gmail_error_setup) GmailAccess.signingSha1(context)?.let { sha ->
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text("app.claydot · SHA-1 $sha", style = MaterialTheme.typography.labelSmall, color = Ink.Secondary,
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, end = 16.dp))
+                }
+            }
         }
     }
 }

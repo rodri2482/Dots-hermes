@@ -10,6 +10,7 @@ import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
 import com.google.android.gms.tasks.Task
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -57,14 +58,27 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
     fun resultFrom(data: android.content.Intent?): AuthorizationResult =
         Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(data)
 
-    fun markConnected(on: Boolean) {
+    fun markConnected(on: Boolean, token: String? = null) {
         prefs.edit { putBoolean("connected", on) }
         _connected.value = on
+        cached = if (on && token != null) token to System.currentTimeMillis() + TOKEN_LIFE_MS else null
     }
 
-    /** Débranche : l'accès est révoqué chez Google (au mieux), puis oublié ici. */
+    /** Jeton d'accès gardé en mémoire (Google le donne pour une heure) : pas un aller-retour par requête. */
+    @Volatile private var cached: Pair<String, Long>? = null
+
+    /**
+     * Prépare le branchement dès l'ouverture des réglages : si l'accord est déjà donné, Gmail est branché
+     * aussitôt ; sinon l'écran de Google est prêt et s'ouvre sans attente au toucher.
+     */
+    suspend fun prepare(): AuthorizationResult? = try {
+        authorize().also { r -> if (!r.hasResolution() && r.accessToken != null) markConnected(true, r.accessToken) }
+    } catch (e: com.google.android.gms.common.api.ApiException) { throw e } catch (_: Exception) { null }
+
+    /** Débranche aussitôt ici ; l'accès est révoqué chez Google (au mieux) en arrière-plan. */
     suspend fun disconnect() = withContext(Dispatchers.IO) {
-        val token = try { silentToken() } catch (_: Exception) { null }
+        val token = cached?.first ?: try { silentToken() } catch (_: Exception) { null }
+        markConnected(false)
         if (token != null) {
             try {
                 http.newCall(Request.Builder().url("https://oauth2.googleapis.com/revoke")
@@ -72,30 +86,37 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
                 GoogleAuthUtil.clearToken(context, token)
             } catch (_: Exception) { /* révocation au mieux : l'accès est de toute façon oublié ici */ }
         }
-        markConnected(false)
     }
 
     private suspend fun silentToken(): String {
         if (!_connected.value) throw GmailException(GmailException.Reason.NotConnected)
+        cached?.takeIf { it.second > System.currentTimeMillis() }?.let { return it.first }
         val result = try { authorize() } catch (e: com.google.android.gms.common.api.ApiException) {
             throw GmailException(if (e.statusCode == DEVELOPER_ERROR) GmailException.Reason.NotSetUp else GmailException.Reason.Network)
         }
         if (result.hasResolution()) throw GmailException(GmailException.Reason.NeedsConsent)
-        return result.accessToken ?: throw GmailException(GmailException.Reason.NeedsConsent)
+        val token = result.accessToken ?: throw GmailException(GmailException.Reason.NeedsConsent)
+        cached = token to System.currentTimeMillis() + TOKEN_LIFE_MS
+        return token
     }
 
     /** Recherche Gmail (syntaxe de la barre de recherche) : expéditeur, objet, date et aperçu de chaque message. */
     suspend fun search(query: String, max: Int): JSONArray = withContext(Dispatchers.IO) {
         val list = get("messages", mapOf("q" to query, "maxResults" to max.coerceIn(1, 10).toString()))
-        val out = JSONArray()
         val ids = list.optJSONArray("messages") ?: JSONArray()
-        for (i in 0 until ids.length()) {
-            val id = ids.optJSONObject(i)?.optString("id").orEmpty().takeIf { it.isNotBlank() } ?: continue
-            val meta = get("messages/$id", mapOf("format" to "metadata"), listOf("From", "Subject", "Date"))
-            out.put(JSONObject().put("id", id).put("snippet", meta.optString("snippet"))
-                .apply { headers(meta).forEach { (k, v) -> put(k.lowercase(), v) } })
+        val wanted = (0 until ids.length()).mapNotNull { ids.optJSONObject(it)?.optString("id")?.takeIf(String::isNotBlank) }
+        silentToken() // un seul jeton pour toutes les requêtes qui suivent
+        // Les messages en parallèle : dix e-mails arrivent dans le temps d'un.
+        val rows = kotlinx.coroutines.coroutineScope {
+            wanted.map { id ->
+                async {
+                    val meta = get("messages/$id", mapOf("format" to "metadata"), listOf("From", "Subject", "Date"))
+                    JSONObject().put("id", id).put("snippet", meta.optString("snippet"))
+                        .apply { headers(meta).forEach { (k, v) -> put(k.lowercase(), v) } }
+                }
+            }.map { it.await() }
         }
-        out
+        JSONArray().apply { rows.forEach { put(it) } }
     }
 
     /** Un message : en-têtes et texte brut (le HTML est réduit à son texte), tronqué. */
@@ -123,6 +144,7 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
         return when {
             code == 401 && !retried -> {
                 // Jeton expiré dans le cache de Google : on l'oublie et on en redemande un, une fois.
+                cached = null
                 try { GoogleAuthUtil.clearToken(context, token) } catch (_: Exception) {}
                 get(path, query, metadata, retried = true)
             }
@@ -135,6 +157,19 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
 
     companion object {
         const val GMAIL_READONLY = "https://www.googleapis.com/auth/gmail.readonly"
+        private const val TOKEN_LIFE_MS = 50 * 60_000L
+
+        /** Empreinte SHA-1 de la clé qui signe cette app : celle à déclarer dans Google Cloud. */
+        fun signingSha1(context: Context): String? = try {
+            val pm = context.packageManager
+            @Suppress("DEPRECATION")
+            val signatures = if (android.os.Build.VERSION.SDK_INT >= 28)
+                pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES).signingInfo?.apkContentsSigners
+            else pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNATURES).signatures
+            signatures?.firstOrNull()?.toByteArray()?.let { cert ->
+                java.security.MessageDigest.getInstance("SHA-1").digest(cert).joinToString(":") { "%02X".format(it) }
+            }
+        } catch (_: Exception) { null }
         private const val API = "https://gmail.googleapis.com/gmail/v1/users/me"
         private const val MAX_BODY_CHARS = 6000
         /** CommonStatusCodes.DEVELOPER_ERROR : pas de client OAuth pour ce paquet et cette signature. */

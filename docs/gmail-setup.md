@@ -57,3 +57,14 @@ Disconnecting in the settings revokes the access at Google. You can also remove 
 - Only Groq accounts use Gmail (through Groq's function calling). Each message allows at most four
   Gmail look-ups, to keep cost and latency bounded.
 - Email text goes to Groq to be answered, like the rest of the conversation.
+
+## Release builds (GitHub releases)
+
+Releases are signed with the Claydot release key, not the debug key, so Google needs a second
+Android OAuth client in the same Google Cloud project:
+
+- Package name: `app.claydot`
+- SHA-1: `85:CF:34:D7:52:ED:9B:13:D1:51:23:86:35:EE:33:4A:BB:7C:EA:47`
+
+If it is missing, Settings → Gmail shows the setup error together with the exact fingerprint of the
+installed build, which can be copied from there.
