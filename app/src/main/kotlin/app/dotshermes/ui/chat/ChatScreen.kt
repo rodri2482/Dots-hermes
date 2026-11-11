@@ -209,7 +209,7 @@ fun ChatScreen(
     val stopVisible = speaking || (!gatewayFeatures && state.activity != AgentActivity.Idle)
     // Place de la pastille « Arrêter » sous la dernière bulle, gagnée en douceur plutôt que d'un coup.
     val listBottom by animateDpAsState(if (stopVisible) 64.dp else 12.dp, label = "stop-room")
-    var cooldownRemaining by remember(requestIssue) { mutableStateOf(
+    var cooldownRemaining by remember(requestIssue) { androidx.compose.runtime.mutableLongStateOf(
         app.dotshermes.data.direct.cooldownSeconds(requestIssue?.retryAtMs ?: 0, System.currentTimeMillis())) }
     LaunchedEffect(requestIssue) {
         do {

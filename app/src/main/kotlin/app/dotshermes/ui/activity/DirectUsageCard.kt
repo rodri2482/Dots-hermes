@@ -18,7 +18,7 @@ import java.time.Instant
 /** Les soldes sont une photo de la dernière réponse, jamais une estimation du forfait de l'utilisateur. */
 @Composable
 internal fun DirectUsageCard(usage: DirectApiUsage?) {
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    var now by remember { androidx.compose.runtime.mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(usage) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(listOfNotNull(usage?.provider?.title, usage?.model).joinToString(" · "),

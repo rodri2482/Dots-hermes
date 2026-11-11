@@ -187,7 +187,7 @@ private fun PageImage(bitmap: ImageBitmap, takeover: Boolean, onInput: (ScreenIn
     val scope = rememberCoroutineScope()
     var tapAt by remember { mutableStateOf<Offset?>(null) }
     val ripple = remember { Animatable(1f) }
-    var dragged by remember { mutableStateOf(0f) }
+    var dragged by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
 
     Box(
         Modifier.fillMaxWidth().aspectRatio(bitmap.width / bitmap.height.toFloat())

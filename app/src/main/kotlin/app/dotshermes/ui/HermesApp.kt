@@ -488,7 +488,7 @@ private enum class RootScreen { Chat, Launch, Connect }
 /** Icônes de la barre d'état et de navigation : sombres sur fond clair, claires sur fond sombre. */
 @Composable
 private fun SystemBarsFor(dark: Boolean) {
-    val activity = LocalContext.current as? ComponentActivity ?: return
+    val activity = androidx.activity.compose.LocalActivity.current as? ComponentActivity ?: return
     LaunchedEffect(dark) {
         val style = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
         else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
