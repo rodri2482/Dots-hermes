@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import app.dotshermes.data.AgentSummary
 import app.dotshermes.data.model.ConnectionState
 import app.dotshermes.ui.displayName
-import app.dotshermes.data.model.GatewayConfig
 import app.dotshermes.ui.DotAppearance
 import app.dotshermes.ui.components.GroupedCard
 import app.dotshermes.ui.components.Hairline
@@ -145,12 +144,7 @@ fun ConnectScreen(
             enabled = !connecting && url.isNotBlank() && token.isNotBlank(), height = 54.dp,
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            when {
-                adding -> TextLink(stringResource(R.string.agents_add_cancel), enabled = true, onClick = onCancelAdd)
-                otherAgents.isEmpty() -> TextLink(stringResource(R.string.connect_demo), enabled = !connecting) {
-                    onConnect(GatewayConfig.DEMO_URL, "")
-                }
-            }
+            if (adding) TextLink(stringResource(R.string.agents_add_cancel), enabled = true, onClick = onCancelAdd)
             switchLabel?.let { TextLink(it, enabled = !connecting, color = Ink.Secondary, onClick = onSwitch) }
         }
         if (!adding && otherAgents.isNotEmpty()) OtherAgentsLink(otherAgents, onSelectAgent)

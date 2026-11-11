@@ -16,7 +16,6 @@ import app.dotshermes.R
 import app.dotshermes.data.AgentSummary
 import app.dotshermes.data.direct.*
 import app.dotshermes.data.model.ConnectionState
-import app.dotshermes.data.model.GatewayConfig
 import app.dotshermes.ui.DotAppearance
 import app.dotshermes.ui.displayName
 import app.dotshermes.ui.components.GroupedCard
@@ -61,8 +60,6 @@ fun AccountConnectScreen(
             otherAgents, onSelectAgent,
             keySaved = editing && initialProvider == provider.id && recoveryFailure == null,
             onBack = onCancelEdit.takeIf { editing },
-            // La démo n'a de sens qu'au tout premier lancement, comme sur l'écran d'origine.
-            onDemo = if (!adding && !editing && otherAgents.isEmpty()) ({ onConnect(GatewayConfig.DEMO_URL, "") }) else null,
             onHermes = if (!editing) ({ mode = "hermes" }) else null)
     }
 }
@@ -77,7 +74,6 @@ private fun DirectConnectForm(
     /** Une clé est déjà enregistrée pour ce compte : le champ peut rester vide (modèle seul à changer). */
     keySaved: Boolean = false,
     onBack: (() -> Unit)? = null,
-    onDemo: (() -> Unit)? = null,
     onHermes: (() -> Unit)? = null,
 ) {
     var apiKey by remember { mutableStateOf("") }
@@ -161,7 +157,6 @@ private fun DirectConnectForm(
             if (showModel) TextLink(stringResource(R.string.api_choose_model), enabled = !working && (apiKey.isNotBlank() || keySaved), onClick = ::loadModels)
             // Supprimer le compte vit dans les réglages ; ici seulement si la clé enregistrée est illisible.
             onRemove?.takeIf { recoveryFailure != null }?.let { TextLink(stringResource(R.string.api_delete_account), enabled = !working, color = Ink.Danger, onClick = it) }
-            onDemo?.let { TextLink(stringResource(R.string.connect_demo), enabled = !working, color = Ink.Secondary, onClick = it) }
             onHermes?.let { TextLink(stringResource(R.string.connect_use_hermes), enabled = !working, color = Ink.Secondary, onClick = it) }
         }
         if (otherAgents.isNotEmpty() && onBack == null && onCancel == null) OtherAgentsLink(otherAgents, onSelectAgent)

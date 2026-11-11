@@ -3,7 +3,6 @@
 <resources>
     <!-- Profil de l'agent -->
     <string name="profile_tagline_gateway">Agent personnel · gateway Hermes</string>
-    <string name="profile_tagline_demo">Agent personnel · serveur distant</string>
 
     <!-- Connexion au gateway -->
     <string name="gateway_connecting">Connexion au gateway…</string>
@@ -45,60 +44,12 @@
     <string name="tool_browser_request_takeover">Te demande de prendre la main</string>
 
     <!-- Mode démo : connexion simulée -->
-    <string name="demo_mode">Mode démo</string>
-    <string name="demo_connect_step_1">Recherche du gateway…</string>
-    <string name="demo_connect_step_2">Poignée de main sécurisée…</string>
-    <string name="demo_connect_step_3">Appairage avec Hermes…</string>
-    <string name="demo_greeting">Re ! Le gateway est connecté, je suis là 👋</string>
-    <string name="demo_voice_transcript">(démo) Vocal de %1$d s bien reçu</string>
 
     <!-- Mode démo : tâches planifiées -->
-    <string name="demo_cron_mail_name">Tri des mails du matin</string>
-    <string name="demo_cron_mail_prompt">Trie la boîte de réception et résume l\'important.</string>
-    <string name="demo_cron_backup_name">Veille sauvegardes serveur</string>
-    <string name="demo_cron_backup_prompt">Vérifie que la sauvegarde nocturne a tourné.</string>
 
     <!-- Mode démo : historique de départ -->
-    <string name="demo_seed_watching">Je surveille le serveur cette nuit. Je te préviens s\'il se passe quoi que ce soit.</string>
-    <string name="demo_seed_thanks">Parfait, merci Hermes !</string>
-    <string name="demo_seed_good_evening">Bonne soirée 🌙</string>
-    <string name="demo_seed_task_title">Rapport du matin</string>
-    <string name="demo_seed_task_step_1">Vérifier l\'état des services</string>
-    <string name="demo_seed_task_step_2">Trier la boîte de réception</string>
-    <string name="demo_seed_task_step_3">Relancer la sauvegarde</string>
-    <string name="demo_seed_task_step_4">Préparer le résumé</string>
-    <string name="demo_seed_good_morning">Bonjour ☀️ Tout est au vert.</string>
-    <string name="demo_seed_night_report">23 e-mails triés cette nuit, 2 attendent ta réponse. La sauvegarde s\'était arrêtée à 3 h 12 : je l\'ai relancée, rien de perdu.</string>
-    <string name="demo_seed_ask_recap">Top. Tu peux préparer le récap hebdo pour le client ?</string>
-    <string name="demo_seed_approval_title">Envoyer « Récap hebdo » au client</string>
-    <string name="demo_seed_approval_detail">Bonjour Claire,\nVoici les avancées de la semaine : nouvelle version en recette, temps de réponse divisé par deux…</string>
-    <string name="demo_seed_sent">Envoyé ✉️</string>
 
     <!-- Mode démo : réponses scriptées -->
-    <string name="demo_fallback_1">Noté. Je garde ça en tête et je te fais signe si quelque chose bouge.</string>
-    <string name="demo_fallback_2">Bonne idée. Je m\'en occupe en arrière-plan, tu n\'as rien à suivre.</string>
-    <string name="demo_fallback_3">Je regarde ça de plus près et je reviens vers toi avec une proposition.</string>
-    <string name="demo_fallback_4">C\'est dans ma liste. Je te préviens dès que c\'est prêt à relire.</string>
-    <string name="demo_reply_file">Fichier bien reçu ! Connecté au gateway, Hermes peut le lire, l\'analyser ou le transformer.</string>
-    <string name="demo_reply_voice">Bien reçu ton vocal ! En mode démo je ne l\'écoute pas vraiment, mais connecté au gateway, Hermes le transcrit avant de répondre.</string>
-    <string name="demo_reply_thanks">Avec plaisir ! 🙌</string>
-    <string name="demo_reply_hello">Salut ! Je suis là. Tout tourne bien côté serveur — tu veux un point rapide sur la nuit ?</string>
-    <string name="demo_reply_deploy">Je lance ça tout de suite.</string>
-    <string name="demo_task_deploy_title">Déploiement v2.4 sur staging</string>
-    <string name="demo_task_deploy_step_1">Récupérer la branche main</string>
-    <string name="demo_task_deploy_step_2">Lancer les tests</string>
-    <string name="demo_task_deploy_step_3">Construire l\'image</string>
-    <string name="demo_task_deploy_step_4">Déployer sur staging</string>
-    <string name="demo_task_deploy_outro">C\'est en ligne sur staging ✅ Tous les tests sont passés (148/148).</string>
-    <string name="demo_reply_mail">J\'ai préparé le brouillon. Il me faut ton feu vert avant l\'envoi.</string>
-    <string name="demo_approval_mail_title">Envoyer « Récap de la semaine » à l\'équipe (6 destinataires)</string>
-    <string name="demo_approval_mail_detail">Bonjour à tous,\nCette semaine : v2.4 en staging, 3 bugs corrigés, et la démo client est calée jeudi à 14 h…</string>
-    <string name="demo_tool_memory_detail">nuit du 1er novembre</string>
-    <string name="demo_reply_night_1">Cette nuit : 23 e-mails triés, 2 attendent ta réponse.</string>
-    <string name="demo_reply_night_2">J\'ai aussi relancé le service de sauvegarde, qui s\'était arrêté à 3 h 12. Rien de perdu.</string>
-    <string name="demo_reply_question">Bonne question. D\'après ce que je vois sur le serveur, oui — mais je vérifie les journaux pour en être sûr.</string>
-    <string name="demo_approval_sent">Envoyé ✉️ Je surveille les réponses.</string>
-    <string name="demo_approval_declined">Pas de souci, je garde le brouillon de côté.</string>
 
     <!-- Actions communes -->
     <string name="action_approve">Approuver</string>
@@ -115,7 +66,6 @@
     <string name="status_typing">Écrit…</string>
     <string name="conn_offline">Hors ligne</string>
     <string name="conn_reconnecting">Reconnexion…</string>
-    <string name="conn_demo">Démo</string>
     <string name="latency_ms">%1$d ms</string>
 
     <!-- Écran de connexion -->
@@ -127,7 +77,6 @@
     <string name="connect_token_help">Le jeton se trouve dans ~/.hermes/.env sur le serveur (DOTS_TOKEN). Il reste mémorisé sur ce téléphone uniquement.</string>
     <string name="connect_connecting">Connexion…</string>
     <string name="connect_button">Se connecter</string>
-    <string name="connect_demo">Essayer en mode démo</string>
 
     <!-- Conversation -->
     <string name="composer_placeholder">Message à %1$s</string>
@@ -253,7 +202,6 @@
     <string name="settings_encryption">Chiffrement</string>
     <string name="settings_source">Source</string>
     <string name="settings_source_gateway">Gateway Hermes (plugin dots)</string>
-    <string name="settings_source_demo">Données de démonstration</string>
     <string name="settings_mascot">Mascotte</string>
     <string name="settings_display">Affichage</string>
     <string name="settings_color">Couleur</string>

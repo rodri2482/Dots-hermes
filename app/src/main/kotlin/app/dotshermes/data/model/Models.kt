@@ -126,21 +126,13 @@ sealed interface ConnectionState {
         val gatewayUrl: String,
         val latencyMs: Int,
         val online: Boolean = true,
-        val demo: Boolean = false,
         /** Motif d'une attente de reconnexion ; null une fois le gateway de nouveau connecté. */
         val reconnectReason: String? = null,
     ) : ConnectionState
     data class Failed(val reason: String) : ConnectionState
 }
 
-data class GatewayConfig(val url: String, val token: String) {
-    val isDemo: Boolean get() = url.trim().equals(DEMO_URL, ignoreCase = true)
-
-    companion object {
-        /** Adresse spéciale qui bascule sur l'agent simulé. */
-        const val DEMO_URL = "demo"
-    }
-}
+data class GatewayConfig(val url: String, val token: String)
 
 data class AgentProfile(val name: String, val tagline: String)
 

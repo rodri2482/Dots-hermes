@@ -158,7 +158,6 @@ class HermesViewModel(
     suspend fun connectApi(editorKey: String, provider: app.dotshermes.data.direct.ApiProvider, model: String, key: String): app.dotshermes.data.direct.ApiFailure? {
         if (agents.connectionEditor.value.key != editorKey) return app.dotshermes.data.direct.ApiFailure.Cancelled
         val target = agents.directTarget()
-        repository.leaveDemo()
         return viewModelScope.async(kotlinx.coroutines.Dispatchers.IO) {
         try {
             // Modèle laissé vide (Groq) : on prend le meilleur modèle de conversation que ce compte propose.
@@ -204,7 +203,6 @@ class HermesViewModel(
     fun selectAgent(id: String) = agents.select(id)
 
     fun addAgent() {
-        repository.leaveDemo()
         agents.beginAdd()
     }
 
@@ -263,11 +261,6 @@ class HermesViewModel(
         val config = GatewayConfig(url.trim(), token.trim())
         viewModelScope.launch {
             if (agents.connectionEditor.value.key != editorKey) return@launch
-            if (config.isDemo) {
-                repository.connect(config)
-                return@launch
-            }
-            repository.leaveDemo()
             val active = agents.activeId.value
             if (agents.pending.value != null || active == null || agents.store.get(active) == null) agents.connectNew(config)
             else if (agents.store.get(active)?.provider == null) agents.reconnect(active, config)
@@ -280,10 +273,6 @@ class HermesViewModel(
      * ne pas s'y reconnecter au lancement. Les autres agents ne sont pas touchés ; le suivant s'affiche.
      */
     fun disconnect() {
-        if (repository.isDemo) {
-            repository.leaveDemo()
-            return
-        }
         agents.activeId.value?.let { id -> viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try { agents.remove(id) } catch (_: Exception) { _accountFailure.value = app.dotshermes.data.direct.ApiFailure.Storage }
         } }

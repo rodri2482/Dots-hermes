@@ -27,7 +27,7 @@ private val NoUsage: StateFlow<UsageWindow?> = MutableStateFlow<UsageWindow?>(nu
  * Seul point de contact entre l'interface et l'agent Hermes.
  *
  * Implémentations : [app.dotshermes.data.gateway.GatewayChatRepository] (WebSocket vers le
- * plugin « dots » du gateway) et [app.dotshermes.data.mock.MockChatRepository] (mode démo),
+ * plugin « dots » du gateway) et [app.dotshermes.data.direct.DirectChatRepository] (compte API direct),
  * aiguillées par [RoutingChatRepository].
  */
 interface ChatRepository {

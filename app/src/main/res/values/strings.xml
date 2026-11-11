@@ -5,7 +5,6 @@
 
     <!-- Profil de l'agent -->
     <string name="profile_tagline_gateway">Personal agent · Hermes gateway</string>
-    <string name="profile_tagline_demo">Personal agent · remote server</string>
 
     <!-- Connexion au gateway -->
     <string name="gateway_connecting">Connecting to the gateway…</string>
@@ -47,60 +46,12 @@
     <string name="tool_browser_request_takeover">Asks you to take over</string>
 
     <!-- Mode démo : connexion simulée -->
-    <string name="demo_mode">Demo mode</string>
-    <string name="demo_connect_step_1">Looking for the gateway…</string>
-    <string name="demo_connect_step_2">Secure handshake…</string>
-    <string name="demo_connect_step_3">Pairing with Hermes…</string>
-    <string name="demo_greeting">Hi again! The gateway is connected, I\'m here 👋</string>
-    <string name="demo_voice_transcript">(demo) %1$d s voice message received</string>
 
     <!-- Mode démo : tâches planifiées -->
-    <string name="demo_cron_mail_name">Morning email triage</string>
-    <string name="demo_cron_mail_prompt">Sorts the inbox and sums up what matters.</string>
-    <string name="demo_cron_backup_name">Server backup watch</string>
-    <string name="demo_cron_backup_prompt">Checks that the nightly backup ran.</string>
 
     <!-- Mode démo : historique de départ -->
-    <string name="demo_seed_watching">I\'m keeping an eye on the server tonight. I\'ll let you know if anything happens.</string>
-    <string name="demo_seed_thanks">Perfect, thanks Hermes!</string>
-    <string name="demo_seed_good_evening">Have a good evening 🌙</string>
-    <string name="demo_seed_task_title">Morning report</string>
-    <string name="demo_seed_task_step_1">Check the services</string>
-    <string name="demo_seed_task_step_2">Sort the inbox</string>
-    <string name="demo_seed_task_step_3">Restart the backup</string>
-    <string name="demo_seed_task_step_4">Write the summary</string>
-    <string name="demo_seed_good_morning">Good morning ☀️ All green.</string>
-    <string name="demo_seed_night_report">23 emails sorted overnight, 2 are waiting for your reply. The backup had stopped at 3:12 am: I restarted it, nothing lost.</string>
-    <string name="demo_seed_ask_recap">Great. Can you prepare the weekly recap for the client?</string>
-    <string name="demo_seed_approval_title">Send “Weekly recap” to the client</string>
-    <string name="demo_seed_approval_detail">Hi Claire,\nHere is this week\'s progress: new version in testing, response time cut in half…</string>
-    <string name="demo_seed_sent">Sent ✉️</string>
 
     <!-- Mode démo : réponses scriptées -->
-    <string name="demo_fallback_1">Noted. I\'ll keep it in mind and let you know if anything changes.</string>
-    <string name="demo_fallback_2">Good idea. I\'ll handle it in the background, nothing for you to follow.</string>
-    <string name="demo_fallback_3">I\'ll take a closer look and come back to you with a proposal.</string>
-    <string name="demo_fallback_4">It\'s on my list. I\'ll tell you as soon as it\'s ready to review.</string>
-    <string name="demo_reply_file">File received! Once connected to the gateway, Hermes can read, analyze or transform it.</string>
-    <string name="demo_reply_voice">Got your voice message! In demo mode I don\'t really listen to it, but once connected to the gateway, Hermes transcribes it before replying.</string>
-    <string name="demo_reply_thanks">My pleasure! 🙌</string>
-    <string name="demo_reply_hello">Hi! I\'m here. Everything is running fine on the server — want a quick update on last night?</string>
-    <string name="demo_reply_deploy">Starting it right away.</string>
-    <string name="demo_task_deploy_title">Deploying v2.4 to staging</string>
-    <string name="demo_task_deploy_step_1">Fetch the main branch</string>
-    <string name="demo_task_deploy_step_2">Run the tests</string>
-    <string name="demo_task_deploy_step_3">Build the image</string>
-    <string name="demo_task_deploy_step_4">Deploy to staging</string>
-    <string name="demo_task_deploy_outro">It\'s live on staging ✅ All tests passed (148/148).</string>
-    <string name="demo_reply_mail">I\'ve drafted it. I need your go-ahead before sending.</string>
-    <string name="demo_approval_mail_title">Send “Weekly recap” to the team (6 recipients)</string>
-    <string name="demo_approval_mail_detail">Hi all,\nThis week: v2.4 on staging, 3 bugs fixed, and the client demo is set for Thursday at 2 pm…</string>
-    <string name="demo_tool_memory_detail">night of November 1</string>
-    <string name="demo_reply_night_1">Last night: 23 emails sorted, 2 are waiting for your reply.</string>
-    <string name="demo_reply_night_2">I also restarted the backup service, which had stopped at 3:12 am. Nothing lost.</string>
-    <string name="demo_reply_question">Good question. From what I see on the server, yes — but I\'m checking the logs to be sure.</string>
-    <string name="demo_approval_sent">Sent ✉️ I\'m watching for replies.</string>
-    <string name="demo_approval_declined">No problem, I\'ll keep the draft aside.</string>
 
     <!-- Actions communes -->
     <string name="action_approve">Approve</string>
@@ -117,7 +68,6 @@
     <string name="status_typing">Typing…</string>
     <string name="conn_offline">Offline</string>
     <string name="conn_reconnecting">Reconnecting…</string>
-    <string name="conn_demo">Demo</string>
     <string name="latency_ms">%1$d ms</string>
 
     <!-- Écran de connexion -->
@@ -129,7 +79,6 @@
     <string name="connect_token_help">The token is in ~/.hermes/.env on the server (DOTS_TOKEN). It is only stored on this phone.</string>
     <string name="connect_connecting">Connecting…</string>
     <string name="connect_button">Connect</string>
-    <string name="connect_demo">Try demo mode</string>
 
     <!-- Conversation -->
     <string name="composer_placeholder">Message %1$s</string>
@@ -252,7 +201,6 @@
     <string name="settings_encryption">Encryption</string>
     <string name="settings_source">Source</string>
     <string name="settings_source_gateway">Hermes gateway (dots plugin)</string>
-    <string name="settings_source_demo">Demo data</string>
     <string name="settings_mascot">Mascot</string>
     <string name="settings_display">Display</string>
     <string name="settings_color">Color</string>

@@ -468,7 +468,6 @@ private fun ConnectionPill(connection: ConnectionState.Connected?, gatewayFeatur
         val label = when {
             connection == null -> stringResource(R.string.conn_offline)
             !connection.online -> connection.reconnectReason ?: stringResource(R.string.conn_reconnecting)
-            connection.demo -> stringResource(R.string.conn_demo)
             !gatewayFeatures -> stringResource(R.string.api_direct_status)
             else -> stringResource(R.string.latency_ms, connection.latencyMs)
         }

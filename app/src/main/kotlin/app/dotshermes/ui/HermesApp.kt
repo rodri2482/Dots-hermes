@@ -106,7 +106,6 @@ fun HermesApp(
     val otherAgentsUnread by viewModel.otherAgentsUnread.collectAsStateWithLifecycle()
     var deletingAccount by remember { mutableStateOf<String?>(null) }
     var clearingChat by remember { mutableStateOf(false) }
-    val demo = (connection as? ConnectionState.Connected)?.demo == true
     var creatingDot by rememberSaveable { mutableStateOf(false) }
     // Apparence saisie dans l'éditeur d'un sous-dot (ou du nouveau) : le carrousel l'affiche en direct.
     var editPreview by remember { mutableStateOf<DotAppearance?>(null) }
@@ -143,7 +142,6 @@ fun HermesApp(
         agentSheetOpen -> if (creatingDot || look.subDot != null) "dot_editor" else "agent_settings"
         agentMenuOpen -> "agent_menu"
         connection !is ConnectionState.Connected -> "connect"
-        demo -> "demo_chat"
         else -> "chat"
     }
     LaunchedEffect(analyticsScreen) { Analytics.screen(context, analyticsScreen) }
@@ -188,9 +186,9 @@ fun HermesApp(
                     browsing = browsing,
                     onLoadOlder = viewModel::loadOlder,
                     otherUnread = unread.filterKeys { it != activeChat }.values.sum(),
-                    onOpenAgents = if (!demo && agentList.size > 1) ({ agentMenuOpen = true }) else null,
+                    onOpenAgents = if (agentList.size > 1) ({ agentMenuOpen = true }) else null,
                     otherAgentsUnread = otherAgentsUnread,
-                    heroDots = if ((connection as? ConnectionState.Connected)?.demo == true) emptyList() else heroDots(appearance, dots),
+                    heroDots = heroDots(appearance, dots),
                     activeChat = activeChat,
                     onSwitchDot = viewModel::selectChat,
                     onTakeover = {
@@ -323,7 +321,7 @@ fun HermesApp(
                         main = appearance, dots = dots, activeChat = activeChat, creating = creatingDot,
                         preview = editPreview.takeIf { creatingDot || look.subDot != null },
                         activities = chatActivity, unread = unread,
-                        showSubDots = gatewayFeatures && (connection as? ConnectionState.Connected)?.demo != true,
+                        showSubDots = gatewayFeatures,
                         onSelect = { chat ->
                             creatingDot = false
                             editPreview = null
@@ -382,7 +380,7 @@ fun HermesApp(
                             agentSheetOpen = false
                             viewModel.addAgent()
                         },
-                        multipleAgents = !demo && agentList.size > 1,
+                        multipleAgents = agentList.size > 1,
                         onConnectBrowser = {
                             agentSheetOpen = false
                             openWebPair()

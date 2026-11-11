@@ -4,7 +4,6 @@ import android.content.Context
 import app.dotshermes.data.AgentRegistry
 import app.dotshermes.data.AgentStore
 import app.dotshermes.data.RoutingChatRepository
-import app.dotshermes.data.mock.MockChatRepository
 import app.dotshermes.data.webpair.WebPairer
 import app.dotshermes.attach.Attachments
 import app.dotshermes.push.Notifications
@@ -16,7 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
-/** Injection manuelle : un gateway réel par agent appairé, agent simulé pour l'adresse « demo ». */
+/** Injection manuelle : une connexion par agent appairé (gateway Hermes ou compte API direct). */
 object AppContainer {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var appContext: Context
@@ -38,7 +37,7 @@ object AppContainer {
     }
 
     val chatRepository: RoutingChatRepository by lazy {
-        RoutingChatRepository(appScope, agents = agents, demo = MockChatRepository(appContext, appScope))
+        RoutingChatRepository(appScope, agents = agents)
     }
     /** Appairage de l'app web par QR code : jetons web des gateways, dépôt chiffré sur le relais. */
     val webPairer: WebPairer by lazy { WebPairer(agents) }

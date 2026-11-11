@@ -73,7 +73,8 @@ publishes only after an explicit owner-confirmed manual run on main. Read-only c
   `message`/`file`/`voice` with `ack` (same `client_id`), `file_get`/`audio_get` with the stored data.
   Seed a paired agent in the browser with
   `localStorage["dots.agents.v1"] = JSON.stringify([{url, token, session_id, agent_id, name, species, palette, accessory}])`.
-- The Android app has a built-in demo mode (`MockChatRepository`): no gateway needed for UI work.
+- The Android app has no demo mode. For UI work without a network, build the offline fixture
+  (`-PdirectApiMock=true`, package `app.claydot.offline`) and connect a Groq account with any key.
 
 ## Map of the important files
 

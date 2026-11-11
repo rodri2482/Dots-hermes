@@ -105,7 +105,7 @@ Click the image to play it (with sound).
   </tr>
 </table>
 
-*All screenshots come from the built-in demo mode.*
+*Screenshots from the original Dots app.*
 
 ---
 
@@ -146,7 +146,6 @@ Used daily and tested end to end against Hermes Agent 0.22.
 - Three original clay mascots (*Pebble*, *Cloud*, *Cobble*), six colours, an optional accessory,
   and a custom name for your agent.
 - Light, dark or system theme.
-- **Demo mode**: try the whole interface without a gateway.
 
 ### Experimental
 
@@ -201,7 +200,7 @@ Checked items are done; the rest is not built yet.
 
 ## Languages
 
-The whole app interface is translated, demo mode included:
+The whole app interface is translated:
 
 | Language | Status |
 |---|---|
@@ -722,7 +721,7 @@ None is bundled in the app.
 ```
 app/                          Android app (Kotlin, Jetpack Compose)
 └── src/main/kotlin/app/dotshermes/
-    ├── data/                 gateway client, protocol, demo agent, models
+    ├── data/                 gateway client, direct API accounts, protocol, models
     ├── push/                 FCM service, notifications, quick reply, approvals
     ├── voice/                recorder and player for voice notes
     ├── attach/               attachments (import, preview, open)

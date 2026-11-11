@@ -132,10 +132,10 @@ fun AgentSettings(
                 if (gatewayFeatures) InfoRow(stringResource(R.string.settings_latency), connected?.let { stringResource(R.string.latency_ms, it.latencyMs) } ?: "—")
                 else InfoRow(stringResource(R.string.api_model_label), profile.tagline)
                 Hairline()
-                InfoRow(stringResource(R.string.settings_encryption), if (!gatewayFeatures) "HTTPS" else if (connected?.demo == false) "TLS" else "—")
+                InfoRow(stringResource(R.string.settings_encryption), if (!gatewayFeatures) "HTTPS" else if (connected != null) "TLS" else "—")
                 Hairline()
-                InfoRow(stringResource(R.string.settings_source), stringResource(if (!gatewayFeatures) R.string.api_source else if (connected?.demo == false) R.string.settings_source_gateway else R.string.settings_source_demo))
-                if (connected?.demo == false) {
+                InfoRow(stringResource(R.string.settings_source), stringResource(if (!gatewayFeatures) R.string.api_source else R.string.settings_source_gateway))
+                if (connected != null) {
                     Hairline()
                     Text(
                         stringResource(R.string.agents_add_row),
@@ -147,7 +147,7 @@ fun AgentSettings(
             }
             }
 
-            if (gatewayFeatures && connected?.demo == false && onConnectBrowser != null && onBrowserSessions != null) {
+            if (gatewayFeatures && connected != null && onConnectBrowser != null && onBrowserSessions != null) {
                 // Un navigateur reçoit tous les agents connectés, pas seulement celui-ci : section à part.
                 SectionLabel(stringResource(R.string.web_section))
                 GroupedCard {
