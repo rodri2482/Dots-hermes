@@ -56,6 +56,8 @@ object AppContainer {
             consent = { appContext.getString(app.dotshermes.R.string.screen_consent) })
             .also { tools -> app.dotshermes.screen.ClaydotAccessibilityService.onStopRequested = { tools.revoke(); chatRepository.stopTurn() } }
     }
+    /** Modèles hors ligne téléchargés sur le téléphone (compte « Sur ce téléphone »). */
+    val localModels: app.dotshermes.data.direct.LocalModels by lazy { app.dotshermes.data.direct.LocalModels(appContext, appScope) }
     val phoneActions: app.dotshermes.data.direct.PhoneActions by lazy { app.dotshermes.data.direct.PhoneActions(appContext) { screenDriver } }
     private val screenDriver: app.dotshermes.data.direct.ScreenDriver by lazy { app.dotshermes.screen.AccessibilityScreenDriver(appContext, phoneActions) }
     /** Routines programmées (déclencheur horaire + consigne), exécutées par WorkManager. */

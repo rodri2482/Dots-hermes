@@ -53,7 +53,13 @@ fun AccountConnectScreen(
     // Retour système : annule l'ajout ou la modification en cours au lieu de fermer l'app.
     BackHandler(enabled = adding || editing) { if (adding) onCancelAdd() else onCancelEdit() }
     val provider = ApiProvider.fromId(mode)
-    if (provider == null) {
+    if (provider == ApiProvider.Local) {
+        LocalModelScreen(appearance, app.dotshermes.AppContainer.localModels,
+            currentModel = initialModel.takeIf { initialProvider == ApiProvider.Local.id },
+            onUse = onDirect,
+            onBack = if (editing) onCancelEdit else ({ mode = ApiProvider.Groq.id }),
+            onCancel = onCancelAdd.takeIf { adding })
+    } else if (provider == null) {
         ConnectScreen(connection, appearance, initialUrl, onConnect,
             adding, onCancelAdd, otherAgents, onSelectAgent,
             switchLabel = stringResource(R.string.connect_use_groq), onSwitch = { mode = ApiProvider.Groq.id })
@@ -64,7 +70,8 @@ fun AccountConnectScreen(
             otherAgents, onSelectAgent,
             keySaved = editing && initialProvider == provider.id && recoveryFailure == null,
             onBack = onCancelEdit.takeIf { editing },
-            onHermes = if (!editing) ({ mode = "hermes" }) else null)
+            onHermes = if (!editing) ({ mode = "hermes" }) else null,
+            onOffline = if (!editing) ({ mode = ApiProvider.Local.id }) else null)
     }
 }
 
@@ -79,6 +86,7 @@ private fun DirectConnectForm(
     keySaved: Boolean = false,
     onBack: (() -> Unit)? = null,
     onHermes: (() -> Unit)? = null,
+    onOffline: (() -> Unit)? = null,
 ) {
     var apiKey by remember { mutableStateOf("") }
     var model by rememberSaveable { mutableStateOf(initialModel) }
@@ -170,6 +178,8 @@ private fun DirectConnectForm(
             onRemove?.takeIf { recoveryFailure != null }?.let { TextLink(stringResource(R.string.api_delete_account), enabled = !working, color = Ink.Danger, onClick = it) }
             onHermes?.let { TextLink(stringResource(R.string.connect_use_hermes), enabled = !working, color = Ink.Secondary, onClick = it) }
         }
+        // Pas de clé d'API : un modèle téléchargé une fois, qui répond sur le téléphone.
+        onOffline?.let { TextLink(stringResource(R.string.local_link), enabled = !working, color = Ink.Secondary, onClick = it) }
         if (otherAgents.isNotEmpty() && onBack == null && onCancel == null) OtherAgentsLink(otherAgents, onSelectAgent)
     }
 }

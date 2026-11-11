@@ -446,6 +446,20 @@ Paste a Groq API key to get started.</string>
     <string name="doing_web">Searching the web…</string>
     <string name="doing_phone">Checking your phone…</string>
     <string name="doing_mail">Reading Gmail…</string>
+    <string name="local_link">No API key? Use Claydot offline</string>
+    <string name="local_title">Claydot offline</string>
+    <string name="local_tagline">Download a model once. It answers right on your phone, with no API key and no internet.</string>
+    <string name="local_download">Download</string>
+    <string name="local_no_room">Not enough free space</string>
+    <string name="local_progress">%1$s of %2$s</string>
+    <string name="local_cancel">Cancel</string>
+    <string name="local_use">Use this model</string>
+    <string name="local_in_use">In use</string>
+    <string name="local_failed">The download stopped. Try again.</string>
+    <string name="local_loading">Loading the model… the first time takes a few seconds.</string>
+    <string name="local_back">Use a Groq key instead</string>
+    <string name="local_limits">Offline, Claydot chats only: no web, screen, texting or voice notes. Downloads go through Android and continue in the background; Wi-Fi is best.</string>
+    <string name="local_unsupported">This phone can\'t run offline models (they need a 64-bit ARM processor).</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

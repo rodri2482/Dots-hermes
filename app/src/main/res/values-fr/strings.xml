@@ -453,6 +453,20 @@ Colle une clé API Groq pour commencer.</string>
     <string name="doing_web">Je cherche sur le web…</string>
     <string name="doing_phone">Je regarde le téléphone…</string>
     <string name="doing_mail">Je lis Gmail…</string>
+    <string name="local_link">Pas de clé d\'API ? Utilise Claydot hors ligne</string>
+    <string name="local_title">Claydot hors ligne</string>
+    <string name="local_tagline">Télécharge un modèle une fois. Il répond directement sur ton téléphone, sans clé d\'API ni Internet.</string>
+    <string name="local_download">Télécharger</string>
+    <string name="local_no_room">Pas assez d\'espace libre</string>
+    <string name="local_progress">%1$s sur %2$s</string>
+    <string name="local_cancel">Annuler</string>
+    <string name="local_use">Utiliser ce modèle</string>
+    <string name="local_in_use">Utilisé</string>
+    <string name="local_failed">Le téléchargement s\'est arrêté. Réessaie.</string>
+    <string name="local_loading">Chargement du modèle… la première fois prend quelques secondes.</string>
+    <string name="local_back">Utiliser plutôt une clé Groq</string>
+    <string name="local_limits">Hors ligne, Claydot discute seulement : pas de web, d\'écran, de messages ni de vocaux. Le téléchargement passe par Android et continue en arrière-plan ; le Wi-Fi est conseillé.</string>
+    <string name="local_unsupported">Ce téléphone ne peut pas faire tourner de modèle hors ligne (il faut un processeur ARM 64 bits).</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

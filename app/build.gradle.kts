@@ -70,10 +70,15 @@ android {
             // Vérification locale d'une release réduite à côté de l'app installée (-PreleaseIdSuffix=.r8check).
             providers.gradleProperty("releaseIdSuffix").orNull?.let { applicationIdSuffix = it }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Téléphones seulement (ARM) : les bibliothèques x86 ne servent qu'aux émulateurs.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
             // Sans signature propriétaire, la vérification ci-dessous bloque tout APK/AAB release.
             signingConfig = signingConfigs.findByName("release")
         }
     }
+
+    // Bibliothèques natives compressées dans l'APK (moteur hors ligne ~22 Mo) : téléchargement plus léger.
+    packaging { jniLibs { useLegacyPackaging = true } }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -133,6 +138,7 @@ dependencies {
     implementation(libs.markdown.renderer.code)
     // Photos envoyées aux modèles de vision : remises droites selon l'EXIF avant compression.
     implementation(libs.androidx.exifinterface)
+    implementation(libs.litertlm)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

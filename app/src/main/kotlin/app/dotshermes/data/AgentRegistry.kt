@@ -71,7 +71,8 @@ class AgentRegistry(
     /** Une demande de feu vert a été tranchée (ici ou ailleurs) : sa notification peut partir. */
     private val onApprovalResolved: (agentId: String, approvalId: String) -> Unit,
     private val apiStorage: DirectAccountStorage = androidApiVault(context),
-    private val providerClient: ProviderClient = createProviderClient(),
+    private val providerClient: ProviderClient = RoutingProviderClient(createProviderClient(),
+        LocalProviderClient(context) { app.dotshermes.AppContainer.localModels }),
     /** Texte « system » d'un compte direct, d'après le nom de son dot ; relu à chaque message. */
     private val persona: (name: String) -> String = { "" },
     /** Outils des comptes directs (Gmail en lecture seule), relus à chaque message. */

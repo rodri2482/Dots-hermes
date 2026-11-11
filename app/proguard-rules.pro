@@ -37,3 +37,7 @@
 # (WorkDatabase_Impl.<init>). Sans cette règle, la release plante au lancement (constaté sur émulateur).
 -keep class * extends androidx.room.RoomDatabase { <init>(); }
 -keep class androidx.work.impl.** { *; }
+
+# Modèle hors ligne : LiteRT-LM appelle ses classes depuis le code natif (JNI) et par réflexion.
+-keep class com.google.ai.edge.litertlm.** { *; }
+-dontwarn com.google.ai.edge.litertlm.**

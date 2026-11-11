@@ -6,7 +6,9 @@ import java.io.IOException
 enum class ApiProvider(val id: String, val title: String, val origin: String) {
     OpenAI("openai", "OpenAI", "https://api.openai.com/v1"),
     Anthropic("anthropic", "Claude", "https://api.anthropic.com/v1"),
-    Groq("groq", "Groq", "https://api.groq.com/openai/v1");
+    Groq("groq", "Groq", "https://api.groq.com/openai/v1"),
+    /** Modèle téléchargé, qui tourne sur le téléphone : aucune clé, aucun réseau. */
+    Local("local", "On this phone", "local://device");
 
     companion object {
         fun fromId(id: String): ApiProvider? = entries.firstOrNull { it.id == id }

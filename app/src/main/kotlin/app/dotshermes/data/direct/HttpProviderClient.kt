@@ -101,6 +101,7 @@ class HttpProviderClient(client: OkHttpClient = OkHttpClient()) : ProviderClient
             ApiProvider.OpenAI -> "responses"
             ApiProvider.Anthropic -> "messages"
             ApiProvider.Groq -> "chat/completions"
+            ApiProvider.Local -> throw ApiException(ApiFailure.InvalidRequest)
         }
         val request = request(provider, key, "${provider.origin}/$path")
             .header("Accept", "text/event-stream")
