@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -90,6 +91,8 @@ fun ActivitySheet(
     onStop: () -> Unit,
     onOpenScreen: () -> Unit,
     onDismiss: () -> Unit,
+    onHideTurn: (String) -> Unit = {},
+    onClearRecent: () -> Unit = {},
 ) {
     // Les crons bougent tout seuls (prochaine exécution, statut) : on rafraîchit tant que la vue est ouverte.
     LaunchedEffect(gatewayFeatures) {
@@ -152,7 +155,12 @@ fun ActivitySheet(
                 if (turns.isEmpty()) EmptyLine(stringResource(R.string.activity_nothing))
                 turns.forEachIndexed { i, turn ->
                     if (i > 0) Hairline()
-                    TurnRow(turn)
+                    TurnRow(turn, onHide = { onHideTurn(turn.id) })
+                }
+                if (turns.size > 1) {
+                    Hairline()
+                    Text(stringResource(R.string.activity_clear_recent), style = MaterialTheme.typography.bodyLarge, color = Ink.Danger,
+                        modifier = Modifier.fillMaxWidth().clickable(onClick = onClearRecent).padding(horizontal = 16.dp, vertical = 13.dp))
                 }
             }
         }
@@ -253,9 +261,9 @@ private fun CronRow(job: CronJob, onCron: (String, CronAction) -> Unit) {
 }
 
 @Composable
-private fun TurnRow(turn: TurnSummary) {
+private fun TurnRow(turn: TurnSummary, onHide: () -> Unit) {
     val palette = LocalDotPalette.current
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 11.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             val request = turn.request.ifBlank {
                 if (turn.voiceNote) "🎙️ " + stringResource(R.string.voice_message) else stringResource(R.string.turn_untitled)
@@ -282,6 +290,12 @@ private fun TurnRow(turn: TurnSummary) {
         if (turn.running) {
             Spacer(Modifier.width(8.dp))
             CircularProgressIndicator(Modifier.size(14.dp), color = palette.base, strokeWidth = 2.dp)
+            Spacer(Modifier.width(12.dp))
+        } else {
+            // Retirer de « Récemment » : la conversation, elle, ne change pas.
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onHide), contentAlignment = Alignment.Center) {
+                Icon(androidx.compose.material.icons.Icons.Rounded.Close, stringResource(R.string.activity_hide), tint = Ink.Tertiary, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }

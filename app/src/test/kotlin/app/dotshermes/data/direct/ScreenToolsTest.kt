@@ -23,6 +23,11 @@ class ScreenToolsTest {
         override fun scroll(down: Boolean) = true.also { actions += "scroll $down" }
         override fun press(key: String) = (key == "back").also { if (it) actions += "press $key" }
         override fun launch(name: String) = "Notes".also { actions += "launch $name" }
+        override fun longPress(id: Int) = (id in 1..3).also { if (it) actions += "hold $id" }
+        override fun swipe(direction: String) = (direction in setOf("up", "down", "left", "right")).also { if (it) actions += "swipe $direction" }
+        override fun openUrl(url: String) = true.also { actions += "open $url" }
+        var shown = mutableListOf<Boolean>()
+        override fun showActive(on: Boolean) { shown += on }
     }
 
     private var now = 1_000L
@@ -91,5 +96,18 @@ class ScreenToolsTest {
         assertTrue(t.active())
         CombinedTools(listOf(t)).finished()
         assertFalse(t.active())
+    }
+
+    @Test fun `long press, swipe and links, with the cursor shown during the task`() = runBlocking {
+        val screen = FakeScreen()
+        val t = tools(screen)
+        t.run(call("start_screen_control", """{"goal":"x"}"""))
+        t.run(call("long_press", """{"id":1}"""))
+        t.run(call("swipe", """{"direction":"left"}"""))
+        assertTrue(t.run(call("open_link", """{"url":"intent://settings"}""")).contains("only http"))
+        t.run(call("open_link", """{"url":"https://maps.google.com/?q=Lagos"}"""))
+        assertEquals(listOf("hold 1", "swipe left", "open https://maps.google.com/?q=Lagos"), screen.actions)
+        t.finished()
+        assertEquals(listOf(true, false), screen.shown)
     }
 }

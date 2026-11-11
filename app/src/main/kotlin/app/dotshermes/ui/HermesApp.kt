@@ -228,7 +228,7 @@ fun HermesApp(
                 key(editor.key) {
                 app.dotshermes.ui.connect.AccountConnectScreen(
                     initialProvider = editor.provider, initialModel = editor.model,
-                    onRemove = if (addingAgent) null else editor.accountId?.takeIf { editor.provider != "hermes" }?.let { id -> ({ deletingAccount = id }) },
+                    onRemove = if (addingAgent) null else editor.accountId?.let { id -> ({ deletingAccount = id }) },
                     editing = !addingAgent && editor.accountId != null && editor.provider != "hermes",
                     onCancelEdit = viewModel::cancelEditDirect,
                     recoveryFailure = requestIssue?.failure?.takeIf { it in setOf(
@@ -255,12 +255,14 @@ fun HermesApp(
 
 
         deletingAccount?.let { id ->
+            val server = viewModel.isGatewayAccount(id)
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { deletingAccount = null },
-                title = { androidx.compose.material3.Text(stringResource(R.string.api_delete_account)) },
-                text = { androidx.compose.material3.Text(stringResource(R.string.api_delete_warning)) },
+                title = { androidx.compose.material3.Text(stringResource(if (server) R.string.server_delete_title else R.string.api_delete_account)) },
+                text = { androidx.compose.material3.Text(stringResource(if (server) R.string.server_delete_warning else R.string.api_delete_warning)) },
                 confirmButton = { androidx.compose.material3.TextButton(onClick = { deletingAccount = null; viewModel.removeAccount(id) }) {
-                    androidx.compose.material3.Text(stringResource(R.string.api_delete_account))
+                    androidx.compose.material3.Text(stringResource(if (server) R.string.server_delete_confirm else R.string.api_delete_account),
+                        color = app.dotshermes.ui.theme.Ink.Danger)
                 } },
                 dismissButton = { androidx.compose.material3.TextButton(onClick = { deletingAccount = null }) {
                     androidx.compose.material3.Text(stringResource(android.R.string.cancel))
@@ -269,22 +271,7 @@ fun HermesApp(
         }
         val phoneAction by AppContainer.phoneActions.pending.collectAsStateWithLifecycle()
         phoneAction?.let { action ->
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = action::cancel,
-                title = { androidx.compose.material3.Text(stringResource(R.string.phone_confirm_title)) },
-                text = {
-                    androidx.compose.foundation.layout.Column {
-                        androidx.compose.material3.Text(action.title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
-                        if (action.detail.isNotBlank()) androidx.compose.material3.Text(action.detail)
-                    }
-                },
-                confirmButton = { androidx.compose.material3.TextButton(onClick = action::confirm) {
-                    androidx.compose.material3.Text(stringResource(R.string.phone_do))
-                } },
-                dismissButton = { androidx.compose.material3.TextButton(onClick = action::cancel) {
-                    androidx.compose.material3.Text(stringResource(android.R.string.cancel))
-                } },
-            )
+            app.dotshermes.ui.components.PermissionSheet(action.title, action.detail, appearance, onAllow = action::confirm, onDeny = action::cancel)
         }
         if (clearingChat) {
             androidx.compose.material3.AlertDialog(
@@ -330,6 +317,8 @@ fun HermesApp(
                 onStop = viewModel::stopTurn,
                 onOpenScreen = { screenOpen = true },
                 onDismiss = { activityOpen = false },
+                onHideTurn = viewModel::hideTurn,
+                onClearRecent = viewModel::clearRecent,
             )
         }
 
@@ -417,7 +406,8 @@ fun HermesApp(
                         },
                         onDisconnect = {
                             agentSheetOpen = false
-                            if (gatewayFeatures) viewModel.disconnect() else deletingAccount = activeAgent
+                            // Serveur Hermes ou compte direct : toujours une confirmation, puis tout est effacé.
+                            deletingAccount = activeAgent
                         },
                         onAddAgent = {
                             agentSheetOpen = false

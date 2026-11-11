@@ -232,7 +232,7 @@ fun AgentSettings(
                     Hairline()
                 }
                 Text(
-                    stringResource(if (!gatewayFeatures) R.string.api_delete_account else if (multipleAgents) R.string.agents_remove else R.string.settings_disconnect),
+                    stringResource(if (!gatewayFeatures) R.string.api_delete_account else R.string.server_delete),
                     style = MaterialTheme.typography.labelLarge,
                     color = Ink.Danger,
                     textAlign = TextAlign.Center,

@@ -19,10 +19,16 @@ interface ScreenDriver {
     fun tap(id: Int): Boolean
     fun type(id: Int, text: String): Boolean
     fun scroll(down: Boolean): Boolean
-    /** « back », « home » ou « recents ». */
+    /** « back », « home », « recents » ou « notifications ». */
     fun press(key: String): Boolean
     /** Ouvre l'app dont le nom ressemble à [name] ; renvoie son nom exact, ou null. */
     fun launch(name: String): String?
+    fun longPress(id: Int): Boolean = false
+    /** Glissement du doigt : « up », « down », « left », « right ». */
+    fun swipe(direction: String): Boolean = false
+    fun openUrl(url: String): Boolean = false
+    /** Curseur et pastille « Arrêter » visibles pendant une tâche. */
+    fun showActive(on: Boolean) {}
 }
 
 /**
@@ -53,7 +59,7 @@ class ScreenTools(
     fun active() = clockMs() < grantedUntil
 
     /** L'utilisateur reprend la main. */
-    fun revoke() { grantedUntil = 0 }
+    fun revoke() { if (grantedUntil != 0L) driver.showActive(false); grantedUntil = 0 }
 
     override fun finished() = revoke()
 
@@ -63,11 +69,16 @@ class ScreenTools(
             "Permission lasts a few minutes.", JSONObject().put("goal", str("What you will do, in one short sentence the user will read")), "goal"))
         .put(fn("read_screen", "Read what is on the phone screen now: the app and a numbered list of visible elements.", JSONObject()))
         .put(fn("tap", "Tap a screen element by its number from the latest read.", JSONObject().put("id", int("Element number")), "id"))
+        .put(fn("long_press", "Press and hold a screen element (menus, selecting a message…).", JSONObject().put("id", int("Element number")), "id"))
+        .put(fn("swipe", "Swipe the finger across the screen: up/down to scroll, left/right for pages, stories or carousels.",
+            JSONObject().put("direction", JSONObject().put("type", "string").put("enum", JSONArray().put("up").put("down").put("left").put("right"))), "direction"))
+        .put(fn("open_link", "Open a web address or app link (https://…, e.g. a search or a map).", JSONObject().put("url", str("The full URL")), "url"))
+        .put(fn("wait", "Wait for the screen to finish loading, then read it again.", JSONObject().put("seconds", int("1 to 5")), "seconds"))
         .put(fn("type_text", "Replace the text of an editable element (by number) with this text.",
             JSONObject().put("id", int("Element number")).put("text", str("Text to type")), "id", "text"))
         .put(fn("scroll", "Scroll the screen.", JSONObject().put("direction", JSONObject().put("type", "string").put("enum", JSONArray().put("down").put("up"))), "direction"))
         .put(fn("press_key", "Press a system key.", JSONObject().put("key", JSONObject().put("type", "string")
-            .put("enum", JSONArray().put("back").put("home").put("recents"))), "key"))
+            .put("enum", JSONArray().put("back").put("home").put("recents").put("notifications"))), "key"))
         .put(fn("launch_app", "Open an installed app by its name.", JSONObject().put("name", str("App name as on the home screen")), "name"))
 
     override fun label(call: ApiToolCall) = "📱…"
@@ -79,10 +90,12 @@ class ScreenTools(
             val goal = args.optString("goal").trim().take(200).ifEmpty { return err("goal is required") }
             if (!confirm("📱 $goal", consent())) return JSONObject().put("status", "declined").toString()
             grantedUntil = clockMs() + grantMs
+            driver.showActive(true)
             return JSONObject().put("status", "granted").put("minutes", grantMs / 60_000).toString()
         }
         if (!active()) return err("no permission: call start_screen_control first")
         if (call.name == "read_screen") return describe()
+        if (call.name == "wait") { delay(args.optInt("seconds", 2).coerceIn(1, 5) * 1_000L); return describe() }
         val before = driver.snapshot()
         val blocked = before?.packageName?.let { blockedReason(it) }
         val done = when (call.name) {
@@ -93,6 +106,15 @@ class ScreenTools(
                 else if (driver.type(id, args.optString("text").take(2000))) null else "that element does not take text"
             }
             "scroll" -> blocked ?: if (driver.scroll(args.optString("direction") != "up")) null else "nothing to scroll"
+            "long_press" -> blocked ?: if (driver.longPress(args.optInt("id", -1))) null else "no element with that number; read the screen again"
+            "swipe" -> blocked ?: if (driver.swipe(args.optString("direction"))) null else "direction must be up, down, left or right"
+            "open_link" -> args.optString("url").trim().let { url ->
+                when {
+                    !url.startsWith("https://") && !url.startsWith("http://") -> "only http(s) links"
+                    driver.openUrl(url) -> null
+                    else -> "no app opens that link"
+                }
+            }
             // Revenir en arrière ou à l'accueil reste permis partout : c'est la sortie.
             "press_key" -> if (driver.press(args.optString("key"))) null else "unknown key"
             "launch_app" -> driver.launch(args.optString("name").trim()).let { if (it == null) "no app with that name" else null }

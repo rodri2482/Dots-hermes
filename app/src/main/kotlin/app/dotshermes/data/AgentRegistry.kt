@@ -1,6 +1,7 @@
 package app.dotshermes.data
 
 import android.content.Context
+import androidx.core.content.edit
 import app.dotshermes.data.gateway.GatewayChatRepository
 import app.dotshermes.data.direct.*
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +94,17 @@ class AgentRegistry(
     private val _pending = MutableStateFlow<String?>(null)
     val pending: StateFlow<String?> = _pending.asStateFlow()
     @Volatile private var beforePending: String? = null
+
+    // « Récemment » (vue Activité) : les tours que l'utilisateur a retirés, par agent. Le fil n'est pas touché.
+    private val hiddenPrefs = context.getSharedPreferences("activity-hidden", Context.MODE_PRIVATE)
+    private val _hiddenTurns = MutableStateFlow(hiddenPrefs.all.mapValues { (_, v) -> (v as? Set<*>)?.filterIsInstance<String>()?.toSet().orEmpty() })
+    val hiddenTurns: StateFlow<Map<String, Set<String>>> = _hiddenTurns.asStateFlow()
+
+    fun hideTurns(agentId: String, keys: Collection<String>) {
+        val next = (_hiddenTurns.value[agentId].orEmpty() + keys).toList().takeLast(500).toSet()
+        hiddenPrefs.edit { putStringSet(agentId, next) }
+        _hiddenTurns.value = _hiddenTurns.value + (agentId to next)
+    }
 
     private val _activeId = MutableStateFlow(store.lastActive ?: store.agents.value.firstOrNull()?.id)
     val activeId: StateFlow<String?> = _activeId.asStateFlow()
@@ -347,6 +359,10 @@ class AgentRegistry(
                 runCatching { app.dotshermes.AppContainer.routines.deleteAccount(id) }
                 apiStorage.remove(id)
             }
+            // Tout ce que l'agent a laissé sur le téléphone : cache des vocaux, entrées masquées de l'activité.
+            File(context.cacheDir, "agents/$id").deleteRecursively()
+            hiddenPrefs.edit { remove(id) }
+            _hiddenTurns.value = _hiddenTurns.value - id
             // Navigation et métadonnées d'éditeur publiées ensemble, comme les gestes utilisateur.
             withContext(Dispatchers.Main.immediate) {
                 selectionRevision.incrementAndGet()

@@ -7,8 +7,11 @@ import android.content.Intent
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.net.toUri
 import app.dotshermes.data.direct.PhoneActions
 import app.dotshermes.data.direct.ScreenDriver
 import app.dotshermes.data.direct.ScreenElement
@@ -21,20 +24,33 @@ import kotlinx.coroutines.flow.asStateFlow
  * Service d'accessibilité de Claydot : il ne fait rien de lui-même. Il ne réagit à aucun événement,
  * ne garde rien ; il sert seulement à lire l'écran et à toucher quand une tâche a été acceptée
  * (voir ScreenTools). L'utilisateur l'active lui-même dans les réglages d'accessibilité d'Android.
+ * Pendant une tâche, un curseur montre où Claydot touche et une pastille « Arrêter » reste en haut.
  */
 class ClaydotAccessibilityService : AccessibilityService() {
-    override fun onServiceConnected() { instance = this; _running.value = true }
+    internal var overlay: ScreenOverlay? = null
+
+    override fun onServiceConnected() {
+        instance = this
+        overlay = ScreenOverlay(this) { onStopRequested() }
+        _running.value = true
+    }
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
     override fun onInterrupt() = Unit
     override fun onUnbind(intent: Intent?): Boolean { stopped(); return super.onUnbind(intent) }
     override fun onDestroy() { stopped(); super.onDestroy() }
-    private fun stopped() { if (instance === this) instance = null; _running.value = false }
+    private fun stopped() {
+        overlay?.dispose(); overlay = null
+        if (instance === this) instance = null
+        _running.value = false
+    }
 
     companion object {
         @Volatile internal var instance: ClaydotAccessibilityService? = null
         private val _running = MutableStateFlow(false)
         /** Activé dans les réglages Android (et branché). */
         val running: StateFlow<Boolean> = _running.asStateFlow()
+        /** « Arrêter » dans la pastille : branché par AppContainer (retire l'accord, arrête la réponse). */
+        @Volatile var onStopRequested: () -> Unit = {}
     }
 }
 
@@ -42,10 +58,15 @@ class ClaydotAccessibilityService : AccessibilityService() {
 class AccessibilityScreenDriver(private val context: Context, private val phone: PhoneActions) : ScreenDriver {
     /** Les nœuds de la dernière lecture, par numéro. */
     @Volatile private var nodes: Map<Int, AccessibilityNodeInfo> = emptyMap()
+    private val main = Handler(Looper.getMainLooper())
 
     private val service get() = ClaydotAccessibilityService.instance
 
     override fun connected() = service != null
+
+    override fun showActive(on: Boolean) { main.post { service?.overlay?.setActive(on) } }
+
+    private fun showTap(r: Rect, long: Boolean = false) { main.post { service?.overlay?.tapAt(r.exactCenterX(), r.exactCenterY(), long) } }
 
     override fun snapshot(): ScreenSnapshot? {
         val root = service?.rootInActiveWindow ?: return null
@@ -74,20 +95,35 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
         return ScreenSnapshot(root.packageName?.toString().orEmpty(), elements)
     }
 
+    private fun gesture(path: Path, durationMs: Long): Boolean =
+        service?.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, durationMs)).build(), null, null) == true
+
     override fun tap(id: Int): Boolean {
         val node = nodes[id] ?: return false
+        val r = Rect().also(node::getBoundsInScreen)
+        showTap(r)
         // Le texte n'est souvent pas lui-même cliquable : on remonte au parent qui l'est.
         var target: AccessibilityNodeInfo? = node
         while (target != null && !target.isClickable) target = target.parent
         if (target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) return true
-        val r = Rect().also(node::getBoundsInScreen)
         if (r.isEmpty) return false
-        val path = Path().apply { moveTo(r.exactCenterX(), r.exactCenterY()) }
-        return service?.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 60)).build(), null, null) == true
+        return gesture(Path().apply { moveTo(r.exactCenterX(), r.exactCenterY()) }, 60)
+    }
+
+    override fun longPress(id: Int): Boolean {
+        val node = nodes[id] ?: return false
+        val r = Rect().also(node::getBoundsInScreen)
+        showTap(r, long = true)
+        var target: AccessibilityNodeInfo? = node
+        while (target != null && !target.isLongClickable) target = target.parent
+        if (target?.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK) == true) return true
+        if (r.isEmpty) return false
+        return gesture(Path().apply { moveTo(r.exactCenterX(), r.exactCenterY()) }, 700)
     }
 
     override fun type(id: Int, text: String): Boolean {
         val node = nodes[id]?.takeIf { it.isEditable && !it.isPassword } ?: return false
+        showTap(Rect().also(node::getBoundsInScreen))
         node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
         val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
         return node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
@@ -95,13 +131,26 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
 
     override fun scroll(down: Boolean): Boolean {
         val action = if (down) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-        if (nodes.values.firstOrNull { it.isScrollable }?.performAction(action) == true) return true
-        // Rien de déclaré défilable : un glissement au milieu de l'écran.
-        val metrics = context.resources.displayMetrics
-        val x = metrics.widthPixels / 2f
-        val (from, to) = if (down) metrics.heightPixels * 0.7f to metrics.heightPixels * 0.3f else metrics.heightPixels * 0.3f to metrics.heightPixels * 0.7f
-        val path = Path().apply { moveTo(x, from); lineTo(x, to) }
-        return service?.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 300)).build(), null, null) == true
+        nodes.values.firstOrNull { it.isScrollable }?.let { node ->
+            showTap(Rect().also(node::getBoundsInScreen))
+            if (node.performAction(action)) return true
+        }
+        return swipe(if (down) "up" else "down")
+    }
+
+    /** Glissement du doigt vers [direction] (« up » fait monter le contenu, comme le doigt). */
+    override fun swipe(direction: String): Boolean {
+        val m = context.resources.displayMetrics
+        val (w, h) = m.widthPixels.toFloat() to m.heightPixels.toFloat()
+        val (from, to) = when (direction) {
+            "up" -> (w / 2 to h * 0.7f) to (w / 2 to h * 0.3f)
+            "down" -> (w / 2 to h * 0.3f) to (w / 2 to h * 0.7f)
+            "left" -> (w * 0.8f to h / 2) to (w * 0.2f to h / 2)
+            "right" -> (w * 0.2f to h / 2) to (w * 0.8f to h / 2)
+            else -> return false
+        }
+        main.post { service?.overlay?.swipe(from.first, from.second, to.first, to.second) }
+        return gesture(Path().apply { moveTo(from.first, from.second); lineTo(to.first, to.second) }, 300)
     }
 
     override fun press(key: String): Boolean {
@@ -109,6 +158,7 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
             "back" -> AccessibilityService.GLOBAL_ACTION_BACK
             "home" -> AccessibilityService.GLOBAL_ACTION_HOME
             "recents" -> AccessibilityService.GLOBAL_ACTION_RECENTS
+            "notifications" -> AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS
             else -> return false
         }
         return service?.performGlobalAction(action) == true
@@ -119,4 +169,8 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
         val (label, intent) = phone.findApp(name) ?: return null
         return try { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); label } catch (_: Exception) { null }
     }
+
+    override fun openUrl(url: String): Boolean = try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
+    } catch (_: Exception) { false }
 }

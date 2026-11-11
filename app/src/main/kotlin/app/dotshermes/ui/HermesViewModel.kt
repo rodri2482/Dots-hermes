@@ -88,8 +88,9 @@ class HermesViewModel(
     val directUsage = repository.directUsage
 
     /** Les derniers échanges et le travail qu'ils ont déclenché, pour la vue Activité. */
-    val turns: StateFlow<List<TurnSummary>> = combine(repository.messages, repository.tools) { messages, tools ->
-        summarizeTurns(messages, tools)
+    val turns: StateFlow<List<TurnSummary>> = combine(repository.messages, repository.tools, agents.hiddenTurns, agents.activeId) { messages, tools, hidden, active ->
+        val gone = active?.let { hidden[it] }.orEmpty()
+        summarizeTurns(messages, tools, limit = 12 + gone.size).filterNot { it.id in gone }.take(12)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Outils du tour en cours (le dernier tour qui a des outils), pour « En ce moment ». */
@@ -300,6 +301,11 @@ class HermesViewModel(
             try { agents.remove(id) } catch (_: Exception) { _accountFailure.value = app.dotshermes.data.direct.ApiFailure.Storage }
         } }
     }
+
+    /** Retire un tour de « Récemment » (la conversation reste intacte). */
+    fun hideTurn(key: String) { agents.activeId.value?.let { agents.hideTurns(it, listOf(key)) } }
+    fun clearRecent() { agents.activeId.value?.let { id -> agents.hideTurns(id, turns.value.map { it.id }) } }
+    fun isGatewayAccount(id: String): Boolean = agents.store.get(id)?.provider == null
 
     fun hasGatewayAccounts(): Boolean = agents.store.agents.value.any { it.provider == null }
     fun isDirectAccount(): Boolean = agents.activeId.value?.let(agents.store::get)?.provider != null

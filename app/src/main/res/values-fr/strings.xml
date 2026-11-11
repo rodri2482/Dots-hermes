@@ -206,7 +206,6 @@
     <string name="settings_display">Affichage</string>
     <string name="settings_color">Couleur</string>
     <string name="settings_accessory">Accessoire</string>
-    <string name="settings_disconnect">Se déconnecter</string>
     <!-- Plusieurs agents Hermes (un gateway, donc un profil Hermes, par agent) -->
     <string name="agents_title">Agents</string>
     <string name="agents_add_row">Ajouter un agent</string>
@@ -214,7 +213,6 @@
     <string name="agents_add_tagline">Un autre agent Hermes, avec son propre gateway.\nSes conversations, sa mémoire et ses outils restent à part.</string>
     <string name="agents_add_cancel">Annuler</string>
     <string name="agents_switch_to">Ou ouvrir un autre agent :</string>
-    <string name="agents_remove">Retirer cet agent</string>
     <string name="agents_add_hint">Ajoutez OpenAI ou Claude avec une clé API, ou connectez un gateway Hermes existant. Chaque compte possède sa propre conversation enregistrée.</string>
     <string name="agents_busy">Au travail…</string>
     <string name="cd_switch_agent">Changer d\'agent</string>
@@ -423,6 +421,16 @@ Colle une clé API Groq pour commencer.</string>
     <string name="screen_consent">Pendant 5 minutes, Claydot va lire ton écran, toucher, écrire et faire défiler pour faire ceci. Il ne touche jamais aux mots de passe, aux réglages ni aux installations d\'apps. Il s\'arrête à la fin de la réponse, ou quand tu touches Arrêter dans Claydot.</string>
     <string name="a11y_summary">Permet à Claydot de faire des tâches à l\'écran quand tu le demandes</string>
     <string name="a11y_description">Claydot lit l\'écran, touche, écrit et fait défiler uniquement pendant une tâche acceptée dans la conversation, 5 minutes au plus. Il ne fait rien de lui-même, ne garde rien, et ne touche jamais aux champs de mot de passe, aux réglages Android ni aux installations d\'apps.</string>
+    <string name="activity_hide">Retirer de Récemment</string>
+    <string name="activity_clear_recent">Effacer Récemment</string>
+    <string name="server_delete">Supprimer ce serveur</string>
+    <string name="server_delete_title">Supprimer ce serveur Hermes ?</string>
+    <string name="server_delete_warning">Claydot oublie complètement ce serveur : son adresse et son jeton d\'accès, son nom et son apparence, les vocaux en cache et sa liste d\'activité. Rien n\'est effacé sur le serveur lui-même ; pour le réutiliser, appaire-le avec un nouveau QR code.</string>
+    <string name="server_delete_confirm">Supprimer</string>
+    <string name="screen_overlay_working">Claydot utilise ton écran</string>
+    <string name="screen_overlay_stop">Arrêter</string>
+    <string name="permission_not_now">Pas maintenant</string>
+    <string name="permission_hint">Rien ne se passe tant que tu n\'appuies pas sur %1$s.</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

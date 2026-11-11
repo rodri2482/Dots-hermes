@@ -52,6 +52,7 @@ object AppContainer {
         app.dotshermes.data.direct.ScreenTools(screenDriver,
             enabled = { phoneActions.enabled.value }, confirm = phoneActions::ask, ownPackage = appContext.packageName,
             consent = { appContext.getString(app.dotshermes.R.string.screen_consent) })
+            .also { tools -> app.dotshermes.screen.ClaydotAccessibilityService.onStopRequested = { tools.revoke(); chatRepository.stopTurn() } }
     }
     val phoneActions: app.dotshermes.data.direct.PhoneActions by lazy { app.dotshermes.data.direct.PhoneActions(appContext) { screenDriver } }
     private val screenDriver: app.dotshermes.data.direct.ScreenDriver by lazy { app.dotshermes.screen.AccessibilityScreenDriver(appContext, phoneActions) }
