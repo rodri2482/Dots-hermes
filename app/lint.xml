@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Faux positifs connus ; le reste des avertissements reste visible. -->
+<lint>
+    <!-- Fond d'icône adaptative : il doit couvrir tout le carré, le lanceur découpe la forme. -->
+    <issue id="IconLauncherShape">
+        <ignore path="src/main/res/mipmap-*/ic_launcher_bg.png" />
+    </issue>
+    <!-- « --web-origin » est une option de install.sh, pas un tiret typographique. -->
+    <issue id="TypographyDashes">
+        <ignore regexp="web-origin" />
+    </issue>
+    <!-- mipmap-anydpi-v26 : sans « -v26 », AAPT ne trouve plus l'icône adaptative ; on garde le dossier. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+</lint>

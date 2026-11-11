@@ -103,48 +103,53 @@ fun CompanionSettings(controls: CompanionControls) {
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.companion_speak), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                    Text(stringResource(if (ready) R.string.companion_speak_hint else R.string.companion_speak_setup),
-                        style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                    if (!state.fishKeySaved) {
+                        Text(stringResource(R.string.companion_speak_setup), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                    }
                 }
                 Spacer(Modifier.width(8.dp))
                 Switch(checked = state.speakReplies && ready, enabled = ready, onCheckedChange = controls.onSpeak,
                     colors = SwitchDefaults.colors(checkedTrackColor = palette.base, checkedThumbColor = Color.White))
             }
-            Hairline()
-            // Voix officielles de Fish Audio ; un appui long ouvre sa fiche pour l'écouter.
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                VoicePresets.forEach { preset ->
-                    val on = preset.id == state.voiceId
-                    Text(
-                        preset.name,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (on) palette.onBase else palette.deep,
-                        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) palette.base else palette.light)
-                            .combinedClickable(onLongClick = { uri.openUri(CompanionVoice.voicePage(preset.id)) }) { controls.onVoiceId(preset.id) }
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                    )
-                }
-            }
-            Hairline()
-            FieldRow(stringResource(R.string.companion_voice_id), state.voiceId, controls.onVoiceId, enabled = true,
-                placeholder = stringResource(R.string.companion_voice_id_hint))
-            Hairline()
-            FieldRow(stringResource(R.string.companion_fish_key), fishKey, { fishKey = it; keyFailure = null }, enabled = true, secret = true,
-                placeholder = stringResource(if (state.fishKeySaved) R.string.api_key_saved_hint else R.string.companion_fish_key_hint))
-            if (fishKey.isNotBlank()) {
+            if (!state.fishKeySaved) {
+                // Pas encore de clé : un seul champ, et le lien pour en obtenir une.
                 Hairline()
-                LinkRowText(stringResource(R.string.companion_fish_key_save)) {
-                    scope.launch {
-                        try { controls.onFishKey(fishKey.trim()); fishKey = "" }
-                        catch (e: CancellationException) { throw e }
-                        catch (e: ApiException) { keyFailure = e.failure }
-                        catch (_: Exception) { keyFailure = ApiFailure.Storage }
+                FieldRow(stringResource(R.string.companion_fish_key), fishKey, { fishKey = it; keyFailure = null }, enabled = true, secret = true,
+                    placeholder = stringResource(R.string.companion_fish_key_hint))
+                Hairline()
+                if (fishKey.isNotBlank()) {
+                    LinkRowText(stringResource(R.string.companion_fish_key_save)) {
+                        scope.launch {
+                            try { controls.onFishKey(fishKey.trim()); fishKey = "" }
+                            catch (e: CancellationException) { throw e }
+                            catch (e: ApiException) { keyFailure = e.failure }
+                            catch (_: Exception) { keyFailure = ApiFailure.Storage }
+                        }
                     }
+                } else {
+                    LinkRowText(stringResource(R.string.companion_fish_get_key)) { uri.openUri(CompanionVoice.FISH_KEYS_URL) }
                 }
-            } else if (state.fishKeySaved) {
+            } else {
+                // Clé enregistrée : le choix de la voix ; « Autre » révèle l'identifiant, pour une voix à soi.
+                var custom by remember { mutableStateOf(VoicePresets.none { it.id == state.voiceId }) }
+                Hairline()
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    VoicePresets.forEach { preset ->
+                        VoiceChip(preset.name, on = !custom && preset.id == state.voiceId,
+                            onLongClick = { uri.openUri(CompanionVoice.voicePage(preset.id)) }) {
+                            custom = false; controls.onVoiceId(preset.id)
+                        }
+                    }
+                    VoiceChip(stringResource(R.string.companion_voice_other), on = custom) { custom = true }
+                }
+                if (custom) {
+                    Hairline()
+                    FieldRow(stringResource(R.string.companion_voice_id), state.voiceId, controls.onVoiceId, enabled = true,
+                        placeholder = stringResource(R.string.companion_voice_id_hint))
+                }
                 Hairline()
                 LinkRowText(stringResource(R.string.companion_fish_key_forget), Ink.Danger, controls.onForgetFishKey)
             }
@@ -153,13 +158,22 @@ fun CompanionSettings(controls: CompanionControls) {
             Text(stringResource(apiFailureMessage(it)), style = MaterialTheme.typography.bodySmall, color = Ink.Danger,
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 16.dp))
         }
-        Text(
-            stringResource(R.string.companion_fish_get_key),
-            style = MaterialTheme.typography.labelLarge, color = palette.deep,
-            modifier = Modifier.padding(start = 8.dp, top = 6.dp).clip(RoundedCornerShape(12.dp))
-                .clickable { uri.openUri(CompanionVoice.FISH_KEYS_URL) }.padding(horizontal = 8.dp, vertical = 10.dp),
-        )
     }
+}
+
+/** Pastille de voix ; un appui long ouvre sa fiche Fish Audio pour l'écouter. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun VoiceChip(label: String, on: Boolean, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+    val palette = LocalDotPalette.current
+    Text(
+        label,
+        style = MaterialTheme.typography.labelLarge,
+        color = if (on) palette.onBase else palette.deep,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) palette.base else palette.light)
+            .combinedClickable(onLongClick = onLongClick, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
 }
 
 @Composable

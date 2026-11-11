@@ -409,8 +409,7 @@ Paste a Groq API key to get started.</string>
     <string name="companion_personality">Personality</string>
     <string name="companion_voice">Voice</string>
     <string name="companion_speak">Read replies aloud</string>
-    <string name="companion_speak_hint">Each reply is spoken with the voice chosen below.</string>
-    <string name="companion_speak_setup">Add your Fish Audio key below. You can change the voice any time.</string>
+    <string name="companion_speak_setup">Add a Fish Audio key to hear Claydot.</string>
     <string name="companion_voice_id">Voice ID</string>
     <string name="companion_voice_id_hint">Fish Audio voice ID</string>
     <string name="companion_fish_key">Fish key</string>
@@ -430,6 +429,10 @@ Paste a Groq API key to get started.</string>
     <string name="chat_clear_warning">All messages in this conversation are deleted from this phone. Your key and settings stay.</string>
     <string name="chat_clear_confirm">Clear</string>
     <string name="chat_empty">Hi, I’m %s! Ask me anything, or tap the mic to talk.</string>
+    <string name="api_key_help_short">Your key stays encrypted on this phone. Usage is billed by %s.</string>
+    <string name="api_choose_model">Choose model</string>
+    <string name="settings_account">Account</string>
+    <string name="companion_voice_other">Other</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>
@@ -498,8 +501,6 @@ Paste a Groq API key to get started.</string>
     <string name="api_key_label">API key</string>
     <string name="api_model_label">Model</string>
     <string name="api_model_hint">Choose or enter a model ID</string>
-    <string name="api_key_help">Saved keys and chats are encrypted on this device. Messages go directly to your selected provider. API usage is billed by that provider.</string>
-    <string name="api_load_models">Load available models</string>
     <string name="api_save_account">Save account</string>
     <string name="api_retry">Retry</string>
     <string name="api_stop">Stop</string>
@@ -518,16 +519,14 @@ Paste a Groq API key to get started.</string>
     <string name="api_retry_wait">%d s</string>
     <string name="api_direct_status">Direct API</string>
     <string name="api_provider_label">Provider</string>
-    <string name="api_edit_account">Change API key or model</string>
     <string name="api_delete_account">Delete account and history</string>
     <string name="api_delete_warning">This permanently deletes this account’s API key and all its saved conversations from this phone. This cannot be undone.</string>
     <string name="api_ready">Ready</string>
-    <string name="api_limits_ready">No active cooldown</string>
-    <string name="api_limits_unknown">Limits have not been reported yet. They appear here after a chat response if the provider supplies them.</string>
+    <string name="api_limits_unknown">Limits appear after your next reply.</string>
     <string name="api_limits_requests">Requests remaining · daily window</string>
     <string name="api_limits_tokens">Tokens remaining · minute window</string>
     <string name="api_limits_observed">Last response: %1$s</string>
-    <string name="api_limits_shared">Provider-reported snapshot, shared across your organization. Other apps may use the same allowance. This does not identify your billing plan or guarantee free usage.</string>
+    <string name="api_limits_shared">Reported by the provider and shared by every app using this key.</string>
     <string name="api_limits_not_reported">Not reported</string>
     <string name="api_limits_refresh">Reset time passed · awaiting next response</string>
     <string name="api_limits_balance">%1$d of %2$d remaining</string>

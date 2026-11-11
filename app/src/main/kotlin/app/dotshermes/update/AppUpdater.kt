@@ -1,5 +1,6 @@
 package app.dotshermes.update
 
+import androidx.core.content.edit
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -96,7 +97,7 @@ class AppUpdater(
             if (force) _state.value = UpdateState.Failed(null, context.getString(R.string.update_error_check))
             return null
         }
-        prefs.edit().putLong(KEY_LAST_CHECK, now).apply()
+        prefs.edit { putLong(KEY_LAST_CHECK, now) }
         return if (release != null && isNewer(release.version, currentVersion)) {
             _state.value = UpdateState.Available(release)
             release
@@ -110,13 +111,13 @@ class AppUpdater(
     fun shouldPrompt(release: Release): Boolean = prefs.getString(KEY_DISMISSED, null) != release.version
 
     fun dismiss(release: Release) {
-        prefs.edit().putString(KEY_DISMISSED, release.version).apply()
+        prefs.edit { putString(KEY_DISMISSED, release.version) }
     }
 
     /** La notification « mise à jour disponible » ne part qu'une fois par version. */
     fun markNotified(release: Release): Boolean {
         if (prefs.getString(KEY_NOTIFIED, null) == release.version) return false
-        prefs.edit().putString(KEY_NOTIFIED, release.version).apply()
+        prefs.edit { putString(KEY_NOTIFIED, release.version) }
         return true
     }
 

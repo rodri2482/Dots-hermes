@@ -1,5 +1,6 @@
 package app.dotshermes.ui
 
+import androidx.core.content.edit
 import android.content.Context
 import app.dotshermes.ui.dot.DotAccessory
 import app.dotshermes.ui.dot.DotSpecies
@@ -45,24 +46,24 @@ class AppearanceStore(context: Context, prefsName: String = "appearance") {
     fun setName(name: String) {
         val clean = name.replace('\n', ' ').take(AGENT_NAME_MAX)
         _state.update { it.copy(name = clean) }
-        prefs.edit().putString(KEY_NAME, clean).apply()
+        prefs.edit { putString(KEY_NAME, clean) }
     }
 
     fun setPalette(palette: DotPalette) {
         _state.update { it.copy(palette = palette) }
-        prefs.edit().putString(KEY_PALETTE, palette.id).apply()
+        prefs.edit { putString(KEY_PALETTE, palette.id) }
     }
 
     fun setAccessory(accessory: DotAccessory) {
         _state.update { it.copy(accessory = accessory) }
-        prefs.edit().putString(KEY_ACCESSORY, accessory.name).apply()
+        prefs.edit { putString(KEY_ACCESSORY, accessory.name) }
     }
 
     /** Changer de mascotte reprend sa couleur d'origine (Nuage bleu, Pavé violet) ; on peut la rechanger ensuite. */
     fun setSpecies(species: DotSpecies) {
         val palette = DotPalettes.all.firstOrNull { it.id == species.signaturePalette } ?: _state.value.palette
         _state.update { it.copy(species = species, palette = palette) }
-        prefs.edit().putString(KEY_SPECIES, species.name).putString(KEY_PALETTE, palette.id).apply()
+        prefs.edit { putString(KEY_SPECIES, species.name).putString(KEY_PALETTE, palette.id) }
     }
 
     /**
@@ -83,13 +84,13 @@ class AppearanceStore(context: Context, prefsName: String = "appearance") {
 
     /** Agent retiré : on oublie son apparence (le thème, commun, reste). */
     fun forget() {
-        prefs.edit().remove(KEY_NAME).remove(KEY_PALETTE).remove(KEY_ACCESSORY).remove(KEY_SPECIES).apply()
+        prefs.edit { remove(KEY_NAME).remove(KEY_PALETTE).remove(KEY_ACCESSORY).remove(KEY_SPECIES) }
         _state.update { DotAppearance(theme = it.theme) }
     }
 
     fun setTheme(theme: ThemeMode) {
         _state.update { it.copy(theme = theme) }
-        prefs.edit().putString(KEY_THEME, theme.name).apply()
+        prefs.edit { putString(KEY_THEME, theme.name) }
     }
 
     private companion object {

@@ -385,7 +385,8 @@ private fun ChatHeader(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { ConnectionPill(connection, gatewayFeatures) }
+        // Compte direct : rien à surveiller (pas de serveur ni de latence), la pastille ne ferait que du bruit.
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { if (gatewayFeatures) ConnectionPill(connection, gatewayFeatures) }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier

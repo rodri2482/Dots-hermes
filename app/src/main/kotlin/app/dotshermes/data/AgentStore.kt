@@ -1,5 +1,6 @@
 package app.dotshermes.data
 
+import androidx.core.content.edit
 import android.content.Context
 import app.dotshermes.data.model.GatewayConfig
 import app.dotshermes.data.direct.ApiProvider
@@ -74,11 +75,11 @@ class AgentStore(context: Context) {
 
     fun remove(id: String) = save { all -> all.filterNot { it.id == id } }
 
-    fun setActive(id: String) = prefs.edit().putString(KEY_ACTIVE, id).apply()
+    fun setActive(id: String) = prefs.edit { putString(KEY_ACTIVE, id) }
 
     private fun save(transform: (List<AgentLink>) -> List<AgentLink>) {
         _agents.update(transform)
-        prefs.edit().putString(KEY_LIST, encode(_agents.value)).apply()
+        prefs.edit { putString(KEY_LIST, encode(_agents.value)) }
     }
 
     private fun load(context: Context): List<AgentLink> {
@@ -88,8 +89,8 @@ class AgentStore(context: Context) {
         val url = legacy.getString("url", null)
         val token = legacy.getString("token", null)
         val migrated = if (url != null && token != null) listOf(AgentLink(PRIMARY_ID, url, token)) else emptyList()
-        prefs.edit().putString(KEY_LIST, encode(migrated)).apply()
-        legacy.edit().clear().apply()
+        prefs.edit { putString(KEY_LIST, encode(migrated)) }
+        legacy.edit { clear() }
         return migrated
     }
 

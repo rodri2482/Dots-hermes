@@ -136,7 +136,7 @@ private fun DirectConnectForm(
             }
         }
         if (!tight) {
-            Text(stringResource(R.string.api_key_help), style = MaterialTheme.typography.bodySmall,
+            Text(stringResource(R.string.api_key_help_short, provider.title), style = MaterialTheme.typography.bodySmall,
                 color = Ink.Secondary, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 10.dp, end = 16.dp))
         }
         (failure ?: recoveryFailure)?.let {
@@ -154,13 +154,14 @@ private fun DirectConnectForm(
             when {
                 onBack != null -> TextLink(stringResource(R.string.api_back_to_chat), enabled = !working, onClick = onBack)
                 onCancel != null -> TextLink(stringResource(R.string.agents_add_cancel), enabled = !working, onClick = onCancel)
-                onDemo != null -> TextLink(stringResource(R.string.connect_demo), enabled = !working, onClick = onDemo)
             }
             if (autoModel && !keySaved) TextLink(stringResource(R.string.api_get_key_groq), enabled = !working) { uri.openUri(GROQ_KEYS_URL) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            if (showModel) TextLink(stringResource(R.string.api_load_models), enabled = !working && (apiKey.isNotBlank() || keySaved), onClick = ::loadModels)
-            onRemove?.let { TextLink(stringResource(R.string.api_delete_account), enabled = !working, color = Ink.Danger, onClick = it) }
+            if (showModel) TextLink(stringResource(R.string.api_choose_model), enabled = !working && (apiKey.isNotBlank() || keySaved), onClick = ::loadModels)
+            // Supprimer le compte vit dans les réglages ; ici seulement si la clé enregistrée est illisible.
+            onRemove?.takeIf { recoveryFailure != null }?.let { TextLink(stringResource(R.string.api_delete_account), enabled = !working, color = Ink.Danger, onClick = it) }
+            onDemo?.let { TextLink(stringResource(R.string.connect_demo), enabled = !working, color = Ink.Secondary, onClick = it) }
             onHermes?.let { TextLink(stringResource(R.string.connect_use_hermes), enabled = !working, color = Ink.Secondary, onClick = it) }
         }
         if (otherAgents.isNotEmpty() && onBack == null && onCancel == null) OtherAgentsLink(otherAgents, onSelectAgent)

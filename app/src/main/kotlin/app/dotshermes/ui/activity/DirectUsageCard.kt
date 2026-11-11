@@ -23,14 +23,18 @@ internal fun DirectUsageCard(usage: DirectApiUsage?) {
         Text(listOfNotNull(usage?.provider?.title, usage?.model).joinToString(" · "),
             style = MaterialTheme.typography.titleSmall, color = Ink.Primary)
         val remaining = cooldownSeconds(usage?.cooldownUntilMs ?: 0, now)
-        Text(if (remaining > 0) stringResource(R.string.api_retry_wait, remaining) else stringResource(R.string.api_limits_ready),
-            style = MaterialTheme.typography.bodyMedium, color = Ink.Secondary)
+        // Le délai ne s'affiche que s'il court ; « aucun délai » n'apprend rien.
+        if (remaining > 0) Text(stringResource(R.string.api_retry_wait, remaining), style = MaterialTheme.typography.bodyMedium, color = Ink.Danger)
         val limits = usage?.limits
-        if (limits == null) {
+        // Une fenêtre dont l'heure de remise à zéro est passée ne dit plus rien de vrai : on la cache.
+        val fresh = limits?.let { listOf(it.requestsResetAtMs, it.tokensResetAtMs).any { reset -> reset == null || reset > now } } == true
+        if (limits == null || !fresh) {
             Text(stringResource(R.string.api_limits_unknown), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
         } else {
-            LimitLine(stringResource(R.string.api_limits_requests), limits.requestsRemaining, limits.requestLimit, limits.requestsResetAtMs, now)
-            LimitLine(stringResource(R.string.api_limits_tokens), limits.tokensRemaining, limits.tokenLimit, limits.tokensResetAtMs, now)
+            if (limits.requestsResetAtMs?.let { it > now } != false)
+                LimitLine(stringResource(R.string.api_limits_requests), limits.requestsRemaining, limits.requestLimit, limits.requestsResetAtMs, now)
+            if (limits.tokensResetAtMs?.let { it > now } != false)
+                LimitLine(stringResource(R.string.api_limits_tokens), limits.tokensRemaining, limits.tokenLimit, limits.tokensResetAtMs, now)
             Text(stringResource(R.string.api_limits_observed,
                 formatDate(Instant.ofEpochMilli(limits.observedAtMs), "MMM d, HH:mm:ss")),
                 style = MaterialTheme.typography.labelSmall, color = Ink.Secondary)

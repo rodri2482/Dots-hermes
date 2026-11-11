@@ -94,13 +94,37 @@ fun AgentSettings(
 
     run {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(profile.tagline, style = MaterialTheme.typography.bodyMedium, color = Ink.Secondary)
+            // Compte direct : le modèle est déjà dans la carte « Compte ».
+            if (gatewayFeatures) Text(profile.tagline, style = MaterialTheme.typography.bodyMedium, color = Ink.Secondary)
 
             SectionLabel(stringResource(R.string.settings_name))
             GroupedCard {
                 NameField(appearance.name, onName)
             }
 
+            if (!gatewayFeatures) {
+                // Compte direct : une seule carte, sans jargon (fournisseur et modèle, effacer le fil).
+                SectionLabel(stringResource(R.string.settings_account))
+                GroupedCard {
+                    Row(
+                        Modifier.fillMaxWidth().clickable(onClick = onEditDirect).padding(horizontal = 16.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(connected?.gatewayUrl ?: "—", style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                        Text(profile.tagline, style = MaterialTheme.typography.bodyMedium, color = Ink.Secondary, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                        Text("  ›", style = MaterialTheme.typography.bodyLarge, color = Ink.Tertiary)
+                    }
+                    onClearConversation?.let {
+                        Hairline()
+                        Text(stringResource(R.string.chat_clear), style = MaterialTheme.typography.bodyLarge, color = Ink.Danger,
+                            modifier = Modifier.fillMaxWidth().clickable(onClick = it).padding(horizontal = 16.dp, vertical = 13.dp))
+                    }
+                }
+                companion?.let { CompanionSettings(it) }
+            }
+
+            if (gatewayFeatures) {
             SectionLabel(stringResource(R.string.settings_connection))
             GroupedCard {
                 InfoRow(stringResource(if (gatewayFeatures) R.string.connect_gateway else R.string.api_provider_label), connected?.gatewayUrl ?: "—")
@@ -121,17 +145,6 @@ fun AgentSettings(
                     )
                 }
             }
-
-            if (!gatewayFeatures) {
-                GroupedCard {
-                    LinkRow(stringResource(R.string.api_edit_account), onEditDirect)
-                    onClearConversation?.let {
-                        Hairline()
-                        Text(stringResource(R.string.chat_clear), style = MaterialTheme.typography.bodyLarge, color = Ink.Danger,
-                            modifier = Modifier.fillMaxWidth().clickable(onClick = it).padding(horizontal = 16.dp, vertical = 13.dp))
-                    }
-                }
-                companion?.let { CompanionSettings(it) }
             }
 
             if (gatewayFeatures && connected?.demo == false && onConnectBrowser != null && onBrowserSessions != null) {
@@ -159,10 +172,7 @@ fun AgentSettings(
             SectionLabel(stringResource(R.string.settings_display))
             GroupedCard {
                 ThemePicker(appearance.theme, onTheme)
-            }
-
-            SectionLabel(stringResource(R.string.settings_color))
-            GroupedCard {
+                Hairline()
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -194,6 +204,11 @@ fun AgentSettings(
 
             Spacer(Modifier.height(24.dp))
             GroupedCard {
+                if (!gatewayFeatures) {
+                    Text(stringResource(R.string.agents_add_row), style = MaterialTheme.typography.labelLarge, color = palette.deep,
+                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().clickable(onClick = onAddAgent).padding(16.dp))
+                    Hairline()
+                }
                 Text(
                     stringResource(if (!gatewayFeatures) R.string.api_delete_account else if (multipleAgents) R.string.agents_remove else R.string.settings_disconnect),
                     style = MaterialTheme.typography.labelLarge,

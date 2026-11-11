@@ -363,26 +363,32 @@
     <plurals name="tool_actions">
         <item quantity="one">%d action</item>
         <item quantity="other">%d actions</item>
+        <item quantity="many">%d actions</item>
     </plurals>
     <plurals name="tool_failed">
         <item quantity="one">%d en échec</item>
         <item quantity="other">%d en échec</item>
+        <item quantity="many">%d en échec</item>
     </plurals>
     <plurals name="task_progress">
         <item quantity="one">%1$d sur %2$d étape</item>
         <item quantity="other">%1$d sur %2$d étapes</item>
+        <item quantity="many">%1$d sur %2$d étapes</item>
     </plurals>
     <plurals name="schedule_every_minutes">
         <item quantity="one">toutes les %d min</item>
         <item quantity="other">toutes les %d min</item>
+        <item quantity="many">toutes les %d min</item>
     </plurals>
     <plurals name="schedule_every_hours">
         <item quantity="one">toutes les %d h</item>
         <item quantity="other">toutes les %d h</item>
+        <item quantity="many">toutes les %d h</item>
     </plurals>
     <plurals name="schedule_every_days">
         <item quantity="one">tous les %d j</item>
         <item quantity="other">tous les %d jours</item>
+        <item quantity="many">tous les %d jours</item>
     </plurals>
 
     <!-- Suggestions du bouton « + » -->
@@ -410,8 +416,7 @@ Colle une clé API Groq pour commencer.</string>
     <string name="companion_personality">Personnalité</string>
     <string name="companion_voice">Voix</string>
     <string name="companion_speak">Lire les réponses à voix haute</string>
-    <string name="companion_speak_hint">Chaque réponse est dite avec la voix choisie ci-dessous.</string>
-    <string name="companion_speak_setup">Ajoute ta clé Fish Audio ci-dessous. La voix se change quand tu veux.</string>
+    <string name="companion_speak_setup">Ajoute une clé Fish Audio pour entendre Claydot.</string>
     <string name="companion_voice_id">Voix</string>
     <string name="companion_voice_id_hint">Identifiant de voix Fish Audio</string>
     <string name="companion_fish_key">Clé Fish</string>
@@ -431,6 +436,10 @@ Colle une clé API Groq pour commencer.</string>
     <string name="chat_clear_warning">Tous les messages de cette conversation sont supprimés de ce téléphone. Ta clé et tes réglages restent.</string>
     <string name="chat_clear_confirm">Effacer</string>
     <string name="chat_empty">Salut, moi c’est %s ! Demande-moi ce que tu veux, ou touche le micro pour parler.</string>
+    <string name="api_key_help_short">Ta clé reste chiffrée sur ce téléphone. L\'usage est facturé par %s.</string>
+    <string name="api_choose_model">Choisir le modèle</string>
+    <string name="settings_account">Compte</string>
+    <string name="companion_voice_other">Autre</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>
@@ -500,8 +509,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="api_key_label">Clé API</string>
     <string name="api_model_label">Modèle</string>
     <string name="api_model_hint">Choisir ou saisir un modèle</string>
-    <string name="api_key_help">Les clés et conversations enregistrées sont chiffrées sur ce téléphone. Les messages vont directement au fournisseur choisi, qui facture la consommation API.</string>
-    <string name="api_load_models">Charger les modèles disponibles</string>
     <string name="api_save_account">Enregistrer le compte</string>
     <string name="api_retry">Réessayer</string>
     <string name="api_stop">Arrêter</string>
@@ -520,16 +527,14 @@ Colle une clé API Groq pour commencer.</string>
     <string name="api_retry_wait">%d s</string>
     <string name="api_direct_status">API directe</string>
     <string name="api_provider_label">Fournisseur</string>
-    <string name="api_edit_account">Changer la clé API ou le modèle</string>
     <string name="api_delete_account">Supprimer le compte et son historique</string>
     <string name="api_delete_warning">La clé API et toutes les conversations de ce compte seront définitivement supprimées de ce téléphone. Cette action est irréversible.</string>
     <string name="api_ready">Prêt</string>
-    <string name="api_limits_ready">Aucun délai actif</string>
-    <string name="api_limits_unknown">Le fournisseur n’a pas encore communiqué ses limites. Elles apparaîtront ici après une réponse, si elles sont disponibles.</string>
+    <string name="api_limits_unknown">Les limites apparaissent après ta prochaine réponse.</string>
     <string name="api_limits_requests">Requêtes restantes · fenêtre quotidienne</string>
     <string name="api_limits_tokens">Tokens restants · fenêtre par minute</string>
     <string name="api_limits_observed">Dernière réponse : %1$s</string>
-    <string name="api_limits_shared">Dernier état communiqué par le fournisseur, partagé par votre organisation. D’autres applications peuvent utiliser ce quota. Cela ne détermine pas votre forfait et ne garantit pas la gratuité.</string>
+    <string name="api_limits_shared">Indiquées par le fournisseur, partagées par toutes les apps qui utilisent cette clé.</string>
     <string name="api_limits_not_reported">Non communiqué</string>
     <string name="api_limits_refresh">Délai écoulé · en attente de la prochaine réponse</string>
     <string name="api_limits_balance">%1$d restants sur %2$d</string>

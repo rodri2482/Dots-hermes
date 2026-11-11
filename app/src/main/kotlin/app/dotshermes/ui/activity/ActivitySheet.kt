@@ -113,8 +113,11 @@ fun ActivitySheet(
             SectionLabel(stringResource(R.string.activity_usage))
             GroupedCard { if (gatewayFeatures) UsageCard(usage, onUsage) else DirectUsageCard(directUsage) }
 
-            SectionLabel(stringResource(R.string.activity_now))
-            GroupedCard { NowCard(agentName, appearance, activity, busy, liveTools, onStop) }
+            // Compte direct au repos : la carte ne dirait que « disponible », on la retire.
+            if (gatewayFeatures || busy) {
+                SectionLabel(stringResource(R.string.activity_now))
+                GroupedCard { NowCard(agentName, appearance, activity, busy, liveTools, onStop) }
+            }
 
             if (screen.hasFrame) {
                 SectionLabel(stringResource(R.string.activity_browser))

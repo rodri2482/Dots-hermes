@@ -1,5 +1,6 @@
 package app.dotshermes.voice
 
+import androidx.core.content.edit
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -126,10 +127,10 @@ class CompanionVoice(
         fishKeySaved = try { !vault.key(FISH_ID).isNullOrBlank() } catch (_: Exception) { false },
     )
 
-    fun setPersonality(value: Personality) { prefs.edit().putString("personality", value.name).apply(); _state.value = _state.value.copy(personality = value) }
+    fun setPersonality(value: Personality) { prefs.edit { putString("personality", value.name) }; _state.value = _state.value.copy(personality = value) }
 
     fun setSpeakReplies(on: Boolean) {
-        prefs.edit().putBoolean("speak", on).apply()
+        prefs.edit { putBoolean("speak", on) }
         _state.value = _state.value.copy(speakReplies = on)
         if (!on) stop()
     }
@@ -137,7 +138,7 @@ class CompanionVoice(
     /** Identifiant d'une voix Fish Audio : 32 caractères hexadécimaux sur fish.audio ; on tolère l'URL copiée. */
     fun setVoiceId(raw: String) {
         val id = raw.trim().substringAfterLast('/').substringBefore('?').take(64)
-        prefs.edit().putString("voice", id).apply()
+        prefs.edit { putString("voice", id) }
         _state.value = _state.value.copy(voiceId = id)
     }
 
@@ -152,7 +153,7 @@ class CompanionVoice(
         vault.remove(FISH_ID)
         stop()
         _state.value = _state.value.copy(fishKeySaved = false, speakReplies = false)
-        prefs.edit().putBoolean("speak", false).apply()
+        prefs.edit { putBoolean("speak", false) }
     }
 
     fun persona(name: String): String = personaPrompt(_state.value.personality, name, spoken = _state.value.speakReplies)
