@@ -35,7 +35,7 @@ object AppContainer {
         AgentRegistry(appContext, appScope, AgentStore(appContext), onApprovalResolved = { _, approvalId -> Notifications.cancelApproval(appContext, approvalId) },
             persona = { name -> companion.persona(name) },
             directTools = { app.dotshermes.data.direct.CombinedTools(listOf(app.dotshermes.data.direct.GmailTools(gmail), phoneActions,
-                app.dotshermes.data.direct.RoutineTools(routines, accountId = { agents.activeId.value }, confirm = phoneActions::ask))) })
+                app.dotshermes.data.direct.RoutineTools(routines, accountId = { agents.activeId.value }, confirm = phoneActions::ask), screen)) })
     }
 
     val chatRepository: RoutingChatRepository by lazy {
@@ -47,6 +47,12 @@ object AppContainer {
     val voicePlayer: VoicePlayer by lazy { VoicePlayer(appScope) }
     /** Personnalité et voix (Fish Audio) des comptes API directs. */
     /** Actions sur le téléphone (réveil, minuteur, app, agenda), toujours confirmées par l'utilisateur. */
+    /** Contrôle de l'écran (service d'accessibilité), après accord pour chaque tâche. */
+    val screen: app.dotshermes.data.direct.ScreenTools by lazy {
+        app.dotshermes.data.direct.ScreenTools(app.dotshermes.screen.AccessibilityScreenDriver(appContext, phoneActions),
+            enabled = { phoneActions.enabled.value }, confirm = phoneActions::ask, ownPackage = appContext.packageName,
+            consent = { appContext.getString(app.dotshermes.R.string.screen_consent) })
+    }
     val phoneActions: app.dotshermes.data.direct.PhoneActions by lazy { app.dotshermes.data.direct.PhoneActions(appContext) }
     /** Routines programmées (déclencheur horaire + consigne), exécutées par WorkManager. */
     val routines: app.dotshermes.data.direct.RoutineStore by lazy { app.dotshermes.data.direct.RoutineStore(appContext) }

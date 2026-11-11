@@ -112,6 +112,24 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
                     colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,
                         checkedThumbColor = androidx.compose.ui.graphics.Color.White))
             }
+            if (enabled) {
+                // Contrôle de l'écran : seul Android peut l'activer (Réglages > Accessibilité).
+                val screenOn by app.dotshermes.screen.ClaydotAccessibilityService.running.collectAsStateWithLifecycle()
+                val context = androidx.compose.ui.platform.LocalContext.current
+                Hairline()
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Text(stringResource(R.string.screen_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                    Text(stringResource(if (screenOn) R.string.screen_on_hint else R.string.screen_hint),
+                        style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                }
+                Hairline()
+                Text(stringResource(if (screenOn) R.string.screen_turn_off else R.string.screen_turn_on),
+                    style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }.padding(horizontal = 16.dp, vertical = 13.dp))
+            }
         }
     }
 }

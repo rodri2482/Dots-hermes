@@ -16,6 +16,8 @@ interface DirectTools {
     /** Libellé court de l'en-tête pendant l'appel (« Gmail… »). */
     fun label(call: ApiToolCall): String
     suspend fun run(call: ApiToolCall): String
+    /** La réponse est finie (ou arrêtée) : un accord valable « pour cette tâche » prend fin ici. */
+    fun finished() {}
 }
 
 /**

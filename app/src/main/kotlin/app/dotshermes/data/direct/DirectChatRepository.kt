@@ -315,6 +315,7 @@ class DirectChatRepository(
                 }
             }
         } finally {
+            if (provider == ApiProvider.Groq) runCatching { toolbox()?.finished() }
             synchronized(lock) { if (token == generation) { busy = false; _activity.value = AgentActivity.Idle; job = null } }
         }
     }
@@ -631,7 +632,8 @@ internal class ReactionTag {
 }
 
 /** Échanges d'outils au plus par message (recherche, lecture, …), pour borner le coût. */
-private const val MAX_TOOL_ROUNDS = 4
+// Assez pour une petite tâche à l'écran (lire, toucher, écrire…) ; le dernier tour force une réponse.
+private const val MAX_TOOL_ROUNDS = 12
 
 /** Libellé de l'en-tête pendant la transcription ; neutre, pour les deux langues. */
 private const val VOICE_LABEL = "🎙…"

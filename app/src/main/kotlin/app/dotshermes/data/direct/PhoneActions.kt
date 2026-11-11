@@ -128,7 +128,7 @@ class PhoneActions(private val context: Context) : DirectTools {
     }
 
     /** L'app dont le nom ressemble le plus à [wanted] parmi celles de l'écran d'accueil. */
-    private fun findApp(wanted: String): Pair<String, Intent>? {
+    internal fun findApp(wanted: String): Pair<String, Intent>? {
         val pm = context.packageManager
         val launchable = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
         val target = wanted.lowercase()
@@ -178,6 +178,7 @@ class CombinedTools(private val parts: List<DirectTools>) : DirectTools {
     }
 
     override fun label(call: ApiToolCall) = owner(call)?.label(call) ?: "…"
+    override fun finished() = parts.forEach { it.finished() }
     override suspend fun run(call: ApiToolCall): String =
         owner(call)?.run(call) ?: JSONObject().put("error", "unknown tool").toString()
 }

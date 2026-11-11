@@ -410,6 +410,14 @@ Paste a Groq API key to get started.</string>
     <string name="memory_section">Memory</string>
     <string name="memory_empty">Nothing yet. Tell Claydot “remember that…” and it will know it in every chat.</string>
     <string name="memory_forget">Forget</string>
+    <string name="screen_title">Let Claydot use your screen</string>
+    <string name="screen_hint">Claydot can read the screen and tap, type and scroll in other apps for a task you ask for. Turn on “Claydot” in Android’s accessibility settings.</string>
+    <string name="screen_on_hint">On. Claydot asks before each task and never touches passwords, settings or app installs.</string>
+    <string name="screen_turn_on">Turn on in Android settings</string>
+    <string name="screen_turn_off">Turn off in Android settings</string>
+    <string name="screen_consent">For the next 5 minutes Claydot will read your screen and tap, type and scroll to do this. It never touches passwords, settings or app installs. It stops when the reply ends, or when you tap Stop in Claydot.</string>
+    <string name="a11y_summary">Lets Claydot do tasks on your screen when you ask</string>
+    <string name="a11y_description">Claydot reads the screen and taps, types and scrolls only during a task you approved in the chat, for 5 minutes at most. It does nothing on its own, keeps nothing, and never touches password fields, Android settings or app installs.</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>
