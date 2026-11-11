@@ -52,17 +52,14 @@ fun AccountConnectScreen(
     var mode by rememberSaveable { mutableStateOf(initialProvider) }
     // Retour système : annule l'ajout ou la modification en cours au lieu de fermer l'app.
     BackHandler(enabled = adding || editing) { if (adding) onCancelAdd() else onCancelEdit() }
-    val provider = ApiProvider.fromId(mode)
+    // Plus de serveur Hermes dans Claydot : un ancien réglage « hermes » ouvre la clé Groq.
+    val provider = ApiProvider.fromId(mode) ?: ApiProvider.Groq
     if (provider == ApiProvider.Local) {
         LocalModelScreen(appearance, app.dotshermes.AppContainer.localModels,
             currentModel = initialModel.takeIf { initialProvider == ApiProvider.Local.id },
             onUse = onDirect,
             onBack = if (editing) onCancelEdit else ({ mode = ApiProvider.Groq.id }),
             onCancel = onCancelAdd.takeIf { adding })
-    } else if (provider == null) {
-        ConnectScreen(connection, appearance, initialUrl, onConnect,
-            adding, onCancelAdd, otherAgents, onSelectAgent,
-            switchLabel = stringResource(R.string.connect_use_groq), onSwitch = { mode = ApiProvider.Groq.id })
     } else key(provider, initialModel) {
         DirectConnectForm(provider, appearance, initialModel.takeIf { initialProvider == provider.id }.orEmpty(), onModels, onDirect,
             recoveryFailure.takeIf { initialProvider == provider.id },
@@ -70,7 +67,7 @@ fun AccountConnectScreen(
             otherAgents, onSelectAgent,
             keySaved = editing && initialProvider == provider.id && recoveryFailure == null,
             onBack = onCancelEdit.takeIf { editing },
-            onHermes = if (!editing) ({ mode = "hermes" }) else null,
+            onHermes = null,
             onOffline = if (!editing) ({ mode = ApiProvider.Local.id }) else null)
     }
 }
@@ -176,7 +173,6 @@ private fun DirectConnectForm(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             // Supprimer le compte vit dans les réglages ; ici seulement si la clé enregistrée est illisible.
             onRemove?.takeIf { recoveryFailure != null }?.let { TextLink(stringResource(R.string.api_delete_account), enabled = !working, color = Ink.Danger, onClick = it) }
-            onHermes?.let { TextLink(stringResource(R.string.connect_use_hermes), enabled = !working, color = Ink.Secondary, onClick = it) }
         }
         // Pas de clé d'API : un modèle téléchargé une fois, qui répond sur le téléphone.
         onOffline?.let { TextLink(stringResource(R.string.local_link), enabled = !working, color = Ink.Secondary, onClick = it) }

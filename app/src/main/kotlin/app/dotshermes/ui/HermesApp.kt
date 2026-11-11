@@ -184,15 +184,15 @@ fun HermesApp(
                     onOpenChats = if (!gatewayFeatures) ({ chatsOpen = true }) else null,
                     modelMenu = if (gatewayFeatures) null else ({
                         val activeModel by viewModel.activeModel.collectAsStateWithLifecycle()
-                        val hasGroq by viewModel.hasGroqAccount.collectAsStateWithLifecycle()
+                        val groqModel by viewModel.groqModel.collectAsStateWithLifecycle()
                         val localStates by AppContainer.localModels.states.collectAsStateWithLifecycle()
                         app.dotshermes.ui.chat.ModelMenu(
-                            active = activeModel, hasGroq = hasGroq, loadGroqModels = viewModel::groqModels, localStates = localStates,
+                            active = activeModel, groqModel = groqModel, localStates = localStates,
                             onPickGroq = { viewModel.switchModel(app.dotshermes.data.direct.ApiProvider.Groq, it) },
                             onPickLocal = { viewModel.switchModel(app.dotshermes.data.direct.ApiProvider.Local, it) },
                             onDownload = AppContainer.localModels::download,
                             onCancelDownload = AppContainer.localModels::cancel,
-                            onAddGroq = viewModel::addAgent,
+                            onAddModel = viewModel::addAgent,
                         )
                     }),
                     onListen = if (!gatewayFeatures && companion.fishKeySaved && companion.voiceId.isNotBlank()) viewModel::listen else null,

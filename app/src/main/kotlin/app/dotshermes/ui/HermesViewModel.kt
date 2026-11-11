@@ -230,11 +230,10 @@ class HermesViewModel(
     val activeModel: StateFlow<app.dotshermes.ui.chat.ActiveModel> = kotlinx.coroutines.flow.combine(agents.store.agents, agents.activeId) { list, id ->
         list.firstOrNull { it.id == id }?.let { app.dotshermes.ui.chat.ActiveModel(it.provider, it.model) } ?: app.dotshermes.ui.chat.ActiveModel(null, "")
     }.stateIn(viewModelScope, SharingStarted.Eagerly, app.dotshermes.ui.chat.ActiveModel(null, ""))
-    val hasGroqAccount: StateFlow<Boolean> = agents.store.agents.map { list -> list.any { it.provider == app.dotshermes.data.direct.ApiProvider.Groq } }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    /** Le modèle du compte Groq (null sans compte Groq), pour le menu des modèles. */
+    val groqModel: StateFlow<String?> = agents.store.agents.map { list -> list.firstOrNull { it.provider == app.dotshermes.data.direct.ApiProvider.Groq }?.model }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    /** Les modèles de conversation du compte Groq (clé enregistrée), pour le menu des modèles. */
-    suspend fun groqModels(): List<String> = agents.availableModels(app.dotshermes.data.direct.ApiProvider.Groq, "")
 
     /**
      * Choix dans le menu des modèles : un modèle Groq (le compte Groq garde sa clé et sa conversation)

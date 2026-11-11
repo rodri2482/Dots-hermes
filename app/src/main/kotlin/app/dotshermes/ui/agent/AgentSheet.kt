@@ -229,11 +229,6 @@ fun AgentSettings(
 
             Spacer(Modifier.height(24.dp))
             GroupedCard {
-                if (!gatewayFeatures) {
-                    Text(stringResource(R.string.agents_add_hermes), style = MaterialTheme.typography.labelLarge, color = palette.deep,
-                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().clickable(onClick = onAddAgent).padding(16.dp))
-                    Hairline()
-                }
                 Text(
                     stringResource(if (!gatewayFeatures) R.string.api_delete_account else R.string.server_delete),
                     style = MaterialTheme.typography.labelLarge,

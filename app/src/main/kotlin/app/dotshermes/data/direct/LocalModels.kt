@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** Un modèle qui tourne sur le téléphone, sans clé ni Internet une fois téléchargé. */
-data class LocalModel(val id: String, val name: String, val sizeBytes: Long, val url: String, val file: String, val note: String)
+data class LocalModel(val id: String, val name: String, val sizeBytes: Long, val url: String, val file: String, val note: String, val maker: String)
 
 /** État du téléchargement d'un modèle. */
 sealed interface LocalModelState {
@@ -133,10 +133,10 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
         val CATALOG = listOf(
             LocalModel("qwen3.5-2b", "Qwen 3.5 2B", 2_119_744_416,
                 "https://huggingface.co/litert-community/Qwen3.5-2B/resolve/main/Qwen3.5-2B_int8.litertlm",
-                "Qwen3.5-2B_int8.litertlm", "Best answers, many languages. Needs about 4 GB of RAM."),
+                "Qwen3.5-2B_int8.litertlm", "Best answers, many languages. Needs about 4 GB of RAM.", "Alibaba Qwen"),
             LocalModel("lfm2.5-1.2b", "LFM 2.5 1.2B", 736_015_744,
                 "https://huggingface.co/litert-community/LFM2.5-1.2B-Instruct/resolve/main/LFM2.5-1.2B-Instruct_int4.litertlm",
-                "LFM2.5-1.2B-Instruct_int4.litertlm", "Light and quick, for phones with less space."),
+                "LFM2.5-1.2B-Instruct_int4.litertlm", "Light and quick, for phones with less space.", "Liquid AI"),
         )
 
         fun byId(id: String) = CATALOG.firstOrNull { it.id == id }

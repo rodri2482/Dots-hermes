@@ -257,7 +257,7 @@
     <string name="dot_close_confirm">Close the dot</string>
 
     <!-- Notifications -->
-    <string name="notif_channel_name">Messages from Hermes</string>
+    <string name="notif_channel_name">Messages from Claydot</string>
     <string name="notif_channel_description">Replies, questions and approval requests from your agent</string>
     <string name="notif_me">Me</string>
     <string name="notif_reply_not_sent">%1$s  (not sent — open the app)</string>
@@ -350,8 +350,6 @@
     <string name="api_connect_tagline_groq">Your AI companion, one message away.
 Paste a Groq API key to get started.</string>
     <string name="api_key_hint">Your %s key</string>
-    <string name="connect_use_hermes">Use a Hermes server</string>
-    <string name="connect_use_groq">Use a Groq key</string>
     <string name="companion_personality">Personality</string>
     <string name="companion_voice">Voice</string>
     <string name="companion_speak">Read replies aloud</string>
@@ -386,7 +384,6 @@ Paste a Groq API key to get started.</string>
     <string name="gmail_disconnect">Disconnect Gmail</string>
     <string name="gmail_error">Couldn\'t connect to Gmail. Try again.</string>
     <string name="gmail_error_setup">Gmail isn\'t set up for this app yet: it needs a Google Cloud sign-in client (see docs/gmail-setup.md).</string>
-    <string name="agents_add_hermes">Connect a Hermes server</string>
     <string name="conn_online">Online</string>
     <string name="phone_section">Phone</string>
     <string name="phone_title">Let Claydot use your phone</string>
@@ -461,14 +458,12 @@ Paste a Groq API key to get started.</string>
     <string name="local_limits">Offline, Claydot chats only: no web, screen, texting or voice notes. Downloads go through Android and continue in the background; Wi-Fi is best.</string>
     <string name="local_unsupported">This phone can\'t run offline models (they need a 64-bit ARM processor).</string>
     <string name="model_menu_open">Choose a model</string>
-    <string name="model_menu_online">Online · Groq</string>
-    <string name="model_menu_offline">Offline · on this phone</string>
     <string name="model_menu_hint">Offline models work without internet or an API key, but only chat: no web, screen or texting.</string>
-    <string name="model_add_groq">Add a Groq key</string>
-    <string name="model_loading">Loading models…</string>
     <string name="model_downloaded">Downloaded</string>
     <string name="model_delete">Delete</string>
     <string name="settings_offline_models">Offline models</string>
+    <string name="model_online">online</string>
+    <string name="model_add">Add model</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

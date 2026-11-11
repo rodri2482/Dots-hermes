@@ -258,7 +258,7 @@
     <string name="dot_close_confirm">Fermer le dot</string>
 
     <!-- Notifications -->
-    <string name="notif_channel_name">Messages de Hermes</string>
+    <string name="notif_channel_name">Messages de Claydot</string>
     <string name="notif_channel_description">Réponses, questions et demandes de feu vert de ton agent</string>
     <string name="notif_me">Moi</string>
     <string name="notif_reply_not_sent">%1$s  (non envoyé — ouvre l\'app)</string>
@@ -357,8 +357,6 @@
     <string name="api_connect_tagline_groq">Ton compagnon IA, à un message près.
 Colle une clé API Groq pour commencer.</string>
     <string name="api_key_hint">Ta clé %s</string>
-    <string name="connect_use_hermes">Utiliser un serveur Hermes</string>
-    <string name="connect_use_groq">Utiliser une clé Groq</string>
     <string name="companion_personality">Personnalité</string>
     <string name="companion_voice">Voix</string>
     <string name="companion_speak">Lire les réponses à voix haute</string>
@@ -393,7 +391,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="gmail_disconnect">Déconnecter Gmail</string>
     <string name="gmail_error">Impossible de se connecter à Gmail. Réessaie.</string>
     <string name="gmail_error_setup">Gmail n\'est pas encore configuré pour cette app : il faut un client de connexion Google Cloud (voir docs/gmail-setup.md).</string>
-    <string name="agents_add_hermes">Brancher un serveur Hermes</string>
     <string name="conn_online">En ligne</string>
     <string name="phone_section">Téléphone</string>
     <string name="phone_title">Laisser Claydot utiliser ton téléphone</string>
@@ -468,14 +465,12 @@ Colle une clé API Groq pour commencer.</string>
     <string name="local_limits">Hors ligne, Claydot discute seulement : pas de web, d\'écran, de messages ni de vocaux. Le téléchargement passe par Android et continue en arrière-plan ; le Wi-Fi est conseillé.</string>
     <string name="local_unsupported">Ce téléphone ne peut pas faire tourner de modèle hors ligne (il faut un processeur ARM 64 bits).</string>
     <string name="model_menu_open">Choisir un modèle</string>
-    <string name="model_menu_online">En ligne · Groq</string>
-    <string name="model_menu_offline">Hors ligne · sur ce téléphone</string>
     <string name="model_menu_hint">Les modèles hors ligne marchent sans Internet ni clé d\'API, mais ne font que discuter : pas de web, d\'écran ni de messages.</string>
-    <string name="model_add_groq">Ajouter une clé Groq</string>
-    <string name="model_loading">Chargement des modèles…</string>
     <string name="model_downloaded">Téléchargé</string>
     <string name="model_delete">Supprimer</string>
     <string name="settings_offline_models">Modèles hors ligne</string>
+    <string name="model_online">en ligne</string>
+    <string name="model_add">Ajouter un modèle</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

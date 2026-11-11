@@ -115,10 +115,10 @@ class AgentRegistry(
     private fun editorFor(id: String?, gatewayHint: String = ""): ConnectionEditor {
         val link = id?.let(store::get)
         return ConnectionEditor(UUID.randomUUID().toString(), link?.id,
-            // Nouveau compte : Groq d'abord, il suffit d'y coller sa clé API (Hermes reste à un onglet).
-            // Déjà un compte Groq : « ajouter » sert alors à brancher un serveur Hermes.
-            if (link != null) link.provider?.id ?: "hermes"
-            else if (store.agents.value.any { it.provider == ApiProvider.Groq }) "hermes" else ApiProvider.Groq.id,
+            // Claydot : une clé API (Groq) ou un modèle sur le téléphone ; plus de serveur Hermes à brancher.
+            // Déjà un compte Groq : « ajouter » propose alors le modèle hors ligne.
+            if (link != null) link.provider?.id ?: ApiProvider.Groq.id
+            else if (store.agents.value.any { it.provider == ApiProvider.Groq }) ApiProvider.Local.id else ApiProvider.Groq.id,
             link?.model.orEmpty(), link?.url?.takeIf { it.isNotBlank() } ?: gatewayHint)
     }
 
