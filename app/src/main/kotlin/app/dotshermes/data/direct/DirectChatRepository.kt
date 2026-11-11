@@ -151,11 +151,12 @@ class DirectChatRepository(
                 val answer = DirectEntry(UUID.randomUUID().toString(), "assistant", "", System.currentTimeMillis(), DirectEntryState.Streaming, user.id)
                 answerId = answer.id
                 commit(transcript.copy(messages = retained + user.copy(state = DirectEntryState.Pending) + answer, retryUserId = user.id, failure = null, cooldownUntilMs = 0))
-                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it) }) +
+                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE) }) +
                     completedContext(retained) + ApiTurn("user", user.text)
             }
             val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
             var replyTokens: Long? = null
+            val tag = ReactionTag()
             val extra = ArrayList<org.json.JSONObject>()
             // Jusqu'à MAX_TOOL_ROUNDS échanges d'outils ; le dernier tour n'en propose plus, pour obtenir une réponse.
             for (round in 0 until MAX_TOOL_ROUNDS) {
@@ -169,16 +170,19 @@ class DirectChatRepository(
                     }
                 }
             }, { tokens -> replyTokens = (replyTokens ?: 0) + tokens }) { delta ->
+                val visible = tag.feed(delta)
                 synchronized(lock) {
                     if (token == generation) {
+                        val reaction = tag.reaction
                         commit(transcript.copy(messages = transcript.messages.map {
                             when (it.id) {
-                                answerId -> it.copy(text = it.text + delta)
-                                userId -> it.copy(state = DirectEntryState.Complete)
+                                answerId -> it.copy(text = it.text + visible)
+                                userId -> it.copy(state = DirectEntryState.Complete, reaction = reaction ?: it.reaction)
                                 else -> it
                             }
-                        }))
-                        _activity.value = AgentActivity.Typing
+                        }), persist = clockMs() - lastSaveMs > STREAM_SAVE_MS)
+                        _activity.value = if (visible.isEmpty() && reaction != null && transcript.messages.first { it.id == answerId }.text.isEmpty())
+                            AgentActivity.Reacting else AgentActivity.Typing
                     }
                 }
             }
@@ -190,9 +194,10 @@ class DirectChatRepository(
             synchronized(lock) {
                 if (token == generation) {
                     val doneAt = System.currentTimeMillis()
+                    val tail = tag.flush()
                     commit(transcript.copy(messages = transcript.messages.map {
                         when (it.id) {
-                            answerId -> it.copy(state = DirectEntryState.Complete, durationMs = (doneAt - it.timestampMs).coerceAtLeast(0), tokens = replyTokens)
+                            answerId -> it.copy(text = it.text + tail, state = DirectEntryState.Complete, durationMs = (doneAt - it.timestampMs).coerceAtLeast(0), tokens = replyTokens)
                             userId -> it.copy(state = DirectEntryState.Complete)
                             else -> it
                         }
@@ -274,8 +279,10 @@ class DirectChatRepository(
         synchronized(lock) { generation++; ready = false; _connection.value = ConnectionState.Disconnected }
     }
 
-    private fun commit(value: DirectTranscript) {
-        storage.save(accountId, value)
+    private var lastSaveMs = 0L
+
+    private fun commit(value: DirectTranscript, persist: Boolean = true) {
+        if (persist) { storage.save(accountId, value); lastSaveMs = clockMs() }
         transcript = value
         memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, value.cooldownUntilMs)
         _directUsage.value = DirectApiUsage(provider, model, value.limits, value.cooldownUntilMs)
@@ -286,6 +293,8 @@ class DirectChatRepository(
             delivery = if (entry.role == "user") Delivery.Sent else Delivery.Read,
             remoteId = entry.id, turn = entry.replyTo, failed = entry.role == "user" && entry.state == DirectEntryState.Failed,
             footer = if (entry.id == newestDone) replyFooter(model, entry.durationMs ?: 0) else null,
+            streaming = entry.role == "assistant" && entry.state == DirectEntryState.Streaming,
+            reactions = entry.reaction?.let { mapOf((if (entry.role == "user") Sender.Agent else Sender.User) to it) } ?: emptyMap(),
         ) }
     }
 
@@ -295,7 +304,18 @@ class DirectChatRepository(
         cooldownSeconds(maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs), clockMs()),
         maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs), cooldownOnly)
 
-    override fun toggleReaction(messageId: String, emoji: String) {}
+    /** Réaction de l'utilisateur sur une réponse (double tap, appui long) : gardée sur le téléphone. */
+    override fun toggleReaction(messageId: String, emoji: String) {
+        synchronized(lock) {
+            if (!ready || emoji !in Reactions) return
+            val target = transcript.messages.firstOrNull { it.id == messageId && it.role == "assistant" } ?: return
+            try {
+                commit(transcript.copy(messages = transcript.messages.map {
+                    if (it.id == target.id) it.copy(reaction = if (it.reaction == emoji) null else emoji) else it
+                }))
+            } catch (_: Exception) { _failure.value = issue(ApiFailure.Storage) }
+        }
+    }
     override fun answerApproval(messageId: String, approved: Boolean) {}
     override fun answerClarify(messageId: String, response: String) {}
     /**
@@ -354,6 +374,52 @@ internal fun replyFooter(model: String, durationMs: Long): String {
     val seconds = durationMs / 1000.0
     val time = if (seconds < 10) String.format(java.util.Locale.ROOT, "%.1f s", seconds) else "${Math.round(seconds)} s"
     return "$name · $time"
+}
+
+/** Pendant une réponse, le fil chiffré est réécrit au plus à cet intervalle (et toujours à la fin). */
+private const val STREAM_SAVE_MS = 750L
+
+/** Les réactions possibles, celles de la barre de réactions de l'app. */
+internal val Reactions = setOf("❤️", "👍", "😂", "😮", "🎉", "👀", "🔥", "😢")
+
+/** Consigne ajoutée à la personnalité : une réaction en tête de chaque réponse, retirée du texte. */
+internal val REACTION_RULE = "Start every reply with a reaction to the user's latest message, written exactly as " +
+    "[[react:EMOJI]] where EMOJI is one of ${Reactions.joinToString(" ")}, or [[react:none]] when nothing fits. " +
+    "React like a friend would (😂 for a joke, 🎉 for good news, ❤️ for thanks, 😢 for sad news, 👀 for a curious question). " +
+    "Then write your reply. The tag is hidden from the user: never mention it."
+
+/**
+ * Retire la balise `[[react:…]]` du début d'une réponse qui arrive par morceaux et en garde l'emoji.
+ * Tant que le début peut encore être une balise, rien n'est montré ; sinon, tout passe tel quel.
+ */
+internal class ReactionTag {
+    private val pending = StringBuilder()
+    private var done = false
+    var reaction: String? = null
+        private set
+
+    fun feed(delta: String): String {
+        if (done) return delta
+        pending.append(delta)
+        val text = pending.toString().trimStart()
+        if (text.length < PREFIX.length) {
+            if (PREFIX.startsWith(text)) return ""
+            return release()
+        }
+        if (!text.startsWith(PREFIX)) return release()
+        val end = text.indexOf("]]")
+        if (end < 0) return if (text.length > 48) release() else ""
+        reaction = text.substring(PREFIX.length, end).trim().takeIf { it in Reactions }
+        done = true
+        return text.substring(end + 2).trimStart()
+    }
+
+    /** Fin du flux : ce qui attendait encore (une réponse qui ressemblait au début d'une balise). */
+    fun flush(): String = if (done) "" else release()
+
+    private fun release(): String { done = true; return pending.toString() }
+
+    private companion object { const val PREFIX = "[[react:" }
 }
 
 /** Échanges d'outils au plus par message (recherche, lecture, …), pour borner le coût. */

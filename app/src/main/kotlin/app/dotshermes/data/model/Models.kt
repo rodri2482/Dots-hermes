@@ -86,6 +86,8 @@ data class ChatMessage(
     val failed: Boolean = false,
     /** Ligne discrète sous une réponse (compte direct : « modèle · 1,4 s ») ; null = rien. */
     val footer: String? = null,
+    /** Réponse encore en train d'arriver : le texte s'affiche progressivement, sans à-coups. */
+    val streaming: Boolean = false,
 )
 
 enum class ToolState { Running, Done, Error }

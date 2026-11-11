@@ -8,6 +8,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -188,6 +192,7 @@ fun ChatScreen(
     var suggestionsOpen by rememberSaveable { mutableStateOf(false) }
     var roomSheetOpen by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val streamingReply = state.activity == AgentActivity.Typing
     var cooldownRemaining by remember(requestIssue) { mutableStateOf(
         app.dotshermes.data.direct.cooldownSeconds(requestIssue?.retryAtMs ?: 0, System.currentTimeMillis())) }
     LaunchedEffect(requestIssue) {
@@ -241,12 +246,15 @@ fun ChatScreen(
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = headerHeight, bottom = 12.dp),
             ) {
                 items(state.rows, key = { it.key }, contentType = { it::class }) { row ->
-                    Box(Modifier.animateItem().fillMaxWidth()) {
+                    // Pendant qu'une réponse grandit, pas d'animation de position : les bulles au-dessus
+                    // suivaient chaque nouveau mot avec un ressort, d'où un texte qui tremblait.
+                    Box(Modifier.animateItem(fadeInSpec = tween(220), fadeOutSpec = tween(150),
+                        placementSpec = if (streamingReply) null else spring(stiffness = Spring.StiffnessMediumLow, visibilityThreshold = IntOffset.VisibilityThreshold)).fillMaxWidth()) {
                         when (row) {
                             is ChatRow.Day -> DaySeparator(dayLabel(row))
                             is ChatRow.Bubble -> MessageRow(
                                 row = row,
-                                reactionsEnabled = gatewayFeatures,
+                                reactionsEnabled = true,
                                 speakerLook = if (row.showSpeaker) lookFor(row.message) else null,
                                 onReact = { emoji -> onReact(row.message.id, emoji) },
                                 onApproval = { approved -> onApproval(row.message.id, approved) },

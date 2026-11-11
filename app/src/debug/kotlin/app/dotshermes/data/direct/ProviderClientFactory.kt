@@ -31,7 +31,10 @@ private class OfflineProviderClient : ProviderClient {
     override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) {
         if (key == "invalid-fixture") throw ApiException(ApiFailure.InvalidKey)
         if (turns.last().text == "offline error") throw ApiException(ApiFailure.Unavailable)
-        val answer = "Offline ${provider.title} reply. Your mascot and saved conversation stay on this device."
+        // Comme un vrai modèle : une balise de réaction en tête (👍, ou 🎉 si le message parle de bonne nouvelle).
+        val react = if (turns.last().text.contains("news", ignoreCase = true)) "🎉" else "👍"
+        val answer = "[[react:$react]] Offline ${provider.title} reply. Your mascot and saved conversation stay on this device, " +
+            "and this longer sentence shows how the text unrolls smoothly while it streams in."
         for (part in answer.chunked(6)) {
             delay(if (model == "offline-slow") 1000 else 100)
             onDelta(part)

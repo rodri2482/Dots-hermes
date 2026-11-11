@@ -38,7 +38,7 @@ android {
         buildConfigField("String", "DEFAULT_GATEWAY_URL", "\"${setting("DEFAULT_GATEWAY_URL", "defaultGatewayUrl", "")}\"")
         // Dépôt GitHub dont les releases mettent l'app à jour (« owner/repo ») ; vide = pas de mise à jour
         // intégrée. La CI y met le dépôt qui publie : un fork ne propose donc que ses propres releases.
-        buildConfigField("String", "UPDATE_REPO", "\"${setting("UPDATE_REPO", "updateRepo", "")}\"")
+        buildConfigField("String", "UPDATE_REPO", "\"${setting("UPDATE_REPO", "updateRepo", "rodri2482/Dots-hermes")}\"")
     }
 
     signingConfigs {
@@ -64,7 +64,11 @@ android {
             }
         }
         release {
-            isMinifyEnabled = false
+            // R8 : code réduit et optimisé, ressources inutilisées retirées (règles : proguard-rules.pro).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // Vérification locale d'une release réduite à côté de l'app installée (-PreleaseIdSuffix=.r8check).
+            providers.gradleProperty("releaseIdSuffix").orNull?.let { applicationIdSuffix = it }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Sans signature propriétaire, la vérification ci-dessous bloque tout APK/AAB release.
             signingConfig = signingConfigs.findByName("release")

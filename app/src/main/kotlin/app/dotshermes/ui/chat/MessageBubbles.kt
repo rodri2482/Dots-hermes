@@ -34,6 +34,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -141,6 +143,23 @@ private fun receiptLabel(message: ChatMessage): String = if (message.failed) str
 }
 
 /**
+ * Texte d'une réponse qui arrive : les mots tombent par paquets (réseau), on les déroule à
+ * l'écran image par image, en rattrapant vite les gros paquets. Une réponse déjà là s'affiche d'un coup.
+ */
+@Composable
+private fun rememberRevealed(message: ChatMessage, text: String): String {
+    var shown by remember(message.id) { mutableIntStateOf(if (message.streaming) 0 else Int.MAX_VALUE) }
+    LaunchedEffect(message.id, text) {
+        while (shown < text.length) {
+            withFrameNanos { }
+            val remaining = text.length - shown
+            shown += (remaining / 5).coerceIn(1, 64)
+        }
+    }
+    return if (shown >= text.length) text else text.substring(0, shown)
+}
+
+/**
  * Bulle de texte. Les coins côté auteur se resserrent quand les bulles sont groupées (façon iMessage).
  * Appui long : barre de réactions ; double tap : ❤️ direct.
  */
@@ -230,7 +249,7 @@ private fun TextBubble(
                     if (fromUser) {
                         Text(text, style = MaterialTheme.typography.bodyLarge, color = ink)
                     } else {
-                        MarkdownText(text, ink = ink, link = palette.deep)
+                        MarkdownText(rememberRevealed(message, text), ink = ink, link = palette.deep)
                     }
                 }
             }
