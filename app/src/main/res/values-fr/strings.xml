@@ -266,7 +266,7 @@
     <string name="notif_approval_approving">Approbation…</string>
     <string name="notif_approval_declining">Refus…</string>
     <string name="notif_approval_sending">Envoi de ta décision à %1$s</string>
-    <string name="notif_approval_approved">Approuvé ✓</string>
+    <string name="notif_approval_approved">Approuvé</string>
     <string name="notif_approval_declined">Refusé</string>
     <string name="notif_approval_approved_text">%1$s continue.</string>
     <string name="notif_approval_declined_text">%1$s n\'exécutera pas la commande.</string>
@@ -437,6 +437,22 @@ Colle une clé API Groq pour commencer.</string>
     <string name="texting_hint">Claydot trouve les gens dans tes contacts et leur écrit pour toi. Tu vois et tu approuves chaque message avant qu\'il parte.</string>
     <string name="texting_on">Activé. Tu approuves chaque message avant l\'envoi.</string>
     <string name="texting_allow">Autoriser contacts et messages</string>
+    <string name="doing_memory">Je mémorise…</string>
+    <string name="doing_wait">Attente de %1$d s…</string>
+    <string name="doing_voice">J\'écoute ton vocal…</string>
+    <string name="doing_message">J\'envoie un message…</string>
+    <string name="doing_alarm">Je règle un réveil…</string>
+    <string name="doing_timer">Je lance un minuteur…</string>
+    <string name="doing_app">J\'ouvre une app…</string>
+    <string name="doing_calendar">Je prépare un événement…</string>
+    <string name="doing_music">Je mets la musique…</string>
+    <string name="doing_routine">Je gère les routines…</string>
+    <string name="doing_screen">J\'utilise ton écran…</string>
+    <string name="doing_news">Je lis l\'actualité…</string>
+    <string name="doing_image">Je cherche une image…</string>
+    <string name="doing_web">Je cherche sur le web…</string>
+    <string name="doing_phone">Je regarde le téléphone…</string>
+    <string name="doing_mail">Je lis Gmail…</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

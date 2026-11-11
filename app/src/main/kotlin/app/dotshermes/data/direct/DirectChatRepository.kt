@@ -93,7 +93,7 @@ class DirectChatRepository(
                 "(name, preferences, people, projects, routines). Only when the user shares something worth keeping or asks you to remember. " +
                 "One fact per call, written in third person, e.g. 'Prefers to be called Rodri'.", "fact"))
             .put(memoryFn("forget", "Delete a saved fact about the user, given its exact text from the memory list.", "fact"))
-        override fun label(call: ApiToolCall) = "🧠…"
+        override fun label(call: ApiToolCall) = ToolKeys.of("memory")
         override suspend fun run(call: ApiToolCall): String {
             val fact = (try { org.json.JSONObject(call.arguments.ifBlank { "{}" }).optString("fact") } catch (_: org.json.JSONException) { "" })
                 .trim().replace(Regex("\\s+"), " ").take(MAX_FACT_CHARS)
@@ -305,7 +305,7 @@ class DirectChatRepository(
                 // Une courte attente ne se fait qu'en pleine tâche ; sur un premier envoi, le délai s'affiche avec « Réessayer ».
                 if (round == 0 || e.retryAfterSeconds !in 1..SHORT_WAIT_S) throw e
                 val wait = e.retryAfterSeconds.coerceAtLeast(2)
-                synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working("⏳ ${wait}s…") }
+                synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working(ToolKeys.of("wait", wait)) }
                 kotlinx.coroutines.delay(wait * 1_000 + 300)
             }
             }
@@ -735,7 +735,7 @@ internal class ReactionTag {
 private const val MAX_TOOL_ROUNDS = 12
 
 /** Libellé de l'en-tête pendant la transcription ; neutre, pour les deux langues. */
-private const val VOICE_LABEL = "🎙…"
+private val VOICE_LABEL = ToolKeys.of("voice")
 
 /** Seuls les tours complets sont rejoués ; un prompt arrêté/interrompu ne repart pas implicitement. */
 internal fun completedContext(entries: List<DirectEntry>): List<ApiTurn> {

@@ -30,7 +30,7 @@ class WebTools(private val http: OkHttpClient = defaultClient) : DirectTools {
             "helps (a person, place, food, animal, product, landmark, how something looks). One picture per reply.",
             JSONObject().put("query", str("What to show, e.g. 'Davido', 'jollof rice', 'Eiffel Tower at night'")), "query"))
 
-    override fun label(call: ApiToolCall) = when (call.name) { "get_news" -> "📰…"; "show_image" -> "🖼…"; else -> "🌐…" }
+    override fun label(call: ApiToolCall) = when (call.name) { "get_news" -> ToolKeys.of("news"); "show_image" -> ToolKeys.of("image"); else -> ToolKeys.of("web") }
 
     override suspend fun run(call: ApiToolCall): String = withContext(Dispatchers.IO) {
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }

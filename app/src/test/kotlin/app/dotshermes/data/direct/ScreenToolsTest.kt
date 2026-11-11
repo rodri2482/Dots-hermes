@@ -55,7 +55,7 @@ class ScreenToolsTest {
         val screen = FakeScreen(); val asked = mutableListOf<String>()
         val t = tools(screen, answer = false, asked = asked)
         assertEquals("declined", JSONObject(t.run(call("start_screen_control", """{"goal":"Write a note"}"""))).getString("status"))
-        assertEquals(listOf("📱 Write a note"), asked)
+        assertEquals(listOf(ToolKeys.title("screen", "Write a note")), asked)
         assertTrue(t.run(call("tap", """{"id":1}""")).contains("error"))
         assertTrue(screen.actions.isEmpty())
     }

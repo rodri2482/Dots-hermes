@@ -20,8 +20,10 @@ data class TurnSummary(
     val kinds: List<ToolKind>,
     val running: Boolean,
     val answered: Boolean,
-    /** Vocal sans transcription : affiché « 🎙️ Message vocal » dans la langue du téléphone. */
+    /** Vocal sans transcription : affiché « Message vocal », avec l'icône du micro, dans la langue du téléphone. */
     val voiceNote: Boolean = false,
+    /** « voice » ou « file » : une icône devant la demande ; vide pour du texte. */
+    val media: String = "",
 )
 
 /**
@@ -48,6 +50,7 @@ fun summarizeTurns(messages: List<ChatMessage>, tools: List<ToolCall>, limit: In
                 running = calls.any { it.state == ToolState.Running },
                 answered = key in answered,
                 voiceNote = (message.content as? MessageContent.Voice)?.transcript == null && message.content is MessageContent.Voice,
+                media = when (message.content) { is MessageContent.Voice -> "voice"; is MessageContent.File -> "file"; else -> "" },
             )
         }
 }
@@ -68,7 +71,7 @@ fun isBrowsingNow(currentTools: List<ToolCall>): Boolean = currentTools.lastOrNu
 
 private fun requestLabel(content: MessageContent): String = when (content) {
     is MessageContent.Text -> content.text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim()
-    is MessageContent.Voice -> content.transcript?.let { "🎙️ $it" }.orEmpty()
-    is MessageContent.File -> content.caption.ifBlank { "📎 ${content.name}" }
+    is MessageContent.Voice -> content.transcript.orEmpty()
+    is MessageContent.File -> content.caption.ifBlank { content.name }
     else -> ""
 }

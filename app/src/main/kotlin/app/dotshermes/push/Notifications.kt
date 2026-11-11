@@ -60,11 +60,7 @@ object Notifications {
      * [title] vient du gateway pour un sous-dot (vide pour le principal, dont le nom est choisi ici).
      */
     fun showAgentMessage(context: Context, agent: String, kind: String, body: String, chat: String = MAIN_CHAT, title: String = "") {
-        val text = when (kind) {
-            "approval" -> "🔐 $body"
-            "clarify" -> "❓ $body"
-            else -> body
-        }.replace(MarkdownMarks, "")
+        val text = body.replace(MarkdownMarks, "")
         post(context, agent, alert = true, chat = chat) { style -> style.addMessage(text, System.currentTimeMillis(), sender(context, agent, chat, title)) }
     }
 

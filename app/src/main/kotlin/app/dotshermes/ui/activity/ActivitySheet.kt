@@ -177,7 +177,7 @@ private fun NowCard(agentName: String, appearance: DotAppearance, activity: Agen
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(agentName, style = MaterialTheme.typography.titleSmall, color = Ink.Primary)
-                Text(
+                app.dotshermes.ui.components.ToolStatusLine(
                     when (activity) {
                         AgentActivity.Thinking -> stringResource(R.string.status_thinking)
                         AgentActivity.Typing -> stringResource(R.string.activity_typing_reply)
@@ -266,9 +266,16 @@ private fun TurnRow(turn: TurnSummary, onHide: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 11.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             val request = turn.request.ifBlank {
-                if (turn.voiceNote) "🎙️ " + stringResource(R.string.voice_message) else stringResource(R.string.turn_untitled)
+                if (turn.voiceNote) stringResource(R.string.voice_message) else stringResource(R.string.turn_untitled)
             }
-            Text(request, style = MaterialTheme.typography.labelLarge, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Vocal ou pièce jointe : une petite icône devant, plus d'emoji.
+                when (turn.media) {
+                    "voice" -> Icon(androidx.compose.material.icons.Icons.Rounded.Mic, null, tint = Ink.Secondary, modifier = Modifier.size(14.dp).padding(end = 2.dp))
+                    "file" -> Icon(androidx.compose.material.icons.Icons.Rounded.AttachFile, null, tint = Ink.Secondary, modifier = Modifier.size(14.dp).padding(end = 2.dp))
+                }
+                Text(request, style = MaterialTheme.typography.labelLarge, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             val parts = listOfNotNull(
                 relative(turn.at),
                 if (turn.toolCount > 0) pluralStringResource(R.plurals.tool_actions, turn.toolCount, turn.toolCount) else null,

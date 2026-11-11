@@ -265,7 +265,7 @@
     <string name="notif_approval_approving">Approving…</string>
     <string name="notif_approval_declining">Declining…</string>
     <string name="notif_approval_sending">Sending your decision to %1$s</string>
-    <string name="notif_approval_approved">Approved ✓</string>
+    <string name="notif_approval_approved">Approved</string>
     <string name="notif_approval_declined">Declined</string>
     <string name="notif_approval_approved_text">%1$s is carrying on.</string>
     <string name="notif_approval_declined_text">%1$s won\'t run the command.</string>
@@ -430,6 +430,22 @@ Paste a Groq API key to get started.</string>
     <string name="texting_hint">Claydot finds people in your contacts and texts them for you. You see and approve every message before it goes.</string>
     <string name="texting_on">On. You approve every message before it is sent.</string>
     <string name="texting_allow">Allow contacts and texting</string>
+    <string name="doing_memory">Remembering…</string>
+    <string name="doing_wait">Waiting %1$d s…</string>
+    <string name="doing_voice">Listening to your voice note…</string>
+    <string name="doing_message">Sending a message…</string>
+    <string name="doing_alarm">Setting an alarm…</string>
+    <string name="doing_timer">Starting a timer…</string>
+    <string name="doing_app">Opening an app…</string>
+    <string name="doing_calendar">Preparing an event…</string>
+    <string name="doing_music">Playing music…</string>
+    <string name="doing_routine">Managing routines…</string>
+    <string name="doing_screen">Using your screen…</string>
+    <string name="doing_news">Reading the news…</string>
+    <string name="doing_image">Finding a picture…</string>
+    <string name="doing_web">Searching the web…</string>
+    <string name="doing_phone">Checking your phone…</string>
+    <string name="doing_mail">Reading Gmail…</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

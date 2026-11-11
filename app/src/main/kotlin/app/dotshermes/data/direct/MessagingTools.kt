@@ -37,7 +37,7 @@ class MessagingTools(
         .put(fn("send_whatsapp", "Send a WhatsApp message. The user approves the exact text first; WhatsApp opens briefly to send it.",
             JSONObject().put("to", str("Contact name or phone number with country code")).put("text", str("The message")), "to", "text"))
 
-    override fun label(call: ApiToolCall) = "💬…"
+    override fun label(call: ApiToolCall) = ToolKeys.of("message")
 
     override suspend fun run(call: ApiToolCall): String {
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }
@@ -51,7 +51,7 @@ class MessagingTools(
                 if (!granted(Manifest.permission.SEND_SMS)) return needs("sms")
                 val (name, number) = resolve(args.optString("to")) ?: return err("no contact or number found for '${args.optString("to")}'")
                 val text = args.optString("text").trim().take(1_000).ifEmpty { return err("text is required") }
-                if (!confirm("💬 SMS → $name", text)) return declined()
+                if (!confirm(ToolKeys.title("sms", "SMS → $name"), text)) return declined()
                 withContext(Dispatchers.IO) {
                     @Suppress("DEPRECATION")
                     val sms = (if (android.os.Build.VERSION.SDK_INT >= 31) context.getSystemService(SmsManager::class.java) else SmsManager.getDefault())
@@ -69,7 +69,7 @@ class MessagingTools(
                 val (name, number) = resolve(to) ?: (to to "")
                 if (name.isEmpty()) return err("who should get the message?")
                 if (number.isEmpty() && screen()?.connected() != true) return err("no number found for '$to' and screen control is off")
-                if (!confirm("🟢 WhatsApp → $name", text)) return declined()
+                if (!confirm(ToolKeys.title("whatsapp", "WhatsApp → $name"), text)) return declined()
                 if (number.isEmpty()) return withContext(Dispatchers.Main) { whatsAppBySearch(pkg, name, text) }
                 sendWhatsApp(pkg, name, international(number), text)
             }

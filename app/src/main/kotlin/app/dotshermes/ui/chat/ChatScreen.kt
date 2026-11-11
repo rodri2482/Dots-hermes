@@ -475,11 +475,10 @@ private fun ChatHeader(
                 transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
                 label = "status",
             ) { label ->
-                Text(
+                app.dotshermes.ui.components.ToolStatusLine(
                     label,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (activity == AgentActivity.Idle || activity == AgentActivity.Reacting) Ink.Secondary else palette.deep,
-                    maxLines = 1,
                 )
             }
         }

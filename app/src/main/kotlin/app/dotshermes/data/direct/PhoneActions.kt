@@ -84,7 +84,9 @@ class PhoneActions(
     }
 
     override fun label(call: ApiToolCall) = when (call.name) {
-        "set_alarm" -> "⏰…"; "set_timer" -> "⏱…"; "open_app" -> "📱…"; "add_calendar_event" -> "📅…"; "play_music", "media_control" -> "🎵…"; else -> "…"
+        "set_alarm" -> ToolKeys.of("alarm"); "set_timer" -> ToolKeys.of("timer"); "open_app" -> ToolKeys.of("app")
+        "add_calendar_event" -> ToolKeys.of("calendar"); "play_music", "media_control" -> ToolKeys.of("music"); "phone_info" -> ToolKeys.of("phone")
+        else -> ToolKeys.of("phone")
     }
 
     override suspend fun run(call: ApiToolCall): String {
@@ -125,7 +127,7 @@ class PhoneActions(
             val hour = a.optInt("hour", -1).also { require(it in 0..23) { "hour must be 0-23" } }
             val minute = a.optInt("minute", -1).also { require(it in 0..59) { "minute must be 0-59" } }
             val label = a.optString("label").take(80)
-            Plan("⏰ %02d:%02d".format(hour, minute), label, Intent(AlarmClock.ACTION_SET_ALARM)
+            Plan(ToolKeys.title("alarm", "%02d:%02d".format(hour, minute)), label, Intent(AlarmClock.ACTION_SET_ALARM)
                 .putExtra(AlarmClock.EXTRA_HOUR, hour).putExtra(AlarmClock.EXTRA_MINUTES, minute)
                 .apply { if (label.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, label) }
                 .putExtra(AlarmClock.EXTRA_SKIP_UI, true))
@@ -133,7 +135,7 @@ class PhoneActions(
         "set_timer" -> {
             val seconds = a.optInt("seconds", 0).also { require(it in 1..86_400) { "seconds must be 1-86400" } }
             val label = a.optString("label").take(80)
-            Plan("⏱ ${formatDuration(seconds)}", label, Intent(AlarmClock.ACTION_SET_TIMER)
+            Plan(ToolKeys.title("timer", formatDuration(seconds)), label, Intent(AlarmClock.ACTION_SET_TIMER)
                 .putExtra(AlarmClock.EXTRA_LENGTH, seconds)
                 .apply { if (label.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, label) }
                 .putExtra(AlarmClock.EXTRA_SKIP_UI, true))
@@ -141,7 +143,7 @@ class PhoneActions(
         "open_app" -> {
             val wanted = a.optString("name").trim().also { require(it.isNotEmpty()) { "name is required" } }
             val app = findApp(wanted) ?: throw IllegalArgumentException("No installed app is called '$wanted'.")
-            Plan("📱 ${app.first}", "", app.second)
+            Plan(ToolKeys.title("app", app.first), "", app.second)
         }
         "add_calendar_event" -> {
             val title = a.optString("title").trim().take(120).also { require(it.isNotEmpty()) { "title is required" } }
@@ -149,7 +151,7 @@ class PhoneActions(
             val end = parseLocal(a.optString("end"))?.takeIf { it.isAfter(start) } ?: start.plusHours(1)
             val location = a.optString("location").take(120)
             val zone = ZoneId.systemDefault()
-            Plan("📅 $title", start.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)) +
+            Plan(ToolKeys.title("calendar", title), start.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)) +
                 (if (location.isNotBlank()) " · $location" else ""),
                 Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
                     .putExtra(CalendarContract.Events.TITLE, title)

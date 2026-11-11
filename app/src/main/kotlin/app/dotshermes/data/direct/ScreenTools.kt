@@ -86,14 +86,14 @@ class ScreenTools(
             .put("enum", JSONArray().put("back").put("home").put("recents").put("notifications").put("enter"))), "key"))
         .put(fn("launch_app", "Open an installed app by its name.", JSONObject().put("name", str("App name as on the home screen")), "name"))
 
-    override fun label(call: ApiToolCall) = "📱…"
+    override fun label(call: ApiToolCall) = ToolKeys.of("screen")
 
     override suspend fun run(call: ApiToolCall): String {
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }
         if (!driver.connected()) return err("screen control is off: the user must turn on Claydot in Android's accessibility settings")
         if (call.name == "start_screen_control") {
             val goal = args.optString("goal").trim().take(200).ifEmpty { return err("goal is required") }
-            if (!confirm("📱 $goal", consent())) return JSONObject().put("status", "declined").toString()
+            if (!confirm(ToolKeys.title("screen", goal), consent())) return JSONObject().put("status", "declined").toString()
             grantedUntil = clockMs() + grantMs
             driver.showActive(true)
             return JSONObject().put("status", "granted").put("minutes", grantMs / 60_000).toString()

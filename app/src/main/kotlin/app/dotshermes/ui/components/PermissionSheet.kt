@@ -65,8 +65,18 @@ fun PermissionSheet(title: String, detail: String, appearance: DotAppearance, on
                 Spacer(Modifier.height(10.dp))
                 Text(stringResource(R.string.phone_confirm_title), style = MaterialTheme.typography.labelLarge, color = Ink.Secondary)
                 Spacer(Modifier.height(4.dp))
-                Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), color = Ink.Primary,
-                    textAlign = TextAlign.Center)
+                // L'action en gros, avec son icône (réveil, SMS, écran…) au lieu d'un emoji.
+                val (iconKey, text) = app.dotshermes.data.direct.ToolKeys.splitTitle(title)
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    iconKey?.let(::toolIcon)?.let { icon ->
+                        Box(Modifier.size(30.dp).background(palette.light, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                            androidx.compose.material3.Icon(icon, null, tint = palette.deep, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.size(8.dp))
+                    }
+                    Text(text, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), color = Ink.Primary,
+                        textAlign = TextAlign.Center)
+                }
                 if (detail.isNotBlank()) {
                     Spacer(Modifier.height(14.dp))
                     Text(detail, style = MaterialTheme.typography.bodyMedium, color = Ink.Primary,

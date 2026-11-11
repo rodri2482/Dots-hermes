@@ -39,7 +39,7 @@ class GmailTools(private val gmail: GmailAccess) : DirectTools {
                 .put("id", JSONObject().put("type", "string").put("description", "Message id from search_gmail")))
                 .put("required", JSONArray().put("id"))))
 
-    override fun label(call: ApiToolCall) = "Gmail…"
+    override fun label(call: ApiToolCall) = ToolKeys.of("mail")
 
     override suspend fun run(call: ApiToolCall): String {
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }

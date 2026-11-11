@@ -146,11 +146,11 @@ class RoutineWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val store = AppContainer.routines
         val routine = store.get(id)?.takeIf { it.enabled } ?: return Result.success()
         val repo = AppContainer.agents.repo(routine.accountId) as? DirectChatRepository
-        val reply = repo?.runRoutine("⏰ ${routine.name}: ${routine.prompt}")
+        val reply = repo?.runRoutine("${routine.name}: ${routine.prompt}")
         if (reply == null && runAttemptCount < 2) return Result.retry()
         val text = reply?.takeIf { it.isNotBlank() } ?: "Couldn't run this routine (no connection or the account is busy)."
         store.recordRun(id, text)
-        Notifications.showAgentMessage(applicationContext, routine.accountId, "message", "⏰ ${routine.name}\n$text")
+        Notifications.showAgentMessage(applicationContext, routine.accountId, "message", "${routine.name}\n$text")
         store.get(id)?.let { schedule(applicationContext, it) }
         return Result.success()
     }
@@ -193,7 +193,7 @@ class RoutineTools(
         .put(fn("list_routines", "List the user's routines with their schedule and last result.", JSONObject()))
         .put(fn("delete_routine", "Delete a routine by id (from list_routines).", JSONObject().put("id", str("Routine id")), "id"))
 
-    override fun label(call: ApiToolCall) = "⏰…"
+    override fun label(call: ApiToolCall) = ToolKeys.of("routine")
 
     override suspend fun run(call: ApiToolCall): String {
         val account = accountId() ?: return err("no account")
@@ -205,7 +205,7 @@ class RoutineTools(
                 if (days.isEmpty()) return err("days not understood")
                 val routine = Routine(UUID.randomUUID().toString().take(8), account, args.optString("name").trim().take(60).ifEmpty { "Routine" },
                     args.optString("prompt").trim().take(600).ifEmpty { return err("prompt is required") }, minute, days)
-                if (!confirm("⏰ ${routine.name}", "${routine.scheduleLabel()}\n${routine.prompt}")) return JSONObject().put("status", "cancelled").toString()
+                if (!confirm(ToolKeys.title("routine", routine.name), "${routine.scheduleLabel()}\n${routine.prompt}")) return JSONObject().put("status", "cancelled").toString()
                 store.add(routine)
                 JSONObject().put("status", "created").put("id", routine.id).put("schedule", routine.scheduleLabel()).toString()
             }
@@ -217,7 +217,7 @@ class RoutineTools(
             }).toString()
             "delete_routine" -> {
                 val r = store.get(args.optString("id"))?.takeIf { it.accountId == account } ?: return err("no routine with that id")
-                if (!confirm("🗑 ${r.name}", r.scheduleLabel())) return JSONObject().put("status", "cancelled").toString()
+                if (!confirm(ToolKeys.title("delete", r.name), r.scheduleLabel())) return JSONObject().put("status", "cancelled").toString()
                 store.delete(r.id)
                 JSONObject().put("status", "deleted").toString()
             }
