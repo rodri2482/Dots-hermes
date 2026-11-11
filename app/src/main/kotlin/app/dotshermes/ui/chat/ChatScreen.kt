@@ -1,12 +1,6 @@
 package app.dotshermes.ui.chat
 
 import androidx.compose.animation.AnimatedContent
-import dev.chrisbanes.haze.HazeProgressive
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -258,25 +252,12 @@ fun ChatScreen(
     // Hauteur mesurée de l'en-tête flottant : le fil commence juste dessous, puis défile sous son dégradé.
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerHeight = with(LocalDensity.current) { headerHeightPx.toDp() }
-    // Verre dépoli : le fil (et son dégradé) est flouté sous l'en-tête au lieu d'être simplement masqué.
-    val haze = rememberHazeState()
-
-    // Confettis quand une bulle reçoit 🎉 pendant qu'on regarde (pas pour les fêtes déjà dans l'historique).
-    val partyIds = state.rows.mapNotNull { (it as? ChatRow.Bubble)?.message?.takeIf { m -> m.reactions.values.any { r -> r == "🎉" } }?.id }.toSet()
-    val seenParty = remember { mutableStateOf<Set<String>?>(null) }
-    var confetti by remember { mutableIntStateOf(0) }
-    LaunchedEffect(partyIds) {
-        val before = seenParty.value
-        if (before != null && (partyIds - before).isNotEmpty()) confetti++
-        seenParty.value = partyIds
-    }
 
     Box(Modifier.fillMaxSize().background(Ink.Surface)
         .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.displayCutout.only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal))) {
+        Box(Modifier.fillMaxWidth().height(320.dp).background(Brush.verticalGradient(listOf(palette.light, Ink.Surface))))
         Column(Modifier.fillMaxSize().imePadding()) {
           Box(Modifier.weight(1f).fillMaxWidth()) {
-           Box(Modifier.fillMaxSize().hazeSource(haze)) {
-            Box(Modifier.fillMaxWidth().height(320.dp).background(Brush.verticalGradient(listOf(palette.light, Ink.Surface))))
             LazyColumn(
                 state = listState,
                 reverseLayout = true,
@@ -315,18 +296,9 @@ fun ChatScreen(
                     }
                 }
             }
-           }
-            ConfettiBurst(confetti, Modifier.matchParentSize())
             ChatHeader(
                 state.agentName, state.activity, connection, appearance, onOpenAgent,
-                Modifier.onSizeChanged { headerHeightPx = it.height }.hazeEffect(haze, HazeStyle(
-                    backgroundColor = Ink.Surface, tints = listOf(HazeTint(Ink.Surface.copy(alpha = 0.62f))), blurRadius = 18.dp,
-                    // Avant Android 12 il n'y a pas de flou : un voile presque opaque garde l'en-tête lisible.
-                    fallbackTint = HazeTint(Ink.Surface.copy(alpha = 0.94f)),
-                )) {
-                    // Flou franc sous la barre d'état, qui s'évanouit vers le bas, comme l'ancien dégradé.
-                    progressive = HazeProgressive.verticalGradient(startIntensity = 1f, endIntensity = 0f)
-                },
+                Modifier.onSizeChanged { headerHeightPx = it.height },
                 onOpenActivity = onOpenActivity,
                 gatewayFeatures = gatewayFeatures,
                 otherUnread = otherUnread,
@@ -444,6 +416,7 @@ private fun ChatHeader(
         modifier
             .fillMaxWidth()
             // Blanc franc sous la barre d'état, qui s'évanouit vers le bas : les messages passent dessous.
+            .background(Brush.verticalGradient(0f to Ink.Surface, 0.8f to Ink.Surface, 1f to Ink.Surface.copy(alpha = 0f)))
             .statusBarsPadding()
             .padding(top = 4.dp, bottom = 22.dp),
     ) {

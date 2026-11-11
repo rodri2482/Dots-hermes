@@ -16,8 +16,6 @@ mlkitBarcode = "17.3.0"
 playServicesAuth = "22.0.0"
 markdownRenderer = "0.30.0"
 exifinterface = "1.4.2"
-# 1.7.1 : la dernière qui suit Compose 1.11 (2.x demande Compose 1.12, donc compileSdk 37).
-haze = "1.7.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,7 +45,6 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 markdown-renderer-m3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3-android", version.ref = "markdownRenderer" }
 markdown-renderer-code = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-code-android", version.ref = "markdownRenderer" }
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
-haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 
 [plugins]
