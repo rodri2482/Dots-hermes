@@ -202,9 +202,12 @@ class DirectChatRepository(
     private fun available(id: String) = (exhausted[id] ?: 0L) <= clockMs()
 
     /** Un autre modèle Groq qui a encore du quota : les larges d'abord, puis le reste de la liste du compte. */
-    private suspend fun nextGroqModel(key: String, current: String): String? {
+    private suspend fun nextGroqModel(key: String, current: String, vision: Boolean = false): String? {
         val ids = groqModels(key)
-        return (AgentModels + FallbackModels + ids).distinct().firstOrNull { it in ids && it != current && available(it) }
+        // Une photo dans le message : seul un modèle qui voit les images peut le reprendre (sinon erreur 400).
+        return (AgentModels + FallbackModels + ids).distinct().firstOrNull {
+            it in ids && it != current && available(it) && (!vision || visionModel(listOf(it)) != null)
+        }
     }
 
     /** Quota épuisé mais une autre voie existe (autre modèle Groq, modèle du téléphone) : on n'empêche pas d'écrire. */
@@ -284,7 +287,7 @@ class DirectChatRepository(
             var callProvider = provider
             var callKey = key
             if (provider == ApiProvider.Groq && !available(turnModel)) {
-                val next = nextGroqModel(key, turnModel)
+                val next = nextGroqModel(key, turnModel, vision = turns.lastOrNull()?.image != null)
                 val local = if (next == null) localFallback() else null
                 when {
                     next != null -> turnModel = next
@@ -332,16 +335,24 @@ class DirectChatRepository(
             break
             } catch (e: ApiException) {
                 // Modèle choisi qui ne sait pas appeler d'outils : la tâche continue avec un modèle qui sait.
-                if (e.failure == ApiFailure.InvalidRequest && offered != null && callProvider == ApiProvider.Groq && attempt < 3) {
-                    val agent = agentModel(key)?.takeIf { it != turnModel }
-                    if (agent != null) { attempt++; turnModel = agent; continue }
+                // Requête refusée (le plus souvent « tool_use_failed » : le modèle a mal écrit un appel d'outil,
+                // ou un modèle qui ne sait pas appeler d'outils) : on reprend avec un autre modèle Groq, puis,
+                // en dernier recours, sans outils, pour que l'utilisateur ait au moins une réponse.
+                if (e.failure == ApiFailure.InvalidRequest && callProvider == ApiProvider.Groq && attempt < 4) {
+                    attempt++
+                    val photo = turns.lastOrNull()?.image != null
+                    val next = if (attempt >= 4) null
+                        else agentModel(key)?.takeIf { it != turnModel && available(it) && (!photo || visionModel(listOf(it)) != null) }
+                            ?: nextGroqModel(key, turnModel, vision = photo)
+                    if (next != null) { turnModel = next; continue }
+                    if (offered != null) { offered = null; continue }
                 }
                 // Quota d'un modèle épuisé : on le note et on passe à un autre modèle Groq qui en a encore,
                 // puis au modèle du téléphone ; on n'attend qu'en dernier recours.
                 if (e.failure != ApiFailure.RateLimited || attempt >= 8 || callProvider != ApiProvider.Groq) throw e
                 attempt++
                 exhausted[turnModel] = clockMs() + e.retryAfterSeconds.coerceAtLeast(20) * 1_000
-                val next = nextGroqModel(key, turnModel)
+                val next = nextGroqModel(key, turnModel, vision = turns.lastOrNull()?.image != null)
                 if (next != null) { turnModel = next; continue }
                 val local = localFallback()
                 if (local != null) {

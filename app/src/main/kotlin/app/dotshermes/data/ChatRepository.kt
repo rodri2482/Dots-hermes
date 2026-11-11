@@ -24,10 +24,10 @@ private val NoSpeaker: StateFlow<String?> = MutableStateFlow<String?>(null).asSt
 private val NoUsage: StateFlow<UsageWindow?> = MutableStateFlow<UsageWindow?>(null).asStateFlow()
 
 /**
- * Seul point de contact entre l'interface et l'agent Hermes.
+ * Seul point de contact entre l'interface et le compte affiché.
  *
- * Implémentations : [app.dotshermes.data.gateway.GatewayChatRepository] (WebSocket vers le
- * plugin « dots » du gateway) et [app.dotshermes.data.direct.DirectChatRepository] (compte API direct),
+ * Implémentations : [app.dotshermes.data.direct.DirectChatRepository] (clé Groq ou modèle du téléphone)
+ * et [UnpairedChatRepository] (aucun compte encore),
  * aiguillées par [RoutingChatRepository].
  */
 interface ChatRepository {

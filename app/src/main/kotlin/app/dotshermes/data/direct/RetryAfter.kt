@@ -1,11 +1,11 @@
-package app.dotshermes.data.gateway
+package app.dotshermes.data.direct
 
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
 /** Retry-After (secondes ou date HTTP) ne raccourcit jamais le backoff local. */
-internal fun gatewayRetryDelayMs(backoffMs: Long, retryAfter: String?, nowMs: Long): Long {
+internal fun retryDelayMs(backoffMs: Long, retryAfter: String?, nowMs: Long): Long {
     val header = retryAfter?.trim().orEmpty()
     val serverDelay = if (header.isNotEmpty() && header.all { it in '0'..'9' }) {
         // Un délai immense doit rester une attente, jamais déborder vers une reconnexion immédiate.

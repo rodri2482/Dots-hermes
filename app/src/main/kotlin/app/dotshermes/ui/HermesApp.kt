@@ -39,11 +39,7 @@ import app.dotshermes.ui.chat.VoiceControls
 import app.dotshermes.ui.chat.AttachmentControls
 import app.dotshermes.ui.activity.ActivitySheet
 import app.dotshermes.ui.screen.ScreenViewer
-import app.dotshermes.ui.connect.ConnectScreen
 import app.dotshermes.ui.agents.AgentMenu
-import app.dotshermes.ui.webpair.WebPairScreen
-import app.dotshermes.ui.webpair.WebPairViewModel
-import app.dotshermes.ui.webpair.WebSessionsSheet
 import app.dotshermes.ui.theme.DotsTheme
 import androidx.compose.ui.res.stringResource
 import app.dotshermes.R
@@ -87,14 +83,6 @@ fun HermesApp(
     var activityOpen by rememberSaveable { mutableStateOf(false) }
     var screenOpen by rememberSaveable { mutableStateOf(false) }
     var screenTakeover by rememberSaveable { mutableStateOf(false) }
-    // App web : scanner du QR code d'un navigateur, et liste des navigateurs appairés.
-    var webPairOpen by rememberSaveable { mutableStateOf(false) }
-    var webSessionsOpen by rememberSaveable { mutableStateOf(false) }
-    val webPair: WebPairViewModel = viewModel { WebPairViewModel(AppContainer.agents, AppContainer.webPairer) }
-    fun openWebPair() {
-        webPair.reset()
-        webPairOpen = true
-    }
     val look by viewModel.activeLook.collectAsStateWithLifecycle()
     val dots by viewModel.dots.collectAsStateWithLifecycle()
     val activeChat by viewModel.activeChat.collectAsStateWithLifecycle()
@@ -138,10 +126,8 @@ fun HermesApp(
 
     // Statistiques d'usage : l'écran au premier plan (le plus haut des panneaux ouverts).
     val analyticsScreen = when {
-        webPairOpen -> "web_pair"
         screenOpen -> "live_screen"
         activityOpen -> "activity"
-        webSessionsOpen -> "web_sessions"
         agentSheetOpen -> if (creatingDot || look.subDot != null) "dot_editor" else "agent_settings"
         agentMenuOpen -> "agent_menu"
         connection !is ConnectionState.Connected -> "connect"
@@ -242,7 +228,7 @@ fun HermesApp(
                 app.dotshermes.ui.connect.AccountConnectScreen(
                     initialProvider = editor.provider, initialModel = editor.model,
                     onRemove = if (addingAgent) null else editor.accountId?.let { id -> ({ deletingAccount = id }) },
-                    editing = !addingAgent && editor.accountId != null && editor.provider != "hermes",
+                    editing = !addingAgent && editor.accountId != null,
                     onCancelEdit = viewModel::cancelEditDirect,
                     recoveryFailure = requestIssue?.failure?.takeIf { it in setOf(
                         app.dotshermes.data.direct.ApiFailure.MissingKey,
@@ -253,8 +239,6 @@ fun HermesApp(
                     onDirect = { provider, model, key -> viewModel.connectApi(editor.key, provider, model, key) },
                     connection = connection,
                     appearance = appearance,
-                    initialUrl = editor.gatewayUrl.ifBlank { app.dotshermes.BuildConfig.DEFAULT_GATEWAY_URL },
-                    onConnect = { url, token -> viewModel.connect(url, token, editor.key) },
                     adding = addingAgent,
                     onCancelAdd = viewModel::cancelAddAgent,
                     otherAgents = agentList.filter { it.id != activeAgent && it.connection is ConnectionState.Connected },
@@ -268,7 +252,7 @@ fun HermesApp(
 
 
         deletingAccount?.let { id ->
-            val server = viewModel.isGatewayAccount(id)
+            val server = false
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { deletingAccount = null },
                 title = { androidx.compose.material3.Text(stringResource(if (server) R.string.server_delete_title else R.string.api_delete_account)) },
@@ -428,14 +412,6 @@ fun HermesApp(
                             viewModel.addAgent()
                         },
                         multipleAgents = agentList.size > 1,
-                        onConnectBrowser = {
-                            agentSheetOpen = false
-                            openWebPair()
-                        },
-                        onBrowserSessions = {
-                            agentSheetOpen = false
-                            webSessionsOpen = true
-                        },
                     )
                 }
             }
@@ -452,24 +428,7 @@ fun HermesApp(
                     viewModel.addAgent()
                 },
                 onDismiss = { agentMenuOpen = false },
-                onConnectBrowser = if (viewModel.hasGatewayAccounts()) ({
-                    agentMenuOpen = false
-                    openWebPair()
-                }) else null,
             )
-        }
-        if (webSessionsOpen) {
-            WebSessionsSheet(
-                viewModel = webPair,
-                onConnectBrowser = {
-                    webSessionsOpen = false
-                    openWebPair()
-                },
-                onDismiss = { webSessionsOpen = false },
-            )
-        }
-        if (webPairOpen) {
-            WebPairScreen(webPair, appearance, onClose = { webPairOpen = false })
         }
         if (updateDialog) {
             UpdateDialog(

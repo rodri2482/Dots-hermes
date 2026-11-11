@@ -123,14 +123,8 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.androidx.work.runtime)
     implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.messaging)
-    // Statistiques d'usage (Google Analytics) : inactives, comme le push, sans google-services.json.
+    // Statistiques d'usage (Google Analytics) : inactives sans google-services.json.
     implementation(libs.firebase.analytics)
-    // Appairage de l'app web : lecture du QR code du navigateur (modèle ML Kit embarqué, sans Play Services).
-    implementation(libs.camerax.camera2)
-    implementation(libs.camerax.lifecycle)
-    implementation(libs.camerax.view)
-    implementation(libs.mlkit.barcode.scanning)
     // Gmail en lecture seule : écran d'accord de Google et jeton d'accès (API d'autorisation d'Identity).
     implementation(libs.play.services.auth)
     // Réponses en Markdown : titres, listes, tableaux, et coloration du code (mikepenz, Apache-2.0).

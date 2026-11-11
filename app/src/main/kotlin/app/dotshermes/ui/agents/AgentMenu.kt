@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -60,8 +59,6 @@ fun AgentMenu(
     /** Appairer un agent dont le gateway est déjà installé (rien n'est créé sur le serveur). */
     onAdd: () -> Unit,
     onDismiss: () -> Unit,
-    /** Ouvrir l'app web dans un navigateur : tous les agents connectés y sont transmis. */
-    onConnectBrowser: (() -> Unit)? = null,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -86,17 +83,6 @@ fun AgentMenu(
                     Icon(Icons.Rounded.Add, null, tint = LocalDotPalette.current.deep, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(16.dp))
                     Text(stringResource(R.string.agents_add_row), style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep)
-                }
-                if (onConnectBrowser != null) {
-                    Hairline(startIndent = 56.dp)
-                    Row(
-                        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onConnectBrowser).padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Rounded.QrCodeScanner, null, tint = LocalDotPalette.current.deep, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.width(16.dp))
-                        Text(stringResource(R.string.web_connect_row), style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep)
-                    }
                 }
             }
             Text(

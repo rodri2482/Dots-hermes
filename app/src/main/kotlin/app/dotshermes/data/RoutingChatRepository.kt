@@ -93,5 +93,5 @@ class RoutingChatRepository(
 
     // Présence et jeton push concernent tous les agents, pas seulement celui affiché.
     override fun setForeground(foreground: Boolean) = agents.setForeground(foreground)
-    override fun setPushToken(token: String) = agents.setPushToken(token)
+
 }

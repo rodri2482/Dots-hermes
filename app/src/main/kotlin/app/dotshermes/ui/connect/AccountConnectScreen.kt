@@ -39,12 +39,11 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun AccountConnectScreen(
-    connection: ConnectionState, appearance: DotAppearance, initialUrl: String,
+    connection: ConnectionState, appearance: DotAppearance,
     initialProvider: String, initialModel: String, onRemove: (() -> Unit)? = null,
     recoveryFailure: ApiFailure? = null,
     /** Compte direct existant en cours de modification : on peut revenir à la conversation sans rien changer. */
     editing: Boolean = false, onCancelEdit: () -> Unit = {},
-    onConnect: (String, String) -> Unit,
     onModels: suspend (ApiProvider, String) -> List<String>,
     onDirect: suspend (ApiProvider, String, String) -> ApiFailure?,
     adding: Boolean, onCancelAdd: () -> Unit, otherAgents: List<AgentSummary>, onSelectAgent: (String) -> Unit,

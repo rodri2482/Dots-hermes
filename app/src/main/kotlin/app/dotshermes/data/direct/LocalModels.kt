@@ -335,7 +335,8 @@ private class LocalTool(private val function: org.json.JSONObject) : com.google.
 
 /**
  * Garde-fous du modèle du téléphone, vérifiés avant chaque tour :
- * - chaleur (statut thermique d'Android) : tiède → réponses plus courtes et pauses ; chaud → arrêt ;
+ * - chaleur : jamais d'arrêt ni de ralentissement voulu (choix de l'utilisateur) ; Android règle lui-même
+ *   la vitesse du processeur s'il chauffe ;
  * - batterie : sous 10 % hors charge → arrêt ; sous 20 % → mode doux ;
  * - mémoire : pas de chargement si le téléphone n'a pas assez de mémoire libre.
  */
@@ -343,21 +344,15 @@ class DeviceGuard(private val context: Context) {
     enum class Mode { Normal, Gentle }
 
     fun check(modelBytes: Long, loaded: Boolean): Mode {
-        val power = context.getSystemService(android.os.PowerManager::class.java)
-        val thermal = if (Build.VERSION.SDK_INT >= 29) power?.currentThermalStatus ?: 0 else 0
-        if (thermal >= android.os.PowerManager.THERMAL_STATUS_SEVERE) throw ApiException(ApiFailure.DeviceHot, 60)
         val battery = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
         val level = battery?.let { it.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, 100) * 100 / it.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1) } ?: 100
         val charging = (battery?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
-        // Température de la batterie en dixièmes de degré : au-delà de 43 °C, on laisse refroidir.
-        val batteryTemp = (battery?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0) / 10
-        if (batteryTemp >= 43) throw ApiException(ApiFailure.DeviceHot, 60)
         if (level <= 10 && !charging) throw ApiException(ApiFailure.LowBattery)
         if (!loaded) {
             val memory = android.app.ActivityManager.MemoryInfo()
             context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(memory)
             if (memory.lowMemory || memory.availMem < modelBytes / 2 + 400_000_000L) throw ApiException(ApiFailure.LowMemory)
         }
-        return if (thermal >= android.os.PowerManager.THERMAL_STATUS_MODERATE || batteryTemp >= 40 || (level <= 20 && !charging)) Mode.Gentle else Mode.Normal
+        return if (level <= 20 && !charging) Mode.Gentle else Mode.Normal
     }
 }

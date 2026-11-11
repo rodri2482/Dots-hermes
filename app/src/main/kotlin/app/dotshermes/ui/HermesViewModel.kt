@@ -10,7 +10,6 @@ import app.dotshermes.data.AgentStore
 import app.dotshermes.data.model.AgentActivity
 import app.dotshermes.data.model.AgentProfile
 import app.dotshermes.data.model.ConnectionState
-import app.dotshermes.data.model.GatewayConfig
 import app.dotshermes.data.model.MessageContent
 import app.dotshermes.data.model.ToolState
 import app.dotshermes.data.model.SubDot
@@ -301,21 +300,6 @@ class HermesViewModel(
     fun setRoom(dots: List<String>) = repository.setRoom(dots)
 
     /**
-     * Appairage depuis l'écran de connexion : la démo ; un agent de plus (ou le premier) ; ou un
-     * nouvel appairage de l'agent affiché (jeton changé), qui garde ses conversations et ses réglages.
-     */
-    fun connect(url: String, token: String, editorKey: String) {
-        val config = GatewayConfig(url.trim(), token.trim())
-        viewModelScope.launch {
-            if (agents.connectionEditor.value.key != editorKey) return@launch
-            val active = agents.activeId.value
-            if (agents.pending.value != null || active == null || agents.store.get(active) == null) agents.connectNew(config)
-            else if (agents.store.get(active)?.provider == null) agents.reconnect(active, config)
-            else { agents.beginAdd(preserveEditor = true); agents.connectNew(config) }
-        }
-    }
-
-    /**
      * Déconnexion volontaire : on quitte la démo, ou on oublie l'agent affiché (jeton, apparence) pour
      * ne pas s'y reconnecter au lancement. Les autres agents ne sont pas touchés ; le suivant s'affiche.
      */
@@ -328,9 +312,6 @@ class HermesViewModel(
     /** Retire un tour de « Récemment » (la conversation reste intacte). */
     fun hideTurn(key: String) { agents.activeId.value?.let { agents.hideTurns(it, listOf(key)) } }
     fun clearRecent() { agents.activeId.value?.let { id -> agents.hideTurns(id, turns.value.map { it.id }) } }
-    fun isGatewayAccount(id: String): Boolean = agents.store.get(id)?.provider == null
-
-    fun hasGatewayAccounts(): Boolean = agents.store.agents.value.any { it.provider == null }
     fun isDirectAccount(): Boolean = agents.activeId.value?.let(agents.store::get)?.provider != null
     fun removeAccount(id: String) { viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
         try { agents.remove(id) }

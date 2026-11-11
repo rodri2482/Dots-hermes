@@ -2,7 +2,6 @@ package app.dotshermes.data
 
 import android.content.Context
 import androidx.core.content.edit
-import app.dotshermes.data.gateway.GatewayChatRepository
 import app.dotshermes.data.direct.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,7 +13,6 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 import app.dotshermes.data.model.AgentActivity
 import app.dotshermes.data.model.ConnectionState
-import app.dotshermes.data.model.GatewayConfig
 import app.dotshermes.ui.AppearanceStore
 import app.dotshermes.ui.displayName
 import app.dotshermes.ui.DotAppearance
@@ -46,7 +44,7 @@ data class AgentSummary(
     val id: String,
     val appearance: DotAppearance,
     val connection: ConnectionState,
-    /** Adresse de son gateway : chaque agent est un serveur (un profil Hermes) à part. */
+    /** Vide pour les comptes de Claydot (gardé pour le format des réglages). */
     val url: String,
     /** Messages non lus, toutes conversations de l'agent confondues (dot principal et sous-dots). */
     val unread: Int,
@@ -55,21 +53,15 @@ data class AgentSummary(
 )
 
 /**
- * Les agents Hermes indépendants de l'app : une connexion ([GatewayChatRepository]) et une apparence
- * par agent appairé, et celui qui est affiché.
- *
- * L'isolation vient du serveur : chaque agent est un profil Hermes à part (processus, mémoire,
- * outils, clés), joint avec son propre jeton. Ici, rien n'est partagé entre deux agents : ni
- * socket, ni état de conversation, ni cache de fichiers. Une action (message, feu vert, réponse
- * rapide) part toujours par la connexion de l'agent qu'elle vise.
+ * Les comptes de l'app (une clé API Groq, un modèle sur le téléphone) : une conversation
+ * ([DirectChatRepository]) et une apparence par compte, et celui qui est affiché. Une action
+ * (message, feu vert, réponse rapide) part toujours par le compte qu'elle vise.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AgentRegistry(
     private val context: Context,
     private val scope: CoroutineScope,
     val store: AgentStore,
-    /** Une demande de feu vert a été tranchée (ici ou ailleurs) : sa notification peut partir. */
-    private val onApprovalResolved: (agentId: String, approvalId: String) -> Unit,
     private val apiStorage: DirectAccountStorage = androidApiVault(context),
     private val providerClient: ProviderClient = RoutingProviderClient(createProviderClient(),
         LocalProviderClient(context) { app.dotshermes.AppContainer.localModels }),
@@ -83,13 +75,11 @@ class AgentRegistry(
     private val repoRevision = MutableStateFlow(0L)
     private val repos = ConcurrentHashMap<String, ChatRepository>()
     private val appearances = ConcurrentHashMap<String, AppearanceStore>()
-    private val watchers = ConcurrentHashMap<String, Job>()
 
     /** Connexion de repli quand aucun agent n'est appairé : jamais connectée, l'écran d'appairage s'affiche. */
     private val unpaired by lazy { create(UNPAIRED) }
 
     @Volatile private var foreground = true
-    @Volatile private var pushToken: String? = null
 
     /** Agent en cours d'ajout (connexion en essai, pas encore mémorisé) et celui qu'on affichait avant. */
     private val _pending = MutableStateFlow<String?>(null)
@@ -107,7 +97,8 @@ class AgentRegistry(
         _hiddenTurns.value = _hiddenTurns.value + (agentId to next)
     }
 
-    private val _activeId = MutableStateFlow(store.lastActive ?: store.agents.value.firstOrNull()?.id)
+    private val _activeId = MutableStateFlow(store.lastActive?.takeIf { store.get(it)?.provider != null }
+        ?: store.agents.value.firstOrNull { it.provider != null }?.id)
     val activeId: StateFlow<String?> = _activeId.asStateFlow()
     private val _connectionEditor = MutableStateFlow(editorFor(_activeId.value))
     val connectionEditor: StateFlow<ConnectionEditor> = _connectionEditor.asStateFlow()
@@ -124,6 +115,7 @@ class AgentRegistry(
 
 
     init {
+        store.agents.value.filter { it.provider == null }.forEach { store.remove(it.id) }
         // Un seul agent à l'écran : les autres comptent leurs messages comme non lus.
         scope.launch { _activeId.collect { active -> repos.forEach { (id, repo) -> repo.setShown(id == active) } } }
     }
@@ -157,8 +149,6 @@ class AgentRegistry(
 
     fun repo(id: String): ChatRepository = repos.getOrPut(id) { create(id) }
 
-    fun gatewayRepo(id: String): GatewayChatRepository? = repo(id) as? GatewayChatRepository
-
     fun appearance(id: String): AppearanceStore = appearances.getOrPut(id) {
         AppearanceStore(context, if (id == AgentStore.PRIMARY_ID) "appearance" else "appearance-$id")
     }
@@ -171,23 +161,8 @@ class AgentRegistry(
                 persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools,
                 imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel).apply { setShown(id == _activeId.value) }
         }
-        // L'agent historique garde son cache d'avant ; les autres ont le leur, à part.
-        val cache = if (id == AgentStore.PRIMARY_ID) File(context.cacheDir, "voice") else File(context.cacheDir, "agents/$id/voice")
-        val repo = GatewayChatRepository(context, scope, cache, onApprovalResolved = { approvalId -> onApprovalResolved(id, approvalId) })
-        repo.setForeground(foreground)
-        repo.setShown(id == _activeId.value)
-        pushToken?.let(repo::setPushToken)
-        if (id != UNPAIRED) {
-            // Le gateway donne son identifiant (routage des push) et le nom de son profil (nom par défaut).
-            watchers[id] = scope.launch {
-                repo.serverAgent.collect { agent ->
-                    if (agent == null) return@collect
-                    if (store.get(id) != null) store.setRemoteId(id, agent.id)
-                    appearance(id).adoptServerName(agent.name)
-                }
-            }
-        }
-        return repo
+        // Pas encore de compte (premier lancement, ajout en cours) : l'écran de connexion s'affiche.
+        return UnpairedChatRepository()
     }
 
     fun select(id: String) {
@@ -213,7 +188,7 @@ class AgentRegistry(
             val closed = repo.connection.value == ConnectionState.Disconnected ||
                 (repo is DirectChatRepository && repo.connection.value is ConnectionState.Connecting)
             if (closed) scope.launch {
-                if (repo is DirectChatRepository) repo.restore() else repo.connect(link.config)
+                if (repo is DirectChatRepository) repo.restore()
             }
         }
     }
@@ -238,52 +213,6 @@ class AgentRegistry(
         _activeId.value = beforePending?.takeIf { store.get(it) != null } ?: store.agents.value.firstOrNull()?.id
         _connectionEditor.value = editorFor(_activeId.value)
         beforePending = null
-    }
-
-    /**
-     * Appaire [config] : l'agent en cours d'ajout, ou le premier s'il n'y en a aucun. Mémorisé
-     * seulement si le gateway répond (welcome reçu) ; sinon l'écran montre l'erreur.
-     */
-    suspend fun connectNew(config: GatewayConfig): Boolean {
-        val id = _pending.value ?: store.newId().also {
-            beforePending = _activeId.value
-            _pending.value = it
-            _activeId.value = it
-        }
-        val revision = selectionRevision.get()
-        val repo = gatewayRepo(id) ?: return false
-        repo.connect(config)
-        if (_pending.value != id || _activeId.value != id || selectionRevision.get() != revision) return false
-        if (repo.connection.value !is ConnectionState.Connected) return false
-        // Même gateway qu'un agent déjà appairé : pas de doublon, on ouvre celui qui existe.
-        val remote = repo.serverAgent.value?.id
-        store.agents.value.firstOrNull { remote != null && it.remoteId == remote }?.let { existing ->
-            _pending.value = null
-            drop(id)
-            select(existing.id)
-            return true
-        }
-        val first = store.agents.value.isEmpty()
-        store.upsert(AgentLink(id, config.url, config.token, repo.serverAgent.value?.id))
-        repo.serverAgent.value?.let { appearance(id).adoptServerName(it.name) }
-        // À partir du deuxième agent, une autre mascotte que celles déjà prises.
-        if (!first) {
-            val taken = store.agents.value.filter { it.id != id }.map { appearance(it.id).state.value.species }.toSet()
-            appearance(id).initialize(DotSpecies.entries.firstOrNull { it !in taken } ?: DotSpecies.entries[store.agents.value.size % DotSpecies.entries.size])
-        }
-        _pending.value = null
-        select(id)
-        return true
-    }
-
-    /** Nouvel appairage d'un agent existant (jeton changé, adresse déplacée) : même conversation, mêmes réglages. */
-    suspend fun reconnect(id: String, config: GatewayConfig): Boolean {
-        val repo = gatewayRepo(id) ?: return false
-        repo.connect(config)
-        if (repo.connection.value !is ConnectionState.Connected) return false
-        store.get(id)?.let { store.upsert(it.copy(url = config.url, token = config.token, remoteId = repo.serverAgent.value?.id ?: it.remoteId)) }
-        if (_activeId.value == id && _pending.value == null) _connectionEditor.value = editorFor(id)
-        return true
     }
 
     /** Champ de clé vide pendant la modification d'un compte : la clé déjà enregistrée sert, sans jamais passer par l'interface. */
@@ -386,18 +315,12 @@ class AgentRegistry(
     }.getOrNull()
 
     private fun drop(id: String) {
-        watchers.remove(id)?.cancel()
         repos.remove(id)?.disconnect()
     }
 
     fun setForeground(foreground: Boolean) {
         this.foreground = foreground
         repos.values.forEach { it.setForeground(foreground) }
-    }
-
-    fun setPushToken(token: String) {
-        pushToken = token
-        repos.values.forEach { it.setPushToken(token) }
     }
 
     private companion object {

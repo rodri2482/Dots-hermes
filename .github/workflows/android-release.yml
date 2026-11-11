@@ -1,65 +1,63 @@
-# Publication manuelle seulement, avec confirmation explicite et signature propriétaire obligatoire.
-# Aucun push (même sur main) ne déclenche une publication.
-# Firebase reste facultatif ; les quatre secrets SIGNING_* sont obligatoires.
+# Publication d'une release Claydot signée, par GitHub (plus besoin du PC du propriétaire).
+#
+# Déclenchement : le propriétaire pousse un tag de version, depuis n'importe quelle branche :
+#   git tag -a v0.3.0.4 -m "Notes de version"   (le message du tag devient le texte de la release)
+#   git push origin v0.3.0.4
+# Le tag doit être « v<appVersionName>.N » (gradle.properties) ; versionCode = appVersionCode + N.
+# En changeant appVersionName (0.4.0…), augmenter aussi appVersionCode pour qu'il continue de croître.
+#
+# Les quatre secrets SIGNING_* (scripts/set-release-secrets.ps1) sont obligatoires : sans eux, rien
+# n'est publié. Aucun push de branche ne publie quoi que ce soit.
 name: Android release
 
 on:
-  workflow_dispatch:
-    inputs:
-      publish:
-        description: "Publish the signed Claydot release after owner device/provider acceptance"
-        required: true
-        type: boolean
-        default: false
+  push:
+    tags: ["v*"]
 
 permissions:
-  contents: write # créer le tag et la release
+  contents: write # créer la release
 
 concurrency:
-  group: android-release-${{ github.ref }}
+  group: android-release
   cancel-in-progress: false
 
 jobs:
   release:
-    if: ${{ inputs.publish && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner }}
-    environment: claydot-production
+    if: ${{ github.actor == github.repository_owner }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # pour lire le message du tag annoté
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      # Paquets explicites : la liste par défaut contient « tools », absent des cmdline-tools récents
-      # (sdkmanager échoue alors avant la compilation). Plateforme et build-tools viennent de Gradle.
+      # Paquets explicites : la liste par défaut contient « tools », absent des cmdline-tools récents.
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Version
+      - name: Version from the tag
         id: version
         run: |
-          base=$(grep '^appVersionName=' gradle.properties | cut -d= -f2)
-          # versionCode doit toujours croître : 100 + numéro d'exécution du workflow.
-          echo "VERSION_NAME=${base}.${{ github.run_number }}" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=$((100 + ${{ github.run_number }}))" >> "$GITHUB_ENV"
-          echo "name=${base}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-
-      - name: Firebase (push notifications, optional)
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            echo "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
-            echo "PUSH_STATUS=enabled (Firebase)" >> "$GITHUB_ENV"
-          else
-            echo "PUSH_STATUS=disabled (no GOOGLE_SERVICES_JSON secret)" >> "$GITHUB_ENV"
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          base=$(grep '^appVersionName=' gradle.properties | cut -d= -f2 | tr -d '\r')
+          code=$(grep '^appVersionCode=' gradle.properties | cut -d= -f2 | tr -d '\r')
+          build="${tag#v${base}.}"
+          if [ "$build" = "$tag" ] || ! [[ "$build" =~ ^[0-9]+$ ]]; then
+            echo "::error::Tag $tag must look like v${base}.N (appVersionName in gradle.properties is ${base})"
+            exit 1
           fi
+          echo "VERSION_NAME=${base}.${build}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$((code + build))" >> "$GITHUB_ENV"
+          echo "name=${base}.${build}" >> "$GITHUB_OUTPUT"
 
       - name: Require release signing
         env:
@@ -71,7 +69,7 @@ jobs:
           set -euo pipefail
           for name in SIGNING_KEYSTORE_BASE64 SIGNING_STORE_PASSWORD SIGNING_KEY_ALIAS SIGNING_KEY_PASSWORD; do
             if [ -z "${!name:-}" ]; then
-              echo "::error::Required release signing secret is missing: $name"
+              echo "::error::Required release signing secret is missing: $name (run scripts/set-release-secrets.ps1)"
               exit 1
             fi
           done
@@ -79,39 +77,50 @@ jobs:
           printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           test -s "$RUNNER_TEMP/release.jks"
           echo "SIGNING_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-          echo "SIGNING_STATUS=release key" >> "$GITHUB_ENV"
 
       - name: Tests and release build
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-          DEFAULT_GATEWAY_URL: ${{ vars.DEFAULT_GATEWAY_URL }}
           # La mise à jour intégrée suit les releases de ce dépôt (celui d'un fork, pour un fork).
           UPDATE_REPO: ${{ github.repository }}
         run: |
           chmod +x gradlew
-          bash ./gradlew --no-daemon verifyReleaseSigning testDebugUnitTest lintDebug assembleRelease
+          bash ./gradlew --no-daemon verifyReleaseSigning testDebugUnitTest assembleRelease
 
       - name: Name the APK
         run: |
+          set -euo pipefail
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/claydot-${VERSION_NAME}.apk"
           (cd dist && sha256sum "claydot-${VERSION_NAME}.apk" > "claydot-${VERSION_NAME}.apk.sha256")
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      # Texte de la release : le message du tag annoté, puis les commits depuis la release précédente.
+      - name: Release notes
+        run: |
+          set -euo pipefail
+          # actions/checkout peut remplacer le tag annoté par un tag léger : on le recharge tel quel.
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          if [ "$(git cat-file -t "$GITHUB_REF_NAME")" = "tag" ]; then
+            git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
+          else
+            : > notes.md
+          fi
+          {
+            echo
+            echo "Install \`claydot-${VERSION_NAME}.apk\` on Android, or update from Claydot → Settings → App."
+            echo "Built by GitHub Actions from \`${GITHUB_SHA}\`, signed with the Claydot release key."
+          } >> notes.md
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.name }}
+          tag_name: ${{ github.ref_name }}
           name: Claydot ${{ steps.version.outputs.name }}
-          target_commitish: ${{ github.sha }}
+          body_path: notes.md
           generate_release_notes: true
+          make_latest: true
           files: |
             dist/*.apk
             dist/*.sha256
-          body: |
-            Android APK built from `${{ github.sha }}`.
-
-            - Push notifications: ${{ env.PUSH_STATUS }}
-            - Signature: ${{ env.SIGNING_STATUS }}
-
-            Install it on your phone, then choose a direct API account or a Hermes gateway.

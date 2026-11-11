@@ -7,12 +7,10 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import app.dotshermes.push.Notifications
 import app.dotshermes.update.UpdateNotifications
 import app.dotshermes.update.UpdateWorker
-import com.google.firebase.FirebaseApp
-import com.google.firebase.messaging.FirebaseMessaging
 
 /**
- * Point d'entrée du processus, y compris quand FCM le réveille en arrière-plan sans activité :
- * on y prépare le conteneur, le canal de notifications, la présence et le jeton push.
+ * Point d'entrée du processus (y compris réveillé par une routine ou l'écoute de WhatsApp) :
+ * on y prépare le conteneur, les canaux de notifications, les routines et la présence.
  */
 class HermesApplication : Application() {
     override fun onCreate() {
@@ -27,18 +25,11 @@ class HermesApplication : Application() {
         app.dotshermes.data.direct.ChatLog.keepListening(this)
         app.dotshermes.data.direct.AlwaysOnService.start(this)
 
-        // Premier plan = au moins une activité visible. Le gateway ne pousse que quand l'app est cachée.
+        // Premier plan = au moins une activité visible (les notifications de réponse ne s'affichent qu'en arrière-plan).
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) = onVisibility(true)
             override fun onStop(owner: LifecycleOwner) = onVisibility(false)
         })
-
-        // Construite sans google-services.json, l'app n'a pas Firebase : tout marche, sans push.
-        if (FirebaseApp.getApps(this).isNotEmpty()) {
-            FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-                AppContainer.chatRepository.setPushToken(token)
-            }
-        }
     }
 
     private fun onVisibility(foreground: Boolean) {

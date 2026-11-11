@@ -5,86 +5,70 @@ pick work from [TASKS.md](TASKS.md).
 
 ## What this is
 
-**Claydot** is a fork of [Drevero/Dots-hermes](https://github.com/Drevero/Dots-hermes) (GPL-3.0):
-a messenger for a self-hosted [Hermes Agent](https://hermes-agent.nousresearch.com) by Nous Research.
+**Claydot** is an Android AI companion that can use the phone. It started as a fork of
+[Drevero/Dots-hermes](https://github.com/Drevero/Dots-hermes) (GPL-3.0), a messenger for a self-hosted
+Hermes agent; Claydot removed the Hermes server side and the gateway client. The app now talks to a
+model directly: a Groq API key entered on the phone, or an offline LiteRT-LM model downloaded to it.
 Fork: `rodri2482/Dots-hermes`; `upstream` remote points at Drevero's repository.
-
-Three parts, one protocol (JSON frames over one WebSocket, see `docs/protocole-gateway.md`):
 
 | Part | Stack | Path |
 |---|---|---|
-| Android app | Kotlin, Jetpack Compose, OkHttp, Firebase (optional) | `app/` |
-| Gateway plugin | Python, aiohttp, SQLite; runs **inside** Hermes as platform plugin `dots-platform` | `server/hermes-plugin-dots/` |
-| Web app | Vite + Preact + TypeScript, static, paired with the phone by QR code | `web/` |
+| Android app | Kotlin, Jetpack Compose, OkHttp, LiteRT-LM, WorkManager | `app/` |
+| Web app (experimental, not maintained with the app) | Vite + Preact + TypeScript | `web/` |
 
-Hermes accounts use gateway-held provider keys. The user additionally approved native Android direct
-API-key text chat (OpenAI/Anthropic/Groq), with offline development and keys entered only on the phone.
-Direct account keys/history use Keystore-backed encryption in noBackupFilesDir; metadata holds no
-API key. No real provider calls or developer credentials are authorized for testing.
+Direct account keys and history use Keystore-backed encryption in `noBackupFilesDir`; metadata holds
+no API key. No real provider calls or developer credentials are authorized for testing.
 
 ## Hard rules
 
-1. **No secrets in the repository or in client code.** API keys (Groq, OpenAI, …), `DOTS_TOKEN`,
-   keystores, `google-services.json` and Firebase service-account keys stay out of git and out of
-   `app/` and `web/`. Anything bundled into the APK or the web app is public.
-   User-entered direct API keys may exist only in the encrypted on-device runtime vault described above.
-2. **Keep the upstream-compatible internals.** User-facing identity is Claydot (`applicationId
-   "app.claydot"`, app name, web title, release file names), but these stay as they are:
-   - Kotlin namespace and packages `app.dotshermes` (do not move source files),
-   - plugin name `dots-platform`, `DOTS_*` env variables, `/dots/ws` route, `~/.hermes/platforms/dots/`,
-   - the wire protocol. Additive fields only; never rename or remove one.
-   This keeps `git merge upstream/main` workable and the plugin compatible with upstream apps.
-3. **"Hermes" in UI text means Nous' agent software** ("Hermes gateway", "Hermes agent", default agent
-   name). "Claydot" means this app. Don't replace one with the other blindly.
-4. **Every user-facing string exists in English and French**: `app/src/main/res/values/strings.xml`
-   and `values-fr/strings.xml`; on the web, the `en`/`fr` objects passed to `strings()`.
-5. Code comments and docs inside the code are mostly French: follow the surrounding file's language.
-6. Don't commit, push or open PRs unless the user asks. Work on a feature branch, never on `main`
-   (publication is a separate, explicit owner action through the manual release workflow).
+1. **No secrets in the repository or in client code.** API keys, keystores, signing passwords and
+   `google-services.json` stay out of git. Anything bundled into the APK is public. User-entered API
+   keys exist only in the encrypted on-device vault. Release signing lives in GitHub secrets
+   (`SIGNING_*`), set by the owner with `scripts/set-release-secrets.ps1`.
+2. **Keep the internal names.** User-facing identity is Claydot (`applicationId "app.claydot"`, app
+   name, release file names), but the Kotlin namespace and packages stay `app.dotshermes` (do not move
+   source files) and class names like `HermesApp` stay.
+3. **Every user-facing string exists in English and French**: `app/src/main/res/values/strings.xml`
+   and `values-fr/strings.xml`.
+4. Code comments and docs inside the code are mostly French: follow the surrounding file's language.
+5. Don't commit, push or open PRs unless the user asks. Work on a feature branch, never on `main`.
+   Pushing a `v*` tag publishes a signed public release: only when the owner says so.
+6. One Claydot install on the owner's phone: never install a second package beside it.
 
 ## Commands
 
 ```bash
-# Web app (Node 22.12+, required by Vitest)
-cd web && npm ci && npm run typecheck && npm run build
-npm test              # fonctions pures + faux gateway pour les envois interrompus/refusés
-npm run dev            # http://localhost:5173, with an in-memory pairing relay
-
-# Gateway plugin tests (no Hermes needed; test_ws_guard needs `pip install aiohttp`, else skipped)
-python -m unittest discover -s server/tests -v
-python -m py_compile server/hermes-plugin-dots/*.py
-bash -n server/install.sh
-
 # Android (JDK 17 + Android SDK 36; Android Studio's bundled JBR works)
 ./gradlew testDebugUnitTest
 ./gradlew assembleDebug
+./gradlew lintDebug
+python3 scripts/check_release_guard.py   # release build must refuse to run without signing
+
+# Web app (Node 22.12+)
+cd web && npm ci && npm run typecheck && npm test && npm run build
 ```
 
 Not every machine has the Android SDK. When you cannot run Gradle, say so in your report: never
-claim an Android change compiles without having built it. CI (`.github/workflows/android-release.yml`)
-publishes only after an explicit owner-confirmed manual run on main. Read-only checks run on pushes and PRs.
+claim an Android change compiles without having built it. `checks.yml` runs on every push and PR;
+`android-release.yml` runs on `v*` tags (see the README's Releases section).
 
-## Testing without a real Hermes server
+## Testing
 
-- The plugin imports Hermes' `gateway.*` and `hermes_constants` modules. `server/tests/test_ws_guard.py`
-  shows how to stub them and drive the real `DotsAdapter._handle_ws` through aiohttp's test server.
-  Reuse that harness for new gateway tests.
-- For the web client, a mock gateway speaking the protocol is enough: answer `hello` with `welcome`,
-  `message`/`file`/`voice` with `ack` (same `client_id`), `file_get`/`audio_get` with the stored data.
-  Seed a paired agent in the browser with
-  `localStorage["dots.agents.v1"] = JSON.stringify([{url, token, session_id, agent_id, name, species, palette, accessory}])`.
-- The Android app has no demo mode. For UI work without a network, build the offline fixture
-  (`-PdirectApiMock=true`, package `app.claydot.offline`) and connect a Groq account with any key.
+- Unit tests use fake `ProviderClient`s (see `RateLimitTest`): no network, no key.
+- For UI work without a network, build the offline fixture (`-PdirectApiMock=true`, package
+  `app.claydot.offline`) and connect a Groq account with any key. Prefer the emulator to a real phone.
 
 ## Map of the important files
 
-- `web/src/gateway/GatewayClient.ts`: one browser ↔ one gateway: reconnect/backoff, history merge,
-  outbox for voice/file frames (resent after a drop, deduplicated by `client_id` on the gateway).
-- `web/src/voice/recorder.ts`: MediaRecorder + level sampling, ported from `VoiceRecorder.kt`.
-- `web/src/chat/ChatView.tsx`: header, thread, composer (attach, paste, drag-drop, voice recording).
-- `app/.../data/gateway/GatewayChatRepository.kt`: Android WebSocket client. A 401 forgets the
-  pairing; any other handshake failure retries with backoff.
-- `server/hermes-plugin-dots/adapter.py`: the whole gateway side (~1,900 lines).
-- `server/hermes-plugin-dots/guard.py`: failed-token rate limiting (10 failures / 10 min → 15 min 429).
-- `server/install.sh`: idempotent installer; plugin files are listed in `PLUGIN_FILES`; add any new
-  plugin module there and to the README's manual-install `cp` line.
+All under `app/src/main/kotlin/app/dotshermes/`.
+
+- `data/direct/DirectChatRepository.kt`: the conversation and the tool loop: model switching on quota
+  or refused requests, offline fallback, system prompt, screenshots in replies.
+- `data/direct/LocalModels.kt`: offline model catalogue, downloads, LiteRT-LM client, `DeviceGuard`
+  (battery and memory checks).
+- `data/direct/ScreenTools.kt`, `screen/`: phone control through the accessibility service.
+- `data/direct/PhoneActions.kt`, `MessagingTools.kt`, `WebTools.kt`, `GmailTools`: the other tools.
+- `data/direct/Routines.kt`, `ChatWatch.kt`, `AlwaysOn.kt`: routines (time, every N minutes, on
+  message), WhatsApp notification listening, the always-on service.
+- `data/AgentRegistry.kt`: accounts (Groq, phone model) and the one on screen.
+- `update/`: in-app updates from this repository's GitHub releases.

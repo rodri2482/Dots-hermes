@@ -4,7 +4,6 @@ import android.content.Context
 import app.dotshermes.data.AgentRegistry
 import app.dotshermes.data.AgentStore
 import app.dotshermes.data.RoutingChatRepository
-import app.dotshermes.data.webpair.WebPairer
 import app.dotshermes.attach.Attachments
 import app.dotshermes.push.Notifications
 import app.dotshermes.update.AppUpdater
@@ -28,11 +27,11 @@ object AppContainer {
     }
 
     /**
-     * Les agents Hermes appairés, une connexion chacun. Exposé à part pour les notifications :
+     * Les comptes (Groq, modèle du téléphone), une conversation chacun. Exposé à part pour les notifications :
      * réponse rapide et feu vert visent toujours l'agent qui a écrit, pas celui qui est affiché.
      */
     val agents: AgentRegistry by lazy {
-        AgentRegistry(appContext, appScope, AgentStore(appContext), onApprovalResolved = { _, approvalId -> Notifications.cancelApproval(appContext, approvalId) },
+        AgentRegistry(appContext, appScope, AgentStore(appContext),
             persona = { name -> companion.persona(name) },
             directTools = { app.dotshermes.data.direct.CombinedTools(listOf(app.dotshermes.data.direct.GmailTools(gmail), phoneActions,
                 app.dotshermes.data.direct.RoutineTools(appContext, routines, accountId = { agents.activeId.value }, confirm = phoneActions::ask), screen,
@@ -43,8 +42,6 @@ object AppContainer {
     val chatRepository: RoutingChatRepository by lazy {
         RoutingChatRepository(appScope, agents = agents)
     }
-    /** Appairage de l'app web par QR code : jetons web des gateways, dépôt chiffré sur le relais. */
-    val webPairer: WebPairer by lazy { WebPairer(agents) }
     val voiceRecorder: VoiceRecorder by lazy { VoiceRecorder(appContext, appScope) }
     val voicePlayer: VoicePlayer by lazy { VoicePlayer(appScope) }
     /** Personnalité et voix (Fish Audio) des comptes API directs. */

@@ -1,6 +1,5 @@
 package app.dotshermes.data.direct
 
-import app.dotshermes.data.gateway.gatewayRetryDelayMs
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -175,7 +174,7 @@ class HttpProviderClient(client: OkHttpClient = OkHttpClient()) : ProviderClient
     }
 
     private fun waitSeconds(response: Response): Long {
-        val delay = gatewayRetryDelayMs(0, response.header("Retry-After"), System.currentTimeMillis())
+        val delay = retryDelayMs(0, response.header("Retry-After"), System.currentTimeMillis())
         return delay / 1_000 + if (delay % 1_000 != 0L) 1 else 0
     }
 }

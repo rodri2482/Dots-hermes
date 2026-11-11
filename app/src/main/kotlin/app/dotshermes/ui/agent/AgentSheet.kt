@@ -90,9 +90,6 @@ fun AgentSettings(
     onOpenChats: (() -> Unit)? = null,
     /** Modèle de routine touché dans les réglages : la demande part dans la conversation. */
     onRoutineTemplate: (String) -> Unit = {},
-    /** App web : scanner le QR code d'un navigateur, et la liste des navigateurs appairés (null : section masquée). */
-    onConnectBrowser: (() -> Unit)? = null,
-    onBrowserSessions: (() -> Unit)? = null,
 ) {
     val palette = LocalDotPalette.current
     val connected = connection as? ConnectionState.Connected
@@ -153,16 +150,6 @@ fun AgentSettings(
                     )
                 }
             }
-            }
-
-            if (gatewayFeatures && connected != null && onConnectBrowser != null && onBrowserSessions != null) {
-                // Un navigateur reçoit tous les agents connectés, pas seulement celui-ci : section à part.
-                SectionLabel(stringResource(R.string.web_section))
-                GroupedCard {
-                    LinkRow(stringResource(R.string.web_connect_row), onConnectBrowser)
-                    Hairline()
-                    LinkRow(stringResource(R.string.web_sessions_row), onBrowserSessions)
-                }
             }
 
             SectionLabel(stringResource(R.string.settings_mascot))

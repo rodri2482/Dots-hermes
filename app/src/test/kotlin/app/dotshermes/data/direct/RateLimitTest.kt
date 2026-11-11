@@ -127,4 +127,33 @@ class RateLimitTest {
             assertEquals("qwen3.5-2b", storage.transcript.messages.last().model)
         } finally { scope.cancel() }
     }
+
+    /** Chaque appel avec outils est refusé (400 « tool_use_failed ») : autre modèle, puis réponse sans outils. */
+    private class BadToolCalls : ProviderClient {
+        val used = mutableListOf<Pair<String, Boolean>>()
+        override suspend fun models(provider: ApiProvider, key: String) = listOf("openai/gpt-oss-120b", "meta-llama/llama-4-scout-17b-16e-instruct")
+        override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) = error("unused")
+        override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+            extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+            used += model to (tools != null)
+            if (tools != null) throw ApiException(ApiFailure.InvalidRequest)
+            onDelta("Here is my answer.")
+            return emptyList()
+        }
+    }
+
+    @Test fun `a refused request tries other models, then answers without tools instead of failing`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage(); val client = BadToolCalls()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "openai/gpt-oss-120b", scope, storage, client, toolbox = { Memory() })
+            repo.restore(); repo.send("What's on my screen?")
+            withTimeout(10_000) {
+                while (storage.transcript.messages.lastOrNull()?.state != DirectEntryState.Complete || repo.activity.value != AgentActivity.Idle) delay(20)
+            }
+            assertTrue(client.used.map { it.first }.distinct().size >= 2)
+            assertEquals(false, client.used.last().second)
+            assertEquals("Here is my answer.", storage.transcript.messages.last().text)
+        } finally { scope.cancel() }
+    }
 }
