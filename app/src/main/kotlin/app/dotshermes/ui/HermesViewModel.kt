@@ -126,11 +126,29 @@ class HermesViewModel(
         }
     }
 
+    // Mains libres : pendant un enregistrement, la fin de la parole envoie le vocal.
+    private val silence = app.dotshermes.voice.SilenceDetector()
+    init {
+        viewModelScope.launch {
+            var lastElapsed = -1L
+            recorder.state.collect { state ->
+                if (state == null) { silence.reset(); lastElapsed = -1; return@collect }
+                if (state.elapsedMs == lastElapsed || state.levels.isEmpty()) return@collect
+                lastElapsed = state.elapsedMs
+                if (companion?.state?.value?.handsFree != false && silence.feed(state.levels.last())) {
+                    silence.reset()
+                    sendRecording()
+                }
+            }
+        }
+    }
+
     // -- Personnalité et voix ------------------------------------------------------------------------
     val companionState = companion?.state
     val speech = companion?.status
     fun setPersonality(value: app.dotshermes.voice.Personality) = companion?.setPersonality(value)
     fun setSpeakReplies(on: Boolean) = companion?.setSpeakReplies(on)
+    fun setHandsFree(on: Boolean) = companion?.setHandsFree(on)
     fun setVoiceId(id: String) = companion?.setVoiceId(id)
     suspend fun saveFishKey(key: String) { companion?.saveFishKey(key) }
     fun forgetFishKey() { viewModelScope.launch { companion?.forgetFishKey() } }

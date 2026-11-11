@@ -382,6 +382,7 @@ fun HermesApp(
                         companion = app.dotshermes.ui.agent.CompanionControls(
                             state = companion, status = speech,
                             onPersonality = { viewModel.setPersonality(it) }, onSpeak = { viewModel.setSpeakReplies(it) },
+                            onHandsFree = { viewModel.setHandsFree(it) },
                             onVoiceId = { viewModel.setVoiceId(it) }, onFishKey = viewModel::saveFishKey,
                             onForgetFishKey = viewModel::forgetFishKey,
                         ),

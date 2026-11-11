@@ -397,6 +397,8 @@ Paste a Groq API key to get started.</string>
     <string name="phone_hint">Alarms, timers, opening apps and calendar events. Claydot always asks before doing anything.</string>
     <string name="phone_confirm_title">Claydot wants to</string>
     <string name="phone_do">Do it</string>
+    <string name="companion_hands_free">Send when I stop talking</string>
+    <string name="companion_hands_free_hint">Tap the mic once and talk: the note goes by itself after a short pause.</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

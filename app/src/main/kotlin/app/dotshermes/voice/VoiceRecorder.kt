@@ -125,3 +125,35 @@ internal fun downsample(values: List<Float>, bars: Int): List<Float> {
     val peak = out.maxOrNull()?.takeIf { it > 0f } ?: 1f
     return out.map { (it / peak).coerceIn(0.08f, 1f) }
 }
+
+/**
+ * Mains libres : « envoie quand j'ai fini de parler ». Un niveau (0..1, un échantillon toutes les
+ * 60 ms) au-dessus de [speech] pendant [speechSamples] échantillons marque le début de la parole ;
+ * ensuite, [endSamples] échantillons sous [silence] (≈1,6 s) signalent la fin. Avant toute parole,
+ * le silence ne déclenche rien : on peut prendre le temps de réfléchir.
+ */
+class SilenceDetector(
+    private val speech: Float = 0.28f,
+    private val silence: Float = 0.16f,
+    private val speechSamples: Int = 3,
+    private val endSamples: Int = 27,
+) {
+    private var speechRun = 0
+    private var spoke = false
+    private var quiet = 0
+
+    /** true quand l'utilisateur a parlé puis s'est tu assez longtemps. */
+    fun feed(level: Float): Boolean {
+        if (level >= speech) {
+            speechRun++
+            if (speechRun >= speechSamples) spoke = true
+            quiet = 0
+        } else {
+            speechRun = 0
+            if (spoke && level < silence) quiet++ else if (level >= silence) quiet = 0
+        }
+        return spoke && quiet >= endSamples
+    }
+
+    fun reset() { speechRun = 0; spoke = false; quiet = 0 }
+}

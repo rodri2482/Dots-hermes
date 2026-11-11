@@ -404,6 +404,8 @@ Colle une clé API Groq pour commencer.</string>
     <string name="phone_hint">Réveils, minuteurs, ouvrir une app, événements d\'agenda. Claydot demande toujours avant de faire quoi que ce soit.</string>
     <string name="phone_confirm_title">Claydot veut</string>
     <string name="phone_do">Faire</string>
+    <string name="companion_hands_free">Envoyer quand j\'ai fini de parler</string>
+    <string name="companion_hands_free_hint">Touche le micro une fois et parle : le vocal part tout seul après une courte pause.</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

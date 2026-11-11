@@ -58,6 +58,8 @@ data class CompanionState(
     val speakReplies: Boolean = false,
     val voiceId: String = "",
     val fishKeySaved: Boolean = false,
+    /** Mains libres : le vocal part tout seul quand on a fini de parler. */
+    val handsFree: Boolean = true,
 )
 
 /** Où en est la voix : pour l'interface (bouton couper, message d'erreur). */
@@ -125,9 +127,12 @@ class CompanionVoice(
         // Pas encore choisie : la voix de Claydot par défaut (Fish Audio « Kaia »).
         voiceId = prefs.getString("voice", null) ?: VoicePresets.first().id,
         fishKeySaved = try { !vault.key(FISH_ID).isNullOrBlank() } catch (_: Exception) { false },
+        handsFree = prefs.getBoolean("hands_free", true),
     )
 
     fun setPersonality(value: Personality) { prefs.edit { putString("personality", value.name) }; _state.value = _state.value.copy(personality = value) }
+
+    fun setHandsFree(on: Boolean) { prefs.edit { putBoolean("hands_free", on) }; _state.value = _state.value.copy(handsFree = on) }
 
     fun setSpeakReplies(on: Boolean) {
         prefs.edit { putBoolean("speak", on) }

@@ -56,6 +56,7 @@ class CompanionControls(
     val status: SpeechStatus,
     val onPersonality: (Personality) -> Unit,
     val onSpeak: (Boolean) -> Unit,
+    val onHandsFree: (Boolean) -> Unit = {},
     val onVoiceId: (String) -> Unit,
     val onFishKey: suspend (String) -> Unit,
     val onForgetFishKey: () -> Unit,
@@ -100,6 +101,16 @@ fun CompanionSettings(controls: CompanionControls) {
 
         SectionLabel(stringResource(R.string.companion_voice))
         GroupedCard {
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.companion_hands_free), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                    Text(stringResource(R.string.companion_hands_free_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(checked = state.handsFree, onCheckedChange = controls.onHandsFree,
+                    colors = SwitchDefaults.colors(checkedTrackColor = palette.base, checkedThumbColor = Color.White))
+            }
+            Hairline()
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.companion_speak), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
