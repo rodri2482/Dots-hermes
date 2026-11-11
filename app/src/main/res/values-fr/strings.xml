@@ -467,6 +467,15 @@ Colle une clé API Groq pour commencer.</string>
     <string name="local_back">Utiliser plutôt une clé Groq</string>
     <string name="local_limits">Hors ligne, Claydot discute seulement : pas de web, d\'écran, de messages ni de vocaux. Le téléchargement passe par Android et continue en arrière-plan ; le Wi-Fi est conseillé.</string>
     <string name="local_unsupported">Ce téléphone ne peut pas faire tourner de modèle hors ligne (il faut un processeur ARM 64 bits).</string>
+    <string name="model_menu_open">Choisir un modèle</string>
+    <string name="model_menu_online">En ligne · Groq</string>
+    <string name="model_menu_offline">Hors ligne · sur ce téléphone</string>
+    <string name="model_menu_hint">Les modèles hors ligne marchent sans Internet ni clé d\'API, mais ne font que discuter : pas de web, d\'écran ni de messages.</string>
+    <string name="model_add_groq">Ajouter une clé Groq</string>
+    <string name="model_loading">Chargement des modèles…</string>
+    <string name="model_downloaded">Téléchargé</string>
+    <string name="model_delete">Supprimer</string>
+    <string name="settings_offline_models">Modèles hors ligne</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

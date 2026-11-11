@@ -460,6 +460,15 @@ Paste a Groq API key to get started.</string>
     <string name="local_back">Use a Groq key instead</string>
     <string name="local_limits">Offline, Claydot chats only: no web, screen, texting or voice notes. Downloads go through Android and continue in the background; Wi-Fi is best.</string>
     <string name="local_unsupported">This phone can\'t run offline models (they need a 64-bit ARM processor).</string>
+    <string name="model_menu_open">Choose a model</string>
+    <string name="model_menu_online">Online · Groq</string>
+    <string name="model_menu_offline">Offline · on this phone</string>
+    <string name="model_menu_hint">Offline models work without internet or an API key, but only chat: no web, screen or texting.</string>
+    <string name="model_add_groq">Add a Groq key</string>
+    <string name="model_loading">Loading models…</string>
+    <string name="model_downloaded">Downloaded</string>
+    <string name="model_delete">Delete</string>
+    <string name="settings_offline_models">Offline models</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

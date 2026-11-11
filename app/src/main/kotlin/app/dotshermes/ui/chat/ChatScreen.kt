@@ -196,6 +196,8 @@ fun ChatScreen(
     /** Compte direct : nouvelle discussion, et la liste des discussions (null : pastilles masquées). */
     onNewChat: (() -> Unit)? = null,
     onOpenChats: (() -> Unit)? = null,
+    /** Compte direct : le sélecteur de modèle à la place de la pastille « En ligne » ; null = pastille. */
+    modelMenu: (@Composable () -> Unit)? = null,
     /** Plusieurs agents Hermes : le nom de l'en-tête ouvre leur menu ; null avec un seul agent (en-tête d'avant). */
     onOpenAgents: (() -> Unit)? = null,
     /** Messages non lus chez les autres agents : pastille à côté du nom. */
@@ -317,6 +319,7 @@ fun ChatScreen(
                 speakingName = state.speakingName,
                 onOpenAgents = onOpenAgents,
                 otherAgentsUnread = otherAgentsUnread,
+                modelMenu = modelMenu,
             )
             // « Arrêter » flotte au-dessus du champ, comme la pastille de navigation : le fil ne saute pas.
             androidx.compose.animation.AnimatedVisibility(stopVisible, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
@@ -420,6 +423,7 @@ private fun ChatHeader(
     speakingName: String? = null,
     onOpenAgents: (() -> Unit)? = null,
     otherAgentsUnread: Int = 0,
+    modelMenu: (@Composable () -> Unit)? = null,
     gatewayFeatures: Boolean = true,
 ) {
     val palette = LocalDotPalette.current
@@ -436,7 +440,7 @@ private fun ChatHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Compte direct : rien à surveiller (pas de serveur ni de latence), la pastille ne ferait que du bruit.
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { ConnectionPill(connection, gatewayFeatures) }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { modelMenu?.invoke() ?: ConnectionPill(connection, gatewayFeatures) }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier

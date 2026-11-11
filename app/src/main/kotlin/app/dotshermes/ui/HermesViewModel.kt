@@ -226,6 +226,30 @@ class HermesViewModel(
 
     fun selectAgent(id: String) = agents.select(id)
 
+    /** Le modèle qui répond pour l'agent affiché (compte direct) ; vide pour un serveur Hermes. */
+    val activeModel: StateFlow<app.dotshermes.ui.chat.ActiveModel> = kotlinx.coroutines.flow.combine(agents.store.agents, agents.activeId) { list, id ->
+        list.firstOrNull { it.id == id }?.let { app.dotshermes.ui.chat.ActiveModel(it.provider, it.model) } ?: app.dotshermes.ui.chat.ActiveModel(null, "")
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, app.dotshermes.ui.chat.ActiveModel(null, ""))
+    val hasGroqAccount: StateFlow<Boolean> = agents.store.agents.map { list -> list.any { it.provider == app.dotshermes.data.direct.ApiProvider.Groq } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Les modèles de conversation du compte Groq (clé enregistrée), pour le menu des modèles. */
+    suspend fun groqModels(): List<String> = agents.availableModels(app.dotshermes.data.direct.ApiProvider.Groq, "")
+
+    /**
+     * Choix dans le menu des modèles : un modèle Groq (le compte Groq garde sa clé et sa conversation)
+     * ou un modèle du téléphone (compte « Sur ce téléphone », créé au premier choix).
+     */
+    fun switchModel(provider: app.dotshermes.data.direct.ApiProvider, model: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val key = if (provider == app.dotshermes.data.direct.ApiProvider.Local) app.dotshermes.data.direct.LocalModels.LOCAL_KEY else ""
+            try { if (!agents.connectDirect(provider, model, key, agents.directTarget())) _accountFailure.value = app.dotshermes.data.direct.ApiFailure.Storage }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: app.dotshermes.data.direct.ApiException) { _accountFailure.value = e.failure }
+            catch (_: Exception) { _accountFailure.value = app.dotshermes.data.direct.ApiFailure.Storage }
+        }
+    }
+
     fun addAgent() {
         agents.beginAdd()
     }

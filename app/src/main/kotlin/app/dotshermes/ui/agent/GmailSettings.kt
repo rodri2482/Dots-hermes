@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.dotshermes.R
@@ -209,5 +210,51 @@ fun MemorySettings(repo: app.dotshermes.data.direct.DirectChatRepository) {
                 }
             }
         }
+    }
+}
+
+/** Modèles hors ligne : télécharger, suivre, supprimer, au même endroit que le reste des réglages. */
+@Composable
+fun OfflineModelsSettings(models: app.dotshermes.data.direct.LocalModels, inUse: String?) {
+    val states by models.states.collectAsStateWithLifecycle()
+    val palette = LocalDotPalette.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { models.watch() }
+    Column(Modifier.fillMaxWidth()) {
+        SectionLabel(stringResource(R.string.settings_offline_models))
+        GroupedCard {
+            app.dotshermes.data.direct.LocalModels.CATALOG.forEachIndexed { i, model ->
+                if (i > 0) Hairline()
+                val state = states[model.id] ?: app.dotshermes.data.direct.LocalModelState.Missing
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(model.name, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                        val size = String.format(java.util.Locale.ROOT, "%.1f GB", model.sizeBytes / 1_000_000_000.0)
+                        Text(when (state) {
+                            is app.dotshermes.data.direct.LocalModelState.Downloading -> "$size · ${(state.fraction * 100).toInt()}%"
+                            app.dotshermes.data.direct.LocalModelState.Ready -> if (model.id == inUse) "$size · " + stringResource(R.string.local_in_use) else "$size · " + stringResource(R.string.model_downloaded)
+                            is app.dotshermes.data.direct.LocalModelState.Failed -> stringResource(R.string.local_failed)
+                            else -> "$size · ${model.note}"
+                        }, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                        if (state is app.dotshermes.data.direct.LocalModelState.Downloading) {
+                            androidx.compose.material3.LinearProgressIndicator(progress = { state.fraction }, color = palette.base, trackColor = Ink.Fill,
+                                modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp))
+                        }
+                    }
+                    val (label, action) = when (state) {
+                        is app.dotshermes.data.direct.LocalModelState.Downloading -> stringResource(R.string.local_cancel) to { models.cancel(model) }
+                        app.dotshermes.data.direct.LocalModelState.Ready -> if (model.id == inUse) null to {} else stringResource(R.string.model_delete) to { models.delete(model) }
+                        else -> stringResource(R.string.local_download) to { models.download(model) }
+                    }
+                    label?.let {
+                        Text(it, style = MaterialTheme.typography.labelLarge,
+                            color = if (state == app.dotshermes.data.direct.LocalModelState.Ready) Ink.Danger else palette.deep,
+                            modifier = Modifier.padding(start = 8.dp).clickable(onClick = action).padding(horizontal = 8.dp, vertical = 8.dp))
+                    }
+                }
+            }
+        }
+        Text(stringResource(R.string.model_menu_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary,
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 16.dp))
     }
 }
