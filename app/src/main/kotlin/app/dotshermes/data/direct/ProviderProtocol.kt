@@ -15,6 +15,8 @@ internal object ProviderProtocol {
             turns.filter { it.role != "system" }.forEach { put(JSONObject().put("role", it.role).put("content", it.text)) }
         }
         val body = JSONObject().put("model", model.trim()).put("stream", true)
+        // Groq (format OpenAI) : un dernier fragment donne le total de jetons de la réponse.
+        if (provider == ApiProvider.Groq) body.put("stream_options", JSONObject().put("include_usage", true))
         if (system.isNotEmpty() && provider == ApiProvider.Anthropic) body.put("system", system)
         if (provider == ApiProvider.OpenAI) {
             body.put("input", messages).put("store", false).put("max_output_tokens", 4096)
@@ -42,7 +44,12 @@ internal object ProviderProtocol {
         return ApiException(failure, waitSeconds)
     }
 
-    fun consume(provider: ApiProvider, reader: Reader, onDelta: (String) -> Unit) {
+    fun consume(provider: ApiProvider, reader: Reader, onDelta: (String) -> Unit) = consumeCounted(provider, reader, {}, onDelta)
+
+    /** Comme [consume], et [onTokens] reçoit le total de jetons (entrée + sortie) annoncé par le fournisseur. */
+    fun consumeCounted(provider: ApiProvider, reader: Reader, onTokens: (Long) -> Unit, onDelta: (String) -> Unit) {
+        var tokensIn = 0L
+        var tokensOut = 0L
         var completed = false
         var limited = false
         var textSeen = false
@@ -76,10 +83,15 @@ internal object ProviderProtocol {
             if (provider == ApiProvider.OpenAI) {
                 when (type) {
                     "response.output_text.delta", "response.refusal.delta" -> text(frame.optString("delta"))
-                    "response.completed" -> completed = true
+                    "response.completed" -> {
+                        frame.optJSONObject("response")?.optJSONObject("usage")?.let { tokensIn = it.optLong("total_tokens") }
+                        completed = true
+                    }
                     "response.incomplete" -> throw ApiException(ApiFailure.OutputLimit)
                 }
             } else if (provider == ApiProvider.Groq) {
+                (frame.optJSONObject("usage") ?: frame.optJSONObject("x_groq")?.optJSONObject("usage"))
+                    ?.let { tokensIn = it.optLong("total_tokens") }
                 val choice = frame.optJSONArray("choices")?.optJSONObject(0)
                 choice?.optJSONObject("delta")?.let { text(it.optString("content")) }
                 when (choice?.optString("finish_reason")) {
@@ -96,7 +108,13 @@ internal object ProviderProtocol {
                     "content_block_delta" -> frame.optJSONObject("delta")?.let {
                         if (it.optString("type") == "text_delta") text(it.optString("text"))
                     }
-                    "message_delta" -> limited = frame.optJSONObject("delta")?.optString("stop_reason") == "max_tokens"
+                    "message_start" -> frame.optJSONObject("message")?.optJSONObject("usage")?.let {
+                        tokensIn = it.optLong("input_tokens") + it.optLong("cache_read_input_tokens") + it.optLong("cache_creation_input_tokens")
+                    }
+                    "message_delta" -> {
+                        frame.optJSONObject("usage")?.let { tokensOut = it.optLong("output_tokens") }
+                        limited = frame.optJSONObject("delta")?.optString("stop_reason") == "max_tokens"
+                    }
                     "message_stop" -> completed = true
                 }
             }
@@ -118,5 +136,6 @@ internal object ProviderProtocol {
         if (limited) throw ApiException(ApiFailure.OutputLimit)
         if (!completed) throw ApiException(ApiFailure.Interrupted)
         if (!textSeen) throw ApiException(ApiFailure.InvalidResponse)
+        (tokensIn + tokensOut).takeIf { it > 0 }?.let(onTokens)
     }
 }

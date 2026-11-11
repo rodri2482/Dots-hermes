@@ -376,7 +376,6 @@ Paste a Groq API key to get started.</string>
     <string name="chat_clear_title">Clear this conversation?</string>
     <string name="chat_clear_warning">All messages in this conversation are deleted from this phone. Your key and settings stay.</string>
     <string name="chat_clear_confirm">Clear</string>
-    <string name="chat_empty">Hi, I’m %s! Ask me anything, or tap the mic to talk.</string>
     <string name="api_key_help_short">Your key stays encrypted on this phone. Usage is billed by %s.</string>
     <string name="api_choose_model">Choose model</string>
     <string name="settings_account">Account</string>

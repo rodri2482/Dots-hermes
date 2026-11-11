@@ -383,7 +383,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="chat_clear_title">Effacer cette conversation ?</string>
     <string name="chat_clear_warning">Tous les messages de cette conversation sont supprimés de ce téléphone. Ta clé et tes réglages restent.</string>
     <string name="chat_clear_confirm">Effacer</string>
-    <string name="chat_empty">Salut, moi c’est %s ! Demande-moi ce que tu veux, ou touche le micro pour parler.</string>
     <string name="api_key_help_short">Ta clé reste chiffrée sur ce téléphone. L\'usage est facturé par %s.</string>
     <string name="api_choose_model">Choisir le modèle</string>
     <string name="settings_account">Compte</string>

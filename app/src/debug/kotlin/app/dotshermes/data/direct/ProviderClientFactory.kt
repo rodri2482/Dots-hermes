@@ -23,6 +23,11 @@ private class OfflineProviderClient : ProviderClient {
         }
         stream(provider, key, model, turns, onDelta)
     }
+    override suspend fun streamCounted(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+        onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit) {
+        streamWithUsage(provider, key, model, turns, onLimits, onDelta)
+        onTokens(120L + turns.sumOf { it.text.length } / 4)
+    }
     override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) {
         if (key == "invalid-fixture") throw ApiException(ApiFailure.InvalidKey)
         if (turns.last().text == "offline error") throw ApiException(ApiFailure.Unavailable)

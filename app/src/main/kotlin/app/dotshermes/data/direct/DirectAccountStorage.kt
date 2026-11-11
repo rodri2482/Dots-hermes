@@ -10,6 +10,8 @@ data class DirectEntry(
     val state: DirectEntryState, val replyTo: String? = null,
     /** Réponse terminée : temps écoulé entre l'envoi et le dernier mot (absent des anciens fils). */
     val durationMs: Long? = null,
+    /** Jetons annoncés par le fournisseur pour cette réponse (entrée + sortie) ; absent s'il n'en dit rien. */
+    val tokens: Long? = null,
 ) {
     init {
         require(role == "user" || role == "assistant")
@@ -65,7 +67,8 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                 DirectEntry(row.getString("id"), row.getString("role"), row.getString("text"),
                     row.getLong("timestamp_ms"), DirectEntryState.valueOf(row.getString("state")),
                     if (row.isNull("reply_to")) null else row.getString("reply_to"),
-                    if (row.has("duration_ms") && !row.isNull("duration_ms")) row.getLong("duration_ms").coerceAtLeast(0) else null)
+                    if (row.has("duration_ms") && !row.isNull("duration_ms")) row.getLong("duration_ms").coerceAtLeast(0) else null,
+                    if (row.has("tokens") && !row.isNull("tokens")) row.getLong("tokens").coerceAtLeast(0) else null)
             }
             val retry = if (root.isNull("retry_user_id")) null else root.getString("retry_user_id")
             val failure = if (root.isNull("failure")) null else ApiFailure.valueOf(root.getString("failure"))
@@ -88,7 +91,7 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                 put(JSONObject().put("id", row.id).put("role", row.role).put("text", row.text)
                     .put("timestamp_ms", row.timestampMs).put("state", row.state.name)
                     .put("reply_to", row.replyTo ?: JSONObject.NULL)
-                    .apply { row.durationMs?.let { put("duration_ms", it) } })
+                    .apply { row.durationMs?.let { put("duration_ms", it) }; row.tokens?.let { put("tokens", it) } })
             }
         }
         val limits = transcript.limits?.let { row ->

@@ -49,3 +49,25 @@ class ReplyFooterTest {
         assertEquals("llama-3.1-8b-instant · 12 s", replyFooter("llama-3.1-8b-instant", 12_400))
     }
 }
+
+class TokenUsageTest {
+    @Test fun `groq usage chunk reports the total tokens`() {
+        var tokens = 0L
+        val stream = "data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n" +
+            "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":5,\"total_tokens\":25}}\n\n" +
+            "data: [DONE]\n\n"
+        ProviderProtocol.consumeCounted(ApiProvider.Groq, java.io.StringReader(stream), { tokens = it }) {}
+        assertEquals(25L, tokens)
+    }
+
+    @Test fun `usage window groups replies by hour and skips failed turns`() {
+        val h = 3_600_000L
+        val entries = listOf(
+            DirectEntry("u1", "user", "a", 10 * h, DirectEntryState.Complete),
+            DirectEntry("a1", "assistant", "b", 10 * h + 5, DirectEntryState.Complete, "u1", tokens = 40),
+            DirectEntry("u2", "user", "c", 11 * h, DirectEntryState.Failed),
+        )
+        val window = usageWindow(entries, java.time.Instant.ofEpochMilli(0), java.time.Instant.ofEpochMilli(24 * h))
+        assertEquals(listOf(app.dotshermes.data.model.UsageHour(10, 40, 2)), window.hours)
+    }
+}

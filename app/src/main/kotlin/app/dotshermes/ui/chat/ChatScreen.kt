@@ -282,14 +282,6 @@ fun ChatScreen(
                 onOpenAgents = onOpenAgents,
                 otherAgentsUnread = otherAgentsUnread,
             )
-            // Fil vide (premier message, ou conversation effacée) : un mot d'accueil plutôt qu'un écran blanc.
-            if (state.rows.isEmpty()) {
-                Text(
-                    stringResource(R.string.chat_empty, state.agentName),
-                    style = MaterialTheme.typography.bodyLarge, color = Ink.Secondary, textAlign = TextAlign.Center,
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 40.dp),
-                )
-            }
             BrowsingPill(
                 visible = browsing && screen.hasFrame,
                 agentName = state.agentName,

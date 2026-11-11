@@ -111,7 +111,12 @@ fun ActivitySheet(
             Text(stringResource(R.string.activity_title), style = MaterialTheme.typography.headlineSmall, color = Ink.Primary, modifier = Modifier.padding(start = 4.dp))
 
             SectionLabel(stringResource(R.string.activity_usage))
-            GroupedCard { if (gatewayFeatures) UsageCard(usage, onUsage) else DirectUsageCard(directUsage) }
+            GroupedCard { UsageCard(usage, onUsage) }
+            // Compte direct : les limites du fournisseur ne s'affichent que lorsqu'elles bloquent l'envoi.
+            if (!gatewayFeatures && (directUsage?.cooldownUntilMs ?: 0) > System.currentTimeMillis()) {
+                Spacer(Modifier.height(12.dp))
+                GroupedCard { DirectUsageCard(directUsage) }
+            }
 
             // Compte direct au repos : la carte ne dirait que « disponible », on la retire.
             if (gatewayFeatures || busy) {

@@ -87,7 +87,10 @@ class HttpProviderClient(client: OkHttpClient = OkHttpClient()) : ProviderClient
     }
 
     override suspend fun streamWithUsage(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
-        onLimits: (ProviderLimits) -> Unit, onDelta: (String) -> Unit) {
+        onLimits: (ProviderLimits) -> Unit, onDelta: (String) -> Unit) = streamCounted(provider, key, model, turns, onLimits, {}, onDelta)
+
+    override suspend fun streamCounted(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+        onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit) {
         val path = when (provider) {
             ApiProvider.OpenAI -> "responses"
             ApiProvider.Anthropic -> "messages"
@@ -101,7 +104,7 @@ class HttpProviderClient(client: OkHttpClient = OkHttpClient()) : ProviderClient
             if (provider == ApiProvider.Groq) groqLimits(response::header, System.currentTimeMillis())?.let(onLimits)
         }) { response ->
             val body = response.body ?: throw ApiException(ApiFailure.InvalidResponse)
-            ProviderProtocol.consume(provider, body.charStream(), onDelta)
+            ProviderProtocol.consumeCounted(provider, body.charStream(), onTokens, onDelta)
         }
     }
 

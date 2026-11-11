@@ -153,14 +153,15 @@ class DirectChatRepository(
                     completedContext(retained) + ApiTurn("user", user.text)
             }
             val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
-            client.streamWithUsage(provider, key, model, turns, { limits ->
+            var replyTokens: Long? = null
+            client.streamCounted(provider, key, model, turns, { limits ->
                 synchronized(lock) {
                     if (token == generation) {
                         memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, limits.exhaustedUntilMs())
                         commit(transcript.copy(limits = limits, cooldownUntilMs = memoryCooldownUntilMs))
                     }
                 }
-            }) { delta ->
+            }, { tokens -> replyTokens = tokens }) { delta ->
                 synchronized(lock) {
                     if (token == generation) {
                         commit(transcript.copy(messages = transcript.messages.map {
@@ -179,7 +180,7 @@ class DirectChatRepository(
                     val doneAt = System.currentTimeMillis()
                     commit(transcript.copy(messages = transcript.messages.map {
                         when (it.id) {
-                            answerId -> it.copy(state = DirectEntryState.Complete, durationMs = (doneAt - it.timestampMs).coerceAtLeast(0))
+                            answerId -> it.copy(state = DirectEntryState.Complete, durationMs = (doneAt - it.timestampMs).coerceAtLeast(0), tokens = replyTokens)
                             userId -> it.copy(state = DirectEntryState.Complete)
                             else -> it
                         }
@@ -236,6 +237,14 @@ class DirectChatRepository(
      * Efface la conversation : messages, reprise et erreur. Les limites et le délai d'attente du
      * fournisseur restent (ils ne dépendent pas du fil), comme la clé.
      */
+    // -- Consommation : la même grille mensuelle que pour un serveur Hermes, calculée sur le téléphone. --
+    private val _usage = MutableStateFlow<UsageWindow?>(null)
+    override val usage = _usage.asStateFlow()
+
+    override fun requestUsage(from: Instant, to: Instant) {
+        _usage.value = synchronized(lock) { usageWindow(transcript.messages, from, to) }
+    }
+
     override fun clearHistory() {
         stopTurn()
         synchronized(lock) {
@@ -311,6 +320,20 @@ class DirectChatRepository(
     }
     override fun sendFile(file: File, name: String, mime: String, caption: String) {}
     override suspend fun attachmentFile(messageId: String): File? = null
+}
+
+/**
+ * Consommation heure par heure d'un fil direct, au format du gateway : jetons des réponses terminées,
+ * messages envoyés et reçus. Effacer la conversation efface donc aussi cet historique.
+ */
+internal fun usageWindow(entries: List<DirectEntry>, from: Instant, to: Instant): UsageWindow {
+    val start = from.toEpochMilli()
+    val end = to.toEpochMilli()
+    val hours = entries.filter { it.timestampMs in start until end && it.state != DirectEntryState.Failed }
+        .groupBy { it.timestampMs / 3_600_000 }
+        .map { (hour, rows) -> UsageHour(hour, rows.sumOf { it.tokens ?: 0 }, rows.count { it.role == "user" || it.state == DirectEntryState.Complete }) }
+        .sortedBy { it.hour }
+    return UsageWindow(from, to, hours)
 }
 
 /** « gpt-oss-120b · 1.4 s » : le modèle sans son préfixe d'éditeur, et la durée de la réponse. */
