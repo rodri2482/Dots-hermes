@@ -29,6 +29,8 @@ interface ScreenDriver {
     fun openUrl(url: String): Boolean = false
     /** Curseur et pastille « Arrêter » visibles pendant une tâche. */
     fun showActive(on: Boolean) {}
+    /** Capture de l'écran en JPEG (Android 11+), ou null. */
+    suspend fun screenshot(): ByteArray? = null
 }
 
 /**
@@ -75,6 +77,8 @@ class ScreenTools(
             JSONObject().put("direction", JSONObject().put("type", "string").put("enum", JSONArray().put("up").put("down").put("left").put("right"))), "direction"))
         .put(fn("open_link", "Open a web address or app link (https://…, e.g. a search or a map).", JSONObject().put("url", str("The full URL")), "url"))
         .put(fn("wait", "Wait for the screen to finish loading, then read it again.", JSONObject().put("seconds", int("1 to 5")), "seconds"))
+        .put(fn("take_screenshot", "Take a screenshot of the phone screen and show it to the user in the chat. Use it when you finish " +
+            "or stop a screen task (done, stuck, or needing the user), so they can see where things are and continue.", JSONObject()))
         .put(fn("type_text", "Replace the text of an editable element (by number) with this text.",
             JSONObject().put("id", int("Element number")).put("text", str("Text to type")), "id", "text"))
         .put(fn("scroll", "Scroll the screen.", JSONObject().put("direction", JSONObject().put("type", "string").put("enum", JSONArray().put("down").put("up"))), "direction"))
@@ -96,6 +100,12 @@ class ScreenTools(
         }
         // Voir l'écran est permis dès que le service est activé ; agir demande l'accord de la tâche.
         if (call.name == "read_screen") return describe()
+        if (call.name == "take_screenshot") {
+            val jpeg = driver.screenshot() ?: return err("screenshot not available (Android 11 or later is needed)")
+            // La clé « screenshot_jpeg » est retirée par la conversation : l'image s'affiche, le modèle n'en reçoit qu'une mention.
+            return JSONObject().put("status", "captured").put("app", driver.snapshot()?.packageName.orEmpty())
+                .put(SCREENSHOT_KEY, java.util.Base64.getEncoder().encodeToString(jpeg)).toString()
+        }
         if (!active()) return err("no permission: call start_screen_control first")
         if (call.name == "wait") { delay(args.optInt("seconds", 2).coerceIn(1, 5) * 1_000L); return describe() }
         val before = driver.snapshot()
@@ -161,6 +171,7 @@ class ScreenTools(
 
     companion object {
         const val MAX_ELEMENTS = 90
+        const val SCREENSHOT_KEY = "screenshot_jpeg"
         val BLOCKED_PACKAGES = listOf(
             "com.android.settings", "com.android.packageinstaller", "com.google.android.packageinstaller",
             "com.android.permissioncontroller", "com.google.android.permissioncontroller",

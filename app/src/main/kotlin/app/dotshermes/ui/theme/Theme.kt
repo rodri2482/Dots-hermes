@@ -44,6 +44,22 @@ fun DotsTheme(palette: DotPalette, dark: Boolean = false, content: @Composable (
     )
 
     CompositionLocalProvider(LocalDotPalette provides animated) {
-        MaterialTheme(colorScheme = scheme, typography = DotsTypography, content = content)
+        MaterialTheme(colorScheme = scheme, typography = DotsTypography) {
+            // Pas de voile gris au toucher, nulle part : ni sur les zones cliquables, ni sur les boutons Material.
+            @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.foundation.LocalIndication provides NoIndication,
+                androidx.compose.material3.LocalRippleConfiguration provides null,
+                content = content,
+            )
+        }
     }
+}
+
+/** Aucun effet visuel au toucher (remplace l'onde grise de Material). */
+private object NoIndication : androidx.compose.foundation.IndicationNodeFactory {
+    override fun create(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.ui.node.DelegatableNode =
+        object : androidx.compose.ui.Modifier.Node() {}
+    override fun equals(other: Any?) = other === this
+    override fun hashCode() = 0
 }

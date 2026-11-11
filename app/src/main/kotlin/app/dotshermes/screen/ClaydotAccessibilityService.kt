@@ -179,6 +179,27 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
         return try { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); label } catch (_: Exception) { null }
     }
 
+    override suspend fun screenshot(): ByteArray? {
+        val s = service ?: return null
+        if (android.os.Build.VERSION.SDK_INT < 30) return null
+        val bitmap = kotlinx.coroutines.suspendCancellableCoroutine<android.graphics.Bitmap?> { cont ->
+            s.takeScreenshot(android.view.Display.DEFAULT_DISPLAY, s.mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
+                override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
+                    val copy = runCatching {
+                        android.graphics.Bitmap.wrapHardwareBuffer(result.hardwareBuffer, result.colorSpace)?.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                    }.getOrNull()
+                    result.hardwareBuffer.close()
+                    cont.resumeWith(Result.success(copy))
+                }
+                override fun onFailure(errorCode: Int) { cont.resumeWith(Result.success(null)) }
+            })
+        } ?: return null
+        // Réduite (1280 px au plus) et en JPEG : légère dans la conversation.
+        val scale = 1280f / maxOf(bitmap.width, bitmap.height)
+        val small = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true) else bitmap
+        return java.io.ByteArrayOutputStream().use { out -> small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, out); out.toByteArray() }
+    }
+
     override fun openUrl(url: String): Boolean = try {
         context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
     } catch (_: Exception) { false }

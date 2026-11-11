@@ -275,7 +275,7 @@ class DirectChatRepository(
             }
             if (calls.isEmpty() || toolset == null) break
             synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working(toolset.label(calls.first())) }
-            val results = calls.map { toolset.run(it) }
+            val results = calls.map { keepScreenshot(toolset.run(it), answerId) }
             extra += ProviderProtocol.toolExchange(calls, results)
             }
             synchronized(lock) {
@@ -422,6 +422,27 @@ class DirectChatRepository(
         return synchronized(lock) {
             transcript.messages.drop(before).lastOrNull { it.role == "assistant" && it.state == DirectEntryState.Complete }?.text
         }
+    }
+
+    /**
+     * Une capture d'écran rendue par un outil : enregistrée avec les photos du compte et posée sur la
+     * réponse en cours (l'utilisateur la voit dans le fil) ; le modèle n'en reçoit qu'une mention.
+     */
+    private fun keepScreenshot(result: String, answerId: String?): String {
+        if (!result.contains(ScreenTools.SCREENSHOT_KEY)) return result
+        val json = try { org.json.JSONObject(result) } catch (_: org.json.JSONException) { return result }
+        val data = json.optString(ScreenTools.SCREENSHOT_KEY)
+        json.remove(ScreenTools.SCREENSHOT_KEY)
+        val dir = imageDir ?: return json.put("shown", false).toString()
+        return try {
+            val name = "shot-" + UUID.randomUUID().toString().take(12) + ".jpg"
+            dir.mkdirs()
+            File(dir, name).writeBytes(java.util.Base64.getDecoder().decode(data))
+            synchronized(lock) {
+                if (answerId != null) commit(transcript.copy(messages = transcript.messages.map { if (it.id == answerId) it.copy(image = name) else it }))
+            }
+            json.put("shown", "The screenshot is now shown to the user in the chat.").toString()
+        } catch (_: Exception) { json.put("shown", false).toString() }
     }
 
     override fun newConversation() {
@@ -609,6 +630,10 @@ internal const val TOOL_RULE = "You run on the user's Android phone and have too
     "For anything recent or that you are unsure about (news, prices, scores, releases, tips), search the web instead of guessing. " +
     "When a request matches a tool, call it instead of saying you can't; only say you can't when no tool fits. " +
     "Finish the job: if an app opens but the task is not done yet (a song still needs a tap, a message still needs typing), " +
+    "When a screen task ends or gets stuck, call take_screenshot so the user sees where it stopped and can continue. " +
+    "For questions about something (a person, place, food, how-to, comparison), answer like a polished assistant: a direct first " +
+    "sentence, then ## headings or **bold** labels, short bullet points, a table when comparing, and a one-line tip at the end; " +
+    "call show_image when a picture helps. Keep small talk short and casual. " +
     "use the screen tools to complete it when they are available, otherwise tell the user the one step left. " +
     "After a tool runs, say briefly what happened."
 
