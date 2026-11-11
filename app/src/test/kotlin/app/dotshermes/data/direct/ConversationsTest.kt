@@ -26,7 +26,10 @@ class ConversationsTest {
 
     private suspend fun DirectChatRepository.say(text: String) {
         send(text)
-        withTimeout(5000) { activity.first { it != AgentActivity.Idle }; activity.first { it == AgentActivity.Idle } }
+        // On attend l'écho complet plutôt qu'un passage d'activité : une réponse instantanée le ferait manquer.
+        withTimeout(5000) {
+            while (texts().lastOrNull() != "re: $text" || activity.value != AgentActivity.Idle) kotlinx.coroutines.delay(10)
+        }
     }
     private fun DirectChatRepository.texts() = messages.value.map { (it.content as MessageContent.Text).text }
 

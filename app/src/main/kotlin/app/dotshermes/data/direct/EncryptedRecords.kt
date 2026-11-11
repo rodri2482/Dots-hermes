@@ -13,7 +13,7 @@ interface RecordKeys {
     fun remove(accountId: String)
 }
 
-enum class AccountRecord(val fileName: String) { Credentials("credentials.enc"), History("history.enc") }
+enum class AccountRecord(val fileName: String) { Credentials("credentials.enc"), History("history.enc"), Memory("memory.enc") }
 
 /** Stockage authentifié, borné et atomique. Les fichiers temporaires ne contiennent que du chiffré. */
 class EncryptedRecords(private val directory: File, private val keys: RecordKeys) {

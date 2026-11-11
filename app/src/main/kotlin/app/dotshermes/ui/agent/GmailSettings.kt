@@ -148,3 +148,29 @@ fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: 
         }
     }
 }
+
+/** Ce dont Claydot se souvient (compte Groq) : chaque fait se supprime d'un geste. */
+@Composable
+fun MemorySettings(repo: app.dotshermes.data.direct.DirectChatRepository) {
+    val facts by repo.facts.collectAsStateWithLifecycle()
+    Column(Modifier.fillMaxWidth()) {
+        SectionLabel(stringResource(R.string.memory_section))
+        GroupedCard {
+            if (facts.isEmpty()) {
+                Text(stringResource(R.string.memory_empty), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp))
+            }
+            facts.forEachIndexed { i, fact ->
+                if (i > 0) Hairline()
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(fact, style = MaterialTheme.typography.bodyMedium, color = Ink.Primary, modifier = Modifier.weight(1f))
+                    androidx.compose.foundation.layout.Box(Modifier.clickable { repo.forgetFact(fact) }.padding(10.dp)) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.DeleteOutline,
+                            stringResource(R.string.memory_forget), tint = Ink.Tertiary)
+                    }
+                }
+            }
+        }
+    }
+}

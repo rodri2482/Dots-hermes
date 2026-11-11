@@ -145,6 +145,8 @@ fun AgentSettings(
                 if (connected?.gatewayUrl == app.dotshermes.data.direct.ApiProvider.Groq.title) {
                     GmailSettings(app.dotshermes.AppContainer.gmail)
                     PhoneSettings(app.dotshermes.AppContainer.phoneActions)
+                    (app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value?.let { app.dotshermes.AppContainer.agents.repo(it) } as? app.dotshermes.data.direct.DirectChatRepository)
+                        ?.let { MemorySettings(it) }
                     RoutinesSettings(app.dotshermes.AppContainer.routines, app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value)
                 }
             }

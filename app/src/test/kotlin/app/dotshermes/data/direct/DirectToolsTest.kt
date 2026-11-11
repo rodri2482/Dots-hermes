@@ -39,6 +39,27 @@ class DirectToolsTest {
         override fun save(accountId: String, transcript: DirectTranscript) { this.transcript = transcript }
         override fun removeKey(accountId: String) {}
         override fun remove(accountId: String) {}
+        var saved = emptyList<String>()
+        override fun facts(accountId: String) = saved
+        override fun saveFacts(accountId: String, facts: List<String>) { saved = facts }
+    }
+
+    /** Le modèle retient un fait, puis le message suivant le retrouve dans le tour « system ». */
+    private class MemoryClient : ProviderClient {
+        val systems = mutableListOf<String>()
+        val offered = mutableListOf<String>()
+        override suspend fun models(provider: ApiProvider, key: String) = listOf("m")
+        override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) = error("unused")
+        override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+            extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+            if (extra.isEmpty()) {
+                systems += turns.firstOrNull { it.role == "system" }?.text.orEmpty()
+                tools?.let { t -> (0 until t.length()).forEach { offered += t.getJSONObject(it).getJSONObject("function").getString("name") } }
+                if (turns.last().text.startsWith("Remember")) return listOf(ApiToolCall("m1", "remember", "{\"fact\":\"Has a cat   named Miso\"}"))
+            }
+            onDelta("Noted.")
+            return emptyList()
+        }
     }
 
     /** Premier tour : le modèle demande une recherche ; second tour : il répond avec le résultat. */
@@ -58,7 +79,7 @@ class DirectToolsTest {
 
     private class FakeGmail : DirectTools {
         val ran = mutableListOf<String>()
-        override fun definitions() = JSONArray().put(JSONObject().put("type", "function"))
+        override fun definitions() = JSONArray().put(JSONObject().put("type", "function").put("function", JSONObject().put("name", "search_gmail")))
         override fun label(call: ApiToolCall) = "Gmail…"
         override suspend fun run(call: ApiToolCall): String { ran += call.name; return "{\"messages\":[]}" }
     }
@@ -69,13 +90,36 @@ class DirectToolsTest {
             val storage = Storage(); val client = ToolClient(); val gmail = FakeGmail()
             val repo = DirectChatRepository("a", ApiProvider.Groq, "m", scope, storage, client, toolbox = { gmail })
             repo.restore(); repo.send("Any mail from the bank?")
-            withTimeout(5000) { repo.activity.first { it != AgentActivity.Idle }; repo.activity.first { it == AgentActivity.Idle } }
+            awaitReply(repo, storage, 2)
             assertEquals(listOf("search_gmail"), gmail.ran)
             assertEquals("second round carries the call and its result", listOf(0, 2), client.extras)
             val answer = storage.transcript.messages.last()
             assertEquals("You have 1 email from the bank.", answer.text)
             assertEquals(DirectEntryState.Complete, answer.state)
             assertEquals(20L, answer.tokens)
+        } finally { scope.cancel() }
+    }
+
+    /** Attend la réponse complète n° [messages] (sans course : on lit l'état, pas un passage d'activité). */
+    private suspend fun awaitReply(repo: DirectChatRepository, storage: Storage, messages: Int) = withTimeout(5000) {
+        while (storage.transcript.messages.size < messages || storage.transcript.messages.last().state != DirectEntryState.Complete ||
+            repo.activity.value != AgentActivity.Idle) kotlinx.coroutines.delay(10)
+    }
+
+    @Test fun `remembered facts reach the next request`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage(); val client = MemoryClient()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "m", scope, storage, client, persona = { "You are Claydot." })
+            repo.restore()
+            repo.send("Remember my cat is Miso")
+            awaitReply(repo, storage, 2)
+            assertEquals(listOf("Has a cat named Miso"), storage.saved)
+            assertEquals(listOf("Has a cat named Miso"), repo.facts.value)
+            repo.send("What is my cat called?")
+            awaitReply(repo, storage, 4)
+            assertTrue("memory offered as a tool", "remember" in client.offered)
+            assertTrue(client.systems.last(), client.systems.last().contains("- Has a cat named Miso"))
         } finally { scope.cancel() }
     }
 }

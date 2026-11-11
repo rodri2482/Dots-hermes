@@ -133,6 +133,7 @@ dependencies {
     implementation(libs.markdown.renderer.code)
     // Photos envoyées aux modèles de vision : remises droites selon l'EXIF avant compression.
     implementation(libs.androidx.exifinterface)
+    implementation(libs.haze)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

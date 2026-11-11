@@ -34,6 +34,12 @@ private class OfflineProviderClient : ProviderClient {
                 org.json.JSONObject().put("name", "Morning email summary").put("prompt", "Summarise my unread emails from today")
                     .put("time", "08:00").put("days", "weekdays").toString()))
         }
+        // « remember … » : le modèle note le reste de la phrase dans la mémoire du compte.
+        val remember = Regex("remember (that )?(.+)", RegexOption.IGNORE_CASE).find(turns.last().text)
+        if (tools?.toString()?.contains("\"remember\"") == true && extra.isEmpty() && remember != null) {
+            delay(300)
+            return listOf(ApiToolCall("offline-memory", "remember", org.json.JSONObject().put("fact", remember.groupValues[2]).toString()))
+        }
         if (offersTimer && extra.isEmpty() && turns.last().text.contains("timer", ignoreCase = true)) {
             delay(400)
             return listOf(ApiToolCall("offline-timer", "set_timer", "{\"seconds\":300,\"label\":\"Tea\"}"))

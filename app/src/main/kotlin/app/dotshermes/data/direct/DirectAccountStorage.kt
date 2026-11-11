@@ -46,6 +46,9 @@ interface DirectAccountStorage {
     fun save(accountId: String, transcript: DirectTranscript)
     fun removeKey(accountId: String)
     fun remove(accountId: String)
+    /** Mémoire à long terme du compte : de courts faits sur l'utilisateur (chiffrés comme le reste). */
+    fun facts(accountId: String): List<String> = emptyList()
+    fun saveFacts(accountId: String, facts: List<String>) {}
 }
 
 /** La clé et le fil sont deux enregistrements chiffrés distincts ; aucune préférence en clair. */
@@ -137,6 +140,16 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
     }
 
     override fun removeKey(accountId: String) { records.removeRecord(accountId, AccountRecord.Credentials) }
+
+    override fun facts(accountId: String): List<String> = try {
+        val bytes = records.read(accountId, AccountRecord.Memory) ?: return emptyList()
+        val rows = org.json.JSONArray(bytes.toString(Charsets.UTF_8))
+        List(rows.length()) { rows.getString(it) }
+    } catch (_: Exception) { emptyList() }
+
+    override fun saveFacts(accountId: String, facts: List<String>) {
+        records.write(accountId, AccountRecord.Memory, org.json.JSONArray(facts).toString().toByteArray(Charsets.UTF_8))
+    }
 
     override fun remove(accountId: String) = records.remove(accountId)
 

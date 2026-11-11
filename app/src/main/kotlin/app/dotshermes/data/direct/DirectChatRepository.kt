@@ -73,6 +73,47 @@ class DirectChatRepository(
     private val _unread = MutableStateFlow<Map<String, Int>>(emptyMap())
     override val unread = _unread.asStateFlow()
     @Volatile private var shown = false
+    // Mémoire à long terme (Groq) : relue au premier besoin, puis gardée ici.
+    private val _facts = MutableStateFlow<List<String>>(emptyList())
+    val facts = _facts.asStateFlow()
+    @Volatile private var factsLoaded = false
+    private fun loadedFacts(): List<String> {
+        if (!factsLoaded) { _facts.value = storage.facts(accountId); factsLoaded = true }
+        return _facts.value
+    }
+    private fun storeFacts(next: List<String>) { storage.saveFacts(accountId, next); _facts.value = next }
+
+    /** Oublie un fait (réglages). */
+    fun forgetFact(fact: String) = scope.launch(Dispatchers.IO) { synchronized(lock) { storeFacts(loadedFacts() - fact) } }
+
+    /** Outils « remember » / « forget » : le modèle note ce qui mérite d'être retenu d'une conversation à l'autre. */
+    private val memoryTools = object : DirectTools {
+        override fun definitions(): org.json.JSONArray = org.json.JSONArray()
+            .put(memoryFn("remember", "Save a short, lasting fact about the user so you know it in future chats " +
+                "(name, preferences, people, projects, routines). Only when the user shares something worth keeping or asks you to remember. " +
+                "One fact per call, written in third person, e.g. 'Prefers to be called Rodri'.", "fact"))
+            .put(memoryFn("forget", "Delete a saved fact about the user, given its exact text from the memory list.", "fact"))
+        override fun label(call: ApiToolCall) = "🧠…"
+        override suspend fun run(call: ApiToolCall): String {
+            val fact = (try { org.json.JSONObject(call.arguments.ifBlank { "{}" }).optString("fact") } catch (_: org.json.JSONException) { "" })
+                .trim().replace(Regex("\\s+"), " ").take(MAX_FACT_CHARS)
+            if (fact.isEmpty()) return """{"error":"fact is required"}"""
+            return withContext(Dispatchers.IO) { synchronized(lock) {
+                val now = loadedFacts()
+                when (call.name) {
+                    "remember" -> {
+                        if (now.none { it.equals(fact, ignoreCase = true) }) storeFacts((now + fact).takeLast(MAX_FACTS))
+                        """{"status":"saved"}"""
+                    }
+                    "forget" -> {
+                        val gone = now.filterNot { it.equals(fact, ignoreCase = true) }
+                        if (gone.size == now.size) """{"error":"no such fact"}""" else { storeFacts(gone); """{"status":"forgotten"}""" }
+                    }
+                    else -> """{"error":"unknown tool"}"""
+                }
+            } }
+        }
+    }
     override fun setShown(shown: Boolean) { this.shown = shown; if (shown) _unread.value = emptyMap() }
 
     suspend fun restore() = withContext(Dispatchers.IO) {
@@ -188,7 +229,9 @@ class DirectChatRepository(
                 val answer = DirectEntry(UUID.randomUUID().toString(), "assistant", "", System.currentTimeMillis(), DirectEntryState.Streaming, user.id)
                 answerId = answer.id
                 commit(transcript.copy(messages = retained + user.copy(state = DirectEntryState.Pending) + answer, retryUserId = user.id, failure = null, cooldownUntilMs = 0))
-                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE + "\n\n" + nowLine()) }) +
+                val known = if (provider == ApiProvider.Groq) loadedFacts() else emptyList()
+                val memoryLine = if (known.isEmpty()) "" else "\n\nWhat you remember about the user (from earlier chats):\n" + known.joinToString("\n") { "- $it" }
+                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE + memoryLine + "\n\n" + nowLine()) }) +
                     completedContext(retained) + ApiTurn("user", user.text.ifBlank { if (user.image != null) "What do you see in this photo?" else user.text },
                         user.image?.let { name -> imageDir?.let { File(it, name) } }?.takeIf { it.isFile }?.let { photo ->
                             "data:image/jpeg;base64," + java.util.Base64.getEncoder().encodeToString(photo.readBytes())
@@ -202,7 +245,7 @@ class DirectChatRepository(
             val extra = ArrayList<org.json.JSONObject>()
             // Jusqu'à MAX_TOOL_ROUNDS échanges d'outils ; le dernier tour n'en propose plus, pour obtenir une réponse.
             for (round in 0 until MAX_TOOL_ROUNDS) {
-            val toolset = if (provider == ApiProvider.Groq) toolbox() else null
+            val toolset = if (provider == ApiProvider.Groq) CombinedTools(listOfNotNull(memoryTools, toolbox())) else null
             val offered = toolset?.definitions()?.takeIf { round < MAX_TOOL_ROUNDS - 1 }
             val calls = client.streamTools(provider, key, turnModel, turns, extra, offered, { limits ->
                 synchronized(lock) {
@@ -539,6 +582,15 @@ internal fun nowLine(now: java.time.ZonedDateTime = java.time.ZonedDateTime.now(
     "Now: " + now.format(java.time.format.DateTimeFormatter.ofPattern("EEEE yyyy-MM-dd HH:mm", java.util.Locale.ENGLISH)) + " (" + now.zone.id + ")."
 
 /** Consigne ajoutée à la personnalité : une réaction en tête de chaque réponse, retirée du texte. */
+private const val MAX_FACTS = 60
+private const val MAX_FACT_CHARS = 200
+
+private fun memoryFn(name: String, description: String, arg: String) = org.json.JSONObject()
+    .put("type", "function").put("function", org.json.JSONObject().put("name", name).put("description", description)
+        .put("parameters", org.json.JSONObject().put("type", "object")
+            .put("properties", org.json.JSONObject().put(arg, org.json.JSONObject().put("type", "string")))
+            .put("required", org.json.JSONArray().put(arg))))
+
 internal val REACTION_RULE = "Start every reply with a reaction to the user's latest message, written exactly as " +
     "[[react:EMOJI]] where EMOJI is one of ${Reactions.joinToString(" ")}, or [[react:none]] when nothing fits. " +
     "React like a friend would (😂 for a joke, 🎉 for good news, ❤️ for thanks, 😢 for sad news, 👀 for a curious question). " +

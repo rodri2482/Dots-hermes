@@ -414,6 +414,9 @@ Colle une clé API Groq pour commencer.</string>
     <string name="chats_delete_warning">Ses messages sont effacés de ce téléphone. Impossible de revenir en arrière.</string>
     <string name="routines_section">Routines</string>
     <string name="routines_empty">Demande à Claydot, par exemple : « Chaque jour de semaine à 8 h, résume mes e-mails non lus. » Elle s\'exécute à l\'heure dite et te notifie.</string>
+    <string name="memory_section">Mémoire</string>
+    <string name="memory_empty">Rien pour l\'instant. Dis à Claydot « souviens-toi que… » et il le saura dans chaque conversation.</string>
+    <string name="memory_forget">Oublier</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>
