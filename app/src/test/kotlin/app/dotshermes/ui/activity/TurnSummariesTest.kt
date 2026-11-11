@@ -35,8 +35,9 @@ class TurnSummariesTest {
         )
         val turns = summarizeTurns(messages, tools)
         assertEquals(listOf("r-c", "r-a"), turns.map { it.id })
-        assertEquals("🎙️ Quelle heure ?", turns[0].request)
+        assertEquals("Quelle heure ?", turns[0].request)
         assertFalse(turns[0].voiceNote)
+        assertEquals("voice", turns[0].media)
         assertTrue(turns[0].running)
         assertFalse(turns[0].answered)
         with(turns[1]) {
