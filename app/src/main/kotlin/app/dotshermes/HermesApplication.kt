@@ -25,6 +25,7 @@ class HermesApplication : Application() {
         AppContainer.routines.rescheduleAll()
         // Écoute de WhatsApp (appel, routines « message ») : rebranchée si Android l'avait coupée.
         app.dotshermes.data.direct.ChatLog.keepListening(this)
+        app.dotshermes.data.direct.AlwaysOnService.start(this)
 
         // Premier plan = au moins une activité visible. Le gateway ne pousse que quand l'app est cachée.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

@@ -479,6 +479,11 @@ Colle une clé API Groq pour commencer.</string>
     <string name="keep_listening_title">Garder l\'écoute en arrière-plan</string>
     <string name="keep_listening_hint">Touche pour qu\'Android ne mette jamais Claydot en veille : l\'écoute de WhatsApp et les routines marchent toute la journée. Sur Samsung, regarde aussi Batterie > Applis jamais en veille.</string>
     <string name="keep_listening_on">Activé. Claydot écoute WhatsApp tout seul, même après un redémarrage.</string>
+    <string name="always_on_title">Toujours actif (24 h/24)</string>
+    <string name="always_on_hint">Garde Claydot éveillé avec une petite notification pour qu\'il entende chaque message WhatsApp, jour et nuit. Repart après un redémarrage.</string>
+    <string name="always_on_channel">Toujours actif</string>
+    <string name="always_on_notification">Claydot écoute</string>
+    <string name="always_on_guide">Empêcher %1$s de fermer Claydot</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

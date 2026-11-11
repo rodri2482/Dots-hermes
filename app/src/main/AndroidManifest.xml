@@ -19,6 +19,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Android 16 : la bannière « Claydot travaille » dans la barre d'état (Now Bar sur Samsung). -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <!-- « Ouvre WhatsApp » : voir les apps de l'écran d'accueil (Android 11+). -->
@@ -110,6 +111,16 @@
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
+        </service>
+
+        <!-- « Toujours actif » : garde Claydot éveillé pour écouter WhatsApp 24 h/24 (choix de l'utilisateur). -->
+        <service
+            android:name=".data.direct.AlwaysOnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the user's assistant listening to messaging notifications for routines they created" />
         </service>
 
         <!-- Routines : réveil à l'heure dite, et reprogrammation après redémarrage ou mise à jour. -->

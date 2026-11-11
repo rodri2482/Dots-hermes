@@ -33,6 +33,8 @@ class DirectChatRepository(
     private val imageDir: File? = null,
     /** Réduit et recompresse une photo avant l'envoi (Android : BitmapFactory). */
     private val encodeImage: (File) -> ByteArray? = { null },
+    /** Modèle du téléphone prêt (compte Groq) : il répond quand tous les modèles Groq sont à court de quota. */
+    private val localFallback: () -> String? = { null },
 ) : ChatRepository {
     private val lock = Any()
     private var transcript = DirectTranscript()
@@ -190,6 +192,24 @@ class DirectChatRepository(
     /** Le modèle de vision du compte, demandé une fois à Groq puis gardé. */
     @Volatile private var agentModelId: String? = null
     @Volatile private var agentModelChecked = false
+    /** Fin de quota connue, par modèle Groq : chaque modèle a son propre quota, on passe au suivant. */
+    private val exhausted = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    @Volatile private var knownModels: List<String>? = null
+
+    private suspend fun groqModels(key: String): List<String> = knownModels
+        ?: runCatching { chatModels(provider, client.models(provider, key)) }.getOrDefault(emptyList()).also { knownModels = it }
+
+    private fun available(id: String) = (exhausted[id] ?: 0L) <= clockMs()
+
+    /** Un autre modèle Groq qui a encore du quota : les larges d'abord, puis le reste de la liste du compte. */
+    private suspend fun nextGroqModel(key: String, current: String): String? {
+        val ids = groqModels(key)
+        return (AgentModels + FallbackModels + ids).distinct().firstOrNull { it in ids && it != current && available(it) }
+    }
+
+    /** Quota épuisé mais une autre voie existe (autre modèle Groq, modèle du téléphone) : on n'empêche pas d'écrire. */
+    private fun hasAlternative(): Boolean = provider == ApiProvider.Groq &&
+        (localFallback() != null || knownModels?.any { it != model && available(it) } == true)
 
     /** Le modèle Groq au quota par minute le plus large pour les tâches à plusieurs tours ; null si aucun. */
     private suspend fun agentModel(key: String): String? {
@@ -214,10 +234,11 @@ class DirectChatRepository(
     private fun begin(text: String?, retryId: String?, image: String? = null) {
         synchronized(lock) {
             if (!ready || busy) return
-            if (maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs) > clockMs()) {
+            if (maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs) > clockMs() && !hasAlternative()) {
                 _failure.value = issue(transcript.failure ?: ApiFailure.RateLimited, cooldownOnly = transcript.failure == null)
                 return
             }
+            if (maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs) > clockMs()) exhausted[model] = maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs)
             memoryCooldownUntilMs = 0
             busy = true
             val token = ++generation
@@ -259,21 +280,32 @@ class DirectChatRepository(
             val extra = ArrayList<org.json.JSONObject>()
             // Jusqu'à MAX_TOOL_ROUNDS échanges d'outils ; le dernier tour n'en propose plus, pour obtenir une réponse.
             // Modèle du téléphone : moins de tours (chaque tour fait chauffer le processeur).
+            // Le modèle du compte est à court de quota : on part directement d'un autre (Groq, puis le téléphone).
+            var callProvider = provider
+            var callKey = key
+            if (provider == ApiProvider.Groq && !available(turnModel)) {
+                val next = nextGroqModel(key, turnModel)
+                val local = if (next == null) localFallback() else null
+                when {
+                    next != null -> turnModel = next
+                    local != null -> { callProvider = ApiProvider.Local; callKey = LocalModels.LOCAL_KEY; turnModel = local }
+                }
+            }
             val rounds = if (provider == ApiProvider.Local) LOCAL_TOOL_ROUNDS else MAX_TOOL_ROUNDS
             for (round in 0 until rounds) {
             val toolset = if (provider.hasTools) CombinedTools(listOfNotNull(memoryTools, toolbox())) else null
-            val offered = toolset?.definitions()?.takeIf { round < rounds - 1 }
-                ?.let { if (provider == ApiProvider.Local) localToolset(it) else it }
+            var offered = toolset?.definitions()?.takeIf { round < rounds - 1 }
+                ?.let { if (callProvider == ApiProvider.Local) localToolset(it) else it }
             // Tâche à plusieurs tours (écran, WhatsApp…) : un modèle au petit quota par minute (gpt-oss : 8 000
             // jetons) s'épuise dès le 2e tour. La suite passe alors par un modèle au quota large (Llama 4 Scout).
-            if (round >= 1 && provider == ApiProvider.Groq && (transcript.limits?.tokenLimit ?: 0L) in 1L until AGENT_TPM) {
-                agentModel(key)?.let { turnModel = it }
+            if (round >= 1 && callProvider == ApiProvider.Groq && (transcript.limits?.tokenLimit ?: 0L) in 1L until AGENT_TPM) {
+                agentModel(key)?.takeIf(::available)?.let { turnModel = it }
             }
             var calls: List<ApiToolCall> = emptyList()
             var attempt = 0
             while (true) {
             try {
-            calls = client.streamTools(provider, key, turnModel, turns, extra, offered, { limits ->
+            calls = client.streamTools(callProvider, callKey, turnModel, turns, extra, offered, { limits ->
                 synchronized(lock) {
                     if (token == generation) {
                         memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, limits.exhaustedUntilMs())
@@ -300,15 +332,23 @@ class DirectChatRepository(
             break
             } catch (e: ApiException) {
                 // Modèle choisi qui ne sait pas appeler d'outils : la tâche continue avec un modèle qui sait.
-                if (e.failure == ApiFailure.InvalidRequest && offered != null && provider == ApiProvider.Groq && attempt < 3) {
+                if (e.failure == ApiFailure.InvalidRequest && offered != null && callProvider == ApiProvider.Groq && attempt < 3) {
                     val agent = agentModel(key)?.takeIf { it != turnModel }
                     if (agent != null) { attempt++; turnModel = agent; continue }
                 }
-                // Quota par minute dépassé : courte attente puis on reprend ; sinon, le modèle au quota large.
-                if (e.failure != ApiFailure.RateLimited || attempt >= 3 || provider != ApiProvider.Groq) throw e
+                // Quota d'un modèle épuisé : on le note et on passe à un autre modèle Groq qui en a encore,
+                // puis au modèle du téléphone ; on n'attend qu'en dernier recours.
+                if (e.failure != ApiFailure.RateLimited || attempt >= 8 || callProvider != ApiProvider.Groq) throw e
                 attempt++
-                val agent = agentModel(key)?.takeIf { it != turnModel }
-                if (agent != null && (round == 0 || e.retryAfterSeconds > SHORT_WAIT_S || attempt >= 2)) { turnModel = agent; continue }
+                exhausted[turnModel] = clockMs() + e.retryAfterSeconds.coerceAtLeast(20) * 1_000
+                val next = nextGroqModel(key, turnModel)
+                if (next != null) { turnModel = next; continue }
+                val local = localFallback()
+                if (local != null) {
+                    callProvider = ApiProvider.Local; callKey = LocalModels.LOCAL_KEY; turnModel = local
+                    offered = offered?.let(::localToolset)
+                    continue
+                }
                 // Longue attente (quota du jour…) et pas d'autre modèle : on s'arrête, le délai s'affiche.
                 // Une courte attente ne se fait qu'en pleine tâche ; sur un premier envoi, le délai s'affiche avec « Réessayer ».
                 if (round == 0 || e.retryAfterSeconds !in 1..SHORT_WAIT_S) throw e
@@ -330,13 +370,14 @@ class DirectChatRepository(
                     val tail = tag.flush()
                     commit(transcript.copy(messages = transcript.messages.map {
                         when (it.id) {
-                            answerId -> it.copy(text = it.text + tail, state = DirectEntryState.Complete, durationMs = (doneAt - it.timestampMs).coerceAtLeast(0), tokens = replyTokens)
+                            answerId -> it.copy(text = it.text + tail, state = DirectEntryState.Complete, durationMs = (doneAt - it.timestampMs).coerceAtLeast(0), tokens = replyTokens,
+                                model = turnModel.takeIf { m -> m != model })
                             userId -> it.copy(state = DirectEntryState.Complete)
                             else -> it
                         }
                     }, retryUserId = null, failure = null))
                     try { touchCurrent() } catch (_: Exception) { }
-                    if (transcript.cooldownUntilMs > clockMs()) _failure.value = issue(ApiFailure.RateLimited, cooldownOnly = true)
+                    if (transcript.cooldownUntilMs > clockMs() && !hasAlternative()) _failure.value = issue(ApiFailure.RateLimited, cooldownOnly = true)
                     if (!shown) _unread.value = mapOf(MAIN_CHAT to ((_unread.value[MAIN_CHAT] ?: 0) + 1))
                 }
             }
@@ -568,7 +609,7 @@ class DirectChatRepository(
             } ?: MessageContent.Text(entry.text), sentAt = Instant.ofEpochMilli(entry.timestampMs),
             delivery = if (entry.role == "user") Delivery.Sent else Delivery.Read,
             remoteId = entry.id, turn = entry.replyTo, failed = entry.role == "user" && entry.state == DirectEntryState.Failed,
-            footer = if (entry.id == newestDone) replyFooter(model, entry.durationMs ?: 0, entry.tokens) else null,
+            footer = if (entry.id == newestDone) replyFooter(entry.model ?: model, entry.durationMs ?: 0, entry.tokens) else null,
             streaming = entry.role == "assistant" && entry.state == DirectEntryState.Streaming,
             reactions = entry.reaction?.let { mapOf((if (entry.role == "user") Sender.Agent else Sender.User) to it) } ?: emptyMap(),
         ) }
@@ -668,6 +709,8 @@ private const val AGENT_TPM = 20_000L
 /** Attente acceptée avant de réessayer après un « rate limit » (secondes). */
 private const val SHORT_WAIT_S = 20L
 /** Modèles Groq aux quotas larges qui savent appeler des outils, du préféré au suivant. */
+/** Après les modèles « agent », les autres modèles Groq de conversation, chacun avec son propre quota. */
+private val FallbackModels = listOf("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3-32b", "moonshotai/kimi-k2-instruct", "llama-3.1-8b-instant")
 private val AgentModels = listOf("meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile", "meta-llama/llama-4-maverick-17b-128e-instruct")
 
 /** Un résultat d'outil d'un tour précédent, réduit à son début (le modèle en a déjà tiré parti). */

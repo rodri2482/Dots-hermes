@@ -191,6 +191,29 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
                             style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
                     }
                 }
+                // Toujours actif (24 h/24) et le guide de la marque du téléphone (dontkillmyapp.com).
+                if (watching) {
+                    var alwaysOn by remember { mutableStateOf(app.dotshermes.data.direct.AlwaysOnService.enabled(context0)) }
+                    Hairline()
+                    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.always_on_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                            Text(stringResource(R.string.always_on_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                        }
+                        androidx.compose.material3.Switch(checked = alwaysOn, onCheckedChange = {
+                            alwaysOn = it; app.dotshermes.data.direct.AlwaysOnService.set(context0, it)
+                        }, colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,
+                            checkedThumbColor = androidx.compose.ui.graphics.Color.White))
+                    }
+                    Hairline()
+                    Text(stringResource(R.string.always_on_guide, android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() }),
+                        style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            runCatching { context0.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(app.dotshermes.data.direct.AlwaysOnService.guideUrl())).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        }.padding(horizontal = 16.dp, vertical = 13.dp))
+                }
                 // Contrôle de l'écran : seul Android peut l'activer (Réglages > Accessibilité).
                 val screenOn by app.dotshermes.screen.ClaydotAccessibilityService.running.collectAsStateWithLifecycle()
                 val context = androidx.compose.ui.platform.LocalContext.current

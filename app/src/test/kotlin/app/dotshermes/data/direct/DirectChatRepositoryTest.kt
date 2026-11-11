@@ -26,7 +26,7 @@ class DirectChatRepositoryTest {
     private class Client : ProviderClient {
         val calls = mutableListOf<List<ApiTurn>>()
         var action: suspend ((String) -> Unit) -> Unit = { it("Hello") }
-        override suspend fun models(provider: ApiProvider, key: String) = listOf("chosen")
+        override suspend fun models(provider: ApiProvider, key: String) = emptyList<String>() // aucun autre modèle : le quota reste celui du modèle choisi
         override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) {
             calls.add(turns)
             action(onDelta)

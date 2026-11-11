@@ -169,7 +169,7 @@ class AgentRegistry(
             appearance(id).adoptServerName(COMPANION_NAME)
             return DirectChatRepository(id, link.provider, link.model, scope, apiStorage, providerClient,
                 persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools,
-                imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }).apply { setShown(id == _activeId.value) }
+                imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel).apply { setShown(id == _activeId.value) }
         }
         // L'agent historique garde son cache d'avant ; les autres ont le leur, à part.
         val cache = if (id == AgentStore.PRIMARY_ID) File(context.cacheDir, "voice") else File(context.cacheDir, "agents/$id/voice")
@@ -322,7 +322,7 @@ class AgentRegistry(
                 val knownCooldown = (repos[id] as? DirectChatRepository)?.cooldownFor(provider, model.trim(), key) ?: 0
                 val direct = DirectChatRepository(id, provider, model.trim(), scope, apiStorage, providerClient,
                     inheritedCooldownUntilMs = knownCooldown, persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools,
-                    imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) })
+                    imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel)
                 direct.restore()
                 currentCoroutineContext().ensureActive()
                 if (direct.connection.value !is ConnectionState.Connected) return@withLock false
@@ -379,6 +379,11 @@ class AgentRegistry(
             }
         }
     }
+
+    /** Un modèle du téléphone téléchargé, pour répondre quand Groq est à court de quota. */
+    private fun readyLocalModel(): String? = runCatching {
+        LocalModels.CATALOG.firstOrNull { app.dotshermes.AppContainer.localModels.isReady(it) }?.id
+    }.getOrNull()
 
     private fun drop(id: String) {
         watchers.remove(id)?.cancel()

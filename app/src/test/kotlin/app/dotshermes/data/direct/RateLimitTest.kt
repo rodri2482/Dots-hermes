@@ -36,14 +36,13 @@ class RateLimitTest {
             when (usedModels.size) {
                 1 -> return listOf(ApiToolCall("c1", "remember", "{\"fact\":\"Uses WhatsApp\"}"))
                 2 -> throw ApiException(ApiFailure.RateLimited, 1)
-                3 -> throw ApiException(ApiFailure.RateLimited, 60)
             }
             onDelta("Done.")
             return emptyList()
         }
     }
 
-    @Test fun `mid-task, a per-minute limit waits once, then finishes on the agent model`() = runBlocking {
+    @Test fun `when a model runs out of quota, the task moves to another Groq model at once`() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
             val storage = Storage(); val client = Client()
@@ -52,7 +51,7 @@ class RateLimitTest {
             withTimeout(10_000) {
                 while (storage.transcript.messages.lastOrNull()?.state != DirectEntryState.Complete || repo.activity.value != AgentActivity.Idle) delay(20)
             }
-            assertEquals(listOf("openai/gpt-oss-120b", "openai/gpt-oss-120b", "openai/gpt-oss-120b", "meta-llama/llama-4-scout-17b-16e-instruct"), client.usedModels)
+            assertEquals(listOf("openai/gpt-oss-120b", "openai/gpt-oss-120b", "meta-llama/llama-4-scout-17b-16e-instruct"), client.usedModels)
             assertEquals("Done.", storage.transcript.messages.last().text)
         } finally { scope.cancel() }
     }
@@ -97,6 +96,35 @@ class RateLimitTest {
             }
             assertEquals(listOf("gemma-no-tools", "meta-llama/llama-4-scout-17b-16e-instruct"), client.usedModels)
             assertEquals("Timer set.", storage.transcript.messages.last().text)
+        } finally { scope.cancel() }
+    }
+
+    /** Tous les modèles Groq à court de quota : le modèle du téléphone répond. */
+    private class AllLimited : ProviderClient {
+        val used = mutableListOf<Pair<ApiProvider, String>>()
+        override suspend fun models(provider: ApiProvider, key: String) = listOf("openai/gpt-oss-120b", "meta-llama/llama-4-scout-17b-16e-instruct")
+        override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) = error("unused")
+        override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+            extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+            used += provider to model
+            if (provider == ApiProvider.Groq) throw ApiException(ApiFailure.RateLimited, 3600)
+            onDelta("Answered offline.")
+            return emptyList()
+        }
+    }
+
+    @Test fun `when every Groq model is out of quota the phone model answers`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage(); val client = AllLimited()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "openai/gpt-oss-120b", scope, storage, client, localFallback = { "qwen3.5-2b" })
+            repo.restore(); repo.send("Hello")
+            withTimeout(10_000) {
+                while (storage.transcript.messages.lastOrNull()?.state != DirectEntryState.Complete || repo.activity.value != AgentActivity.Idle) delay(20)
+            }
+            assertEquals(ApiProvider.Local to "qwen3.5-2b", client.used.last())
+            assertEquals("Answered offline.", storage.transcript.messages.last().text)
+            assertEquals("qwen3.5-2b", storage.transcript.messages.last().model)
         } finally { scope.cancel() }
     }
 }

@@ -472,6 +472,11 @@ Paste a Groq API key to get started.</string>
     <string name="keep_listening_title">Keep listening in the background</string>
     <string name="keep_listening_hint">Tap so Android never puts Claydot to sleep: WhatsApp listening and routines keep working all day. On Samsung, also check Battery > Never sleeping apps.</string>
     <string name="keep_listening_on">On. Claydot keeps listening to WhatsApp on its own, even after a restart.</string>
+    <string name="always_on_title">Always on (24/7)</string>
+    <string name="always_on_hint">Keeps Claydot awake with a small notification so it hears every WhatsApp message, day and night. Starts again after a restart.</string>
+    <string name="always_on_channel">Always on</string>
+    <string name="always_on_notification">Claydot is listening</string>
+    <string name="always_on_guide">Stop %1$s from closing Claydot</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

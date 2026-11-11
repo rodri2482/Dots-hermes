@@ -382,7 +382,10 @@ class RoutineAlarmReceiver : android.content.BroadcastReceiver() {
     override fun onReceive(context: Context, intent: android.content.Intent?) {
         when (intent?.action) {
             android.content.Intent.ACTION_BOOT_COMPLETED, android.content.Intent.ACTION_MY_PACKAGE_REPLACED,
-            "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" -> AppContainer.routines.rescheduleAll()
+            "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" -> {
+                AppContainer.routines.rescheduleAll()
+                AlwaysOnService.start(context)
+            }
             else -> RoutineAlarms.idFrom(intent)?.let { RoutineWorker.runNow(context, it) }
         }
     }
