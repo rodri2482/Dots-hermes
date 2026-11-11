@@ -28,6 +28,12 @@ private class OfflineProviderClient : ProviderClient {
         extra: List<org.json.JSONObject>, tools: org.json.JSONArray?,
         onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
         val offersTimer = tools?.toString()?.contains("set_timer") == true
+        if (tools?.toString()?.contains("create_routine") == true && extra.isEmpty() && turns.last().text.contains("routine", ignoreCase = true)) {
+            delay(400)
+            return listOf(ApiToolCall("offline-routine", "create_routine",
+                org.json.JSONObject().put("name", "Morning email summary").put("prompt", "Summarise my unread emails from today")
+                    .put("time", "08:00").put("days", "weekdays").toString()))
+        }
         if (offersTimer && extra.isEmpty() && turns.last().text.contains("timer", ignoreCase = true)) {
             delay(400)
             return listOf(ApiToolCall("offline-timer", "set_timer", "{\"seconds\":300,\"label\":\"Tea\"}"))

@@ -34,7 +34,8 @@ object AppContainer {
     val agents: AgentRegistry by lazy {
         AgentRegistry(appContext, appScope, AgentStore(appContext), onApprovalResolved = { _, approvalId -> Notifications.cancelApproval(appContext, approvalId) },
             persona = { name -> companion.persona(name) },
-            directTools = { app.dotshermes.data.direct.CombinedTools(listOf(app.dotshermes.data.direct.GmailTools(gmail), phoneActions)) })
+            directTools = { app.dotshermes.data.direct.CombinedTools(listOf(app.dotshermes.data.direct.GmailTools(gmail), phoneActions,
+                app.dotshermes.data.direct.RoutineTools(routines, accountId = { agents.activeId.value }, confirm = phoneActions::ask))) })
     }
 
     val chatRepository: RoutingChatRepository by lazy {
@@ -47,6 +48,8 @@ object AppContainer {
     /** Personnalité et voix (Fish Audio) des comptes API directs. */
     /** Actions sur le téléphone (réveil, minuteur, app, agenda), toujours confirmées par l'utilisateur. */
     val phoneActions: app.dotshermes.data.direct.PhoneActions by lazy { app.dotshermes.data.direct.PhoneActions(appContext) }
+    /** Routines programmées (déclencheur horaire + consigne), exécutées par WorkManager. */
+    val routines: app.dotshermes.data.direct.RoutineStore by lazy { app.dotshermes.data.direct.RoutineStore(appContext) }
     /** Gmail en lecture seule pour les comptes Groq (outils de recherche et de lecture). */
     val gmail: app.dotshermes.data.gmail.GmailAccess by lazy { app.dotshermes.data.gmail.GmailAccess(appContext) }
     val companion: CompanionVoice by lazy { CompanionVoice(appContext, appScope, app.dotshermes.data.direct.androidApiVault(appContext)) }

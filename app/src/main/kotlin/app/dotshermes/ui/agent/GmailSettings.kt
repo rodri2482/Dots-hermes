@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.dotshermes.R
 import app.dotshermes.data.gmail.GmailAccess
@@ -110,6 +111,39 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
                 androidx.compose.material3.Switch(checked = enabled, onCheckedChange = actions::setEnabled,
                     colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,
                         checkedThumbColor = androidx.compose.ui.graphics.Color.White))
+            }
+        }
+    }
+}
+
+/** Routines du compte : interrupteur et suppression ; on les crée en le demandant à Claydot. */
+@Composable
+fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: String?) {
+    val all by store.routines.collectAsStateWithLifecycle()
+    val mine = all.filter { it.accountId == accountId }
+    Column(Modifier.fillMaxWidth()) {
+        SectionLabel(stringResource(R.string.routines_section))
+        GroupedCard {
+            if (mine.isEmpty()) {
+                Text(stringResource(R.string.routines_empty), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp))
+            }
+            mine.forEachIndexed { i, routine ->
+                if (i > 0) Hairline()
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(routine.name, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                        Text(routine.scheduleLabel(), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                    }
+                    androidx.compose.material3.Switch(checked = routine.enabled, onCheckedChange = { store.setEnabled(routine.id, it) },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,
+                            checkedThumbColor = androidx.compose.ui.graphics.Color.White))
+                    androidx.compose.foundation.layout.Box(Modifier.padding(start = 4.dp).clickable { store.delete(routine.id) }.padding(10.dp)) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.DeleteOutline,
+                            stringResource(R.string.chats_delete), tint = Ink.Tertiary)
+                    }
+                }
             }
         }
     }

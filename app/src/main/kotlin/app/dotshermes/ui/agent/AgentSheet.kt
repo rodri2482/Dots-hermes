@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -144,6 +145,7 @@ fun AgentSettings(
                 if (connected?.gatewayUrl == app.dotshermes.data.direct.ApiProvider.Groq.title) {
                     GmailSettings(app.dotshermes.AppContainer.gmail)
                     PhoneSettings(app.dotshermes.AppContainer.phoneActions)
+                    RoutinesSettings(app.dotshermes.AppContainer.routines, app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value)
                 }
             }
 

@@ -405,6 +405,8 @@ Paste a Groq API key to get started.</string>
     <string name="chats_delete">Delete</string>
     <string name="chats_delete_title">Delete this chat?</string>
     <string name="chats_delete_warning">Its messages are erased from this phone. This can\'t be undone.</string>
+    <string name="routines_section">Routines</string>
+    <string name="routines_empty">Ask Claydot, for example: “Every weekday at 8:00, summarise my unread emails.” It runs on schedule and notifies you.</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

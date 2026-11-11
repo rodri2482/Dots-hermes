@@ -344,6 +344,7 @@ class AgentRegistry(
             if (store.get(id)?.provider != null) {
                 runCatching { apiStorage.load(id).conversations.filter { it.id != id }.forEach { apiStorage.remove(it.id) } }
                 File(context.filesDir, "direct-images/$id").deleteRecursively()
+                runCatching { app.dotshermes.AppContainer.routines.deleteAccount(id) }
                 apiStorage.remove(id)
             }
             // Navigation et métadonnées d'éditeur publiées ensemble, comme les gestes utilisateur.

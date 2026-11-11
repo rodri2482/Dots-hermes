@@ -6,6 +6,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import java.io.File
@@ -354,6 +355,21 @@ class DirectChatRepository(
     private fun mainTitle(): String = try {
         storage.load(accountId).messages.firstOrNull { it.role == "user" }?.text?.take(60).orEmpty()
     } catch (_: Exception) { "" }
+
+    /**
+     * Routine programmée : envoie [text] comme un message et attend la réponse (3 min au plus).
+     * null si le compte n'est pas prêt, déjà occupé, en attente de quota, ou sans réponse complète.
+     */
+    suspend fun runRoutine(text: String): String? {
+        if (!ready) restore()
+        val before = synchronized(lock) { if (!ready || busy) return null; transcript.messages.size }
+        begin(text, null)
+        if (activity.value == AgentActivity.Idle) return null
+        kotlinx.coroutines.withTimeoutOrNull(180_000) { activity.first { it == AgentActivity.Idle } } ?: return null
+        return synchronized(lock) {
+            transcript.messages.drop(before).lastOrNull { it.role == "assistant" && it.state == DirectEntryState.Complete }?.text
+        }
+    }
 
     override fun newConversation() {
         stopTurn()

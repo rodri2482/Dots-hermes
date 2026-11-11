@@ -21,6 +21,8 @@ class HermesApplication : Application() {
         Notifications.createChannel(this)
         UpdateNotifications.createChannel(this)
         UpdateWorker.schedule(this)
+        // Routines : chaque routine active retrouve son prochain passage (après une mise à jour, un redémarrage…).
+        AppContainer.routines.rescheduleAll()
 
         // Premier plan = au moins une activité visible. Le gateway ne pousse que quand l'app est cachée.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

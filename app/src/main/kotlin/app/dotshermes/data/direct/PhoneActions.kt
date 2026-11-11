@@ -54,6 +54,15 @@ class PhoneActions(private val context: Context) : DirectTools {
             props("title" to str("Event title"), "start" to str("Local start, ISO 8601 like 2026-11-12T15:00"),
                 "end" to str("Optional local end, ISO 8601"), "location" to str("Optional location")), "title", "start"))
 
+    /** Fenêtre « Claydot veut… » : true si l'utilisateur appuie sur « Faire » (2 min, sinon refus). */
+    suspend fun ask(title: String, detail: String): Boolean {
+        val action = PendingPhoneAction(title, detail, CompletableDeferred())
+        _pending.value = action
+        return try { withTimeoutOrNull(120_000) { action.answer.await() } ?: false } finally {
+            if (_pending.value === action) _pending.value = null
+        }
+    }
+
     override fun label(call: ApiToolCall) = when (call.name) {
         "set_alarm" -> "⏰…"; "set_timer" -> "⏱…"; "open_app" -> "📱…"; "add_calendar_event" -> "📅…"; else -> "…"
     }
@@ -62,11 +71,7 @@ class PhoneActions(private val context: Context) : DirectTools {
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }
         val plan = try { plan(call.name, args) } catch (e: IllegalArgumentException) { return result("invalid", e.message) }
             ?: return result("unknown_tool", call.name)
-        val action = PendingPhoneAction(plan.title, plan.detail, CompletableDeferred())
-        _pending.value = action
-        val ok = try { withTimeoutOrNull(120_000) { action.answer.await() } ?: false } finally {
-            if (_pending.value === action) _pending.value = null
-        }
+        val ok = ask(plan.title, plan.detail)
         if (!ok) return result("cancelled", "The user declined. Do not retry unless they ask again.")
         return withContext(Dispatchers.Main) {
             try {
