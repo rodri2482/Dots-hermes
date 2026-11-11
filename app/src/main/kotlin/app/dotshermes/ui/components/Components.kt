@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.dotshermes.ui.theme.Ink
 
 /** Carte de liste groupée iOS (fond uni, coins arrondis, lignes séparées par [Hairline]). */
@@ -50,7 +51,8 @@ fun Hairline(startIndent: Dp = 16.dp) {
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
+        // Des capitales serrées se lisent mal : un peu d'espacement (tracking) entre les lettres.
+        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.6.sp),
         color = Ink.Secondary,
         modifier = modifier.fillMaxWidth().padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
     )

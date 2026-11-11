@@ -251,9 +251,12 @@ internal fun FieldRow(
     secret: Boolean = false,
     keyboardType: KeyboardType = KeyboardType.Text,
     placeholder: String = "",
+    /** Élément à droite du champ (la flèche d'une liste déroulante, par exemple). */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val palette = LocalDotPalette.current
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = if (trailing != null) 4.dp else 16.dp, top = 15.dp, bottom = 15.dp),
+        verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, modifier = Modifier.width(84.dp))
         Box(Modifier.weight(1f)) {
             if (value.isEmpty() && placeholder.isNotEmpty()) {
@@ -271,5 +274,6 @@ internal fun FieldRow(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        trailing?.invoke()
     }
 }

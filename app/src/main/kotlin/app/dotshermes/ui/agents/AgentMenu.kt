@@ -117,7 +117,7 @@ private fun AgentRow(agent: AgentSummary, selected: Boolean, onClick: () -> Unit
         connected == null -> stringResource(R.string.conn_offline)
         !connected.online -> connected.reconnectReason ?: stringResource(R.string.conn_reconnecting)
         agent.busy -> stringResource(R.string.agents_busy)
-        agent.url.isBlank() -> stringResource(R.string.api_ready)
+        agent.url.isBlank() -> stringResource(R.string.conn_online)
         else -> stringResource(R.string.status_online)
     }
     Row(
@@ -137,7 +137,7 @@ private fun AgentRow(agent: AgentSummary, selected: Boolean, onClick: () -> Unit
         Column(Modifier.weight(1f)) {
             Text(look.displayName, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "$status · ${if (agent.url.isBlank()) stringResource(R.string.api_direct_status) else gatewayLabel(agent.url)}",
+                "$status · ${if (agent.url.isBlank()) connected?.gatewayUrl ?: "API" else gatewayLabel(agent.url)}",
                 style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }

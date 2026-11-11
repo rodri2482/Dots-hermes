@@ -396,6 +396,9 @@ Colle une clé API Groq pour commencer.</string>
     <string name="gmail_error">Impossible de se connecter à Gmail. Réessaie.</string>
     <string name="gmail_error_setup">Gmail n\'est pas encore configuré pour cette app : il faut un client de connexion Google Cloud (voir docs/gmail-setup.md).</string>
     <string name="agents_add_hermes">Brancher un serveur Hermes</string>
+    <string name="conn_online">En ligne</string>
+    <string name="settings_appearance">Apparence</string>
+    <string name="settings_appearance_row">Mascotte, couleurs et accessoire</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>
@@ -481,11 +484,9 @@ Colle une clé API Groq pour commencer.</string>
     <string name="api_error_response">Le fournisseur ne peut pas traiter cette demande. Vérifiez le modèle et réessayez.</string>
     <string name="api_source">API directe · historique local chiffré</string>
     <string name="api_retry_wait">%d s</string>
-    <string name="api_direct_status">API directe</string>
     <string name="api_provider_label">Fournisseur</string>
     <string name="api_delete_account">Supprimer le compte et son historique</string>
     <string name="api_delete_warning">La clé API et toutes les conversations de ce compte seront définitivement supprimées de ce téléphone. Cette action est irréversible.</string>
-    <string name="api_ready">Prêt</string>
     <string name="api_limits_unknown">Les limites apparaissent après ta prochaine réponse.</string>
     <string name="api_limits_requests">Requêtes restantes · fenêtre quotidienne</string>
     <string name="api_limits_tokens">Tokens restants · fenêtre par minute</string>

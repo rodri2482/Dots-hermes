@@ -38,6 +38,18 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import app.dotshermes.data.model.AgentProfile
 import app.dotshermes.data.model.ConnectionState
 import app.dotshermes.ui.DEFAULT_AGENT_NAME
@@ -159,41 +171,58 @@ fun AgentSettings(
                 }
             }
 
-            SectionLabel(stringResource(R.string.settings_mascot))
+            // Apparence repliée par défaut : la fiche reste courte, tout est à un appui.
+            var lookOpen by rememberSaveable { mutableStateOf(false) }
+            SectionLabel(stringResource(R.string.settings_appearance))
             GroupedCard {
-                Row(
-                    Modifier.fillMaxWidth().padding(8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    DotSpecies.entries.forEach { species ->
-                        SpeciesOption(species, appearance, selected = species == appearance.species) { onSpecies(species) }
-                    }
+                Row(Modifier.fillMaxWidth().clickable { lookOpen = !lookOpen }.padding(horizontal = 16.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.settings_appearance_row), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, modifier = Modifier.weight(1f))
+                    val turn by animateFloatAsState(if (lookOpen) 180f else 0f, label = "look-chevron")
+                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.ExpandMore, null, tint = Ink.Tertiary,
+                        modifier = Modifier.graphicsLayer { rotationZ = turn })
                 }
             }
-
-            SectionLabel(stringResource(R.string.settings_display))
-            GroupedCard {
-                ThemePicker(appearance.theme, onTheme)
-                Hairline()
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    DotPalettes.all.forEach { option ->
-                        Swatch(option, selected = option.id == appearance.palette.id) { onPalette(option) }
+            AnimatedVisibility(lookOpen, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                Column {
+                SectionLabel(stringResource(R.string.settings_mascot))
+                GroupedCard {
+                    Row(
+                        Modifier.fillMaxWidth().padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        DotSpecies.entries.forEach { species ->
+                            SpeciesOption(species, appearance, selected = species == appearance.species) { onSpecies(species) }
+                        }
                     }
                 }
-            }
 
-            SectionLabel(stringResource(R.string.settings_accessory))
-            GroupedCard {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    DotAccessory.entries.forEach { accessory ->
-                        AccessoryOption(accessory, appearance.species, selected = accessory == appearance.accessory) { onAccessory(accessory) }
+                SectionLabel(stringResource(R.string.settings_display))
+                GroupedCard {
+                    ThemePicker(appearance.theme, onTheme)
+                    Hairline()
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        DotPalettes.all.forEach { option ->
+                            Swatch(option, selected = option.id == appearance.palette.id) { onPalette(option) }
+                        }
                     }
+                }
+
+                SectionLabel(stringResource(R.string.settings_accessory))
+                GroupedCard {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        DotAccessory.entries.forEach { accessory ->
+                            AccessoryOption(accessory, appearance.species, selected = accessory == appearance.accessory) { onAccessory(accessory) }
+                        }
+                    }
+                }
+
                 }
             }
 

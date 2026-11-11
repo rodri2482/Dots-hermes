@@ -39,6 +39,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -83,6 +86,7 @@ import app.dotshermes.data.model.ConnectionState
 import app.dotshermes.ui.ChatUiState
 import app.dotshermes.ui.DotAppearance
 import app.dotshermes.ui.components.CircleIconButton
+import app.dotshermes.ui.components.rememberDeviceOnline
 import app.dotshermes.ui.dot.ClayDot
 import app.dotshermes.ui.dot.DotMood
 import app.dotshermes.ui.theme.Ink
@@ -243,7 +247,8 @@ fun ChatScreen(
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerHeight = with(LocalDensity.current) { headerHeightPx.toDp() }
 
-    Box(Modifier.fillMaxSize().background(Ink.Surface)) {
+    Box(Modifier.fillMaxSize().background(Ink.Surface)
+        .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.displayCutout.only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal))) {
         Box(Modifier.fillMaxWidth().height(320.dp).background(Brush.verticalGradient(listOf(palette.light, Ink.Surface))))
         Column(Modifier.fillMaxSize().imePadding()) {
           Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -402,16 +407,16 @@ private fun ChatHeader(
         modifier
             .fillMaxWidth()
             // Blanc franc sous la barre d'état, qui s'évanouit vers le bas : les messages passent dessous.
-            .background(Brush.verticalGradient(0f to Ink.Surface, 0.7f to Ink.Surface.copy(alpha = 0.92f), 1f to Ink.Surface.copy(alpha = 0f)))
+            .background(Brush.verticalGradient(0f to Ink.Surface, 0.8f to Ink.Surface, 1f to Ink.Surface.copy(alpha = 0f)))
             .statusBarsPadding()
-            .padding(top = 4.dp, bottom = 18.dp),
+            .padding(top = 4.dp, bottom = 22.dp),
     ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Compte direct : rien à surveiller (pas de serveur ni de latence), la pastille ne ferait que du bruit.
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { if (gatewayFeatures) ConnectionPill(connection, gatewayFeatures) }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { ConnectionPill(connection, gatewayFeatures) }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -446,7 +451,7 @@ private fun ChatHeader(
             }
             AnimatedContent(
                 // En plein débat, l'en-tête annonce qui a la parole ; le dot de la conversation reste au centre.
-                targetState = speakingName?.let { stringResource(R.string.room_speaking, it) } ?: if (!gatewayFeatures && activity == AgentActivity.Idle) stringResource(R.string.api_ready) else activity.statusLabel(),
+                targetState = speakingName?.let { stringResource(R.string.room_speaking, it) } ?: if (!gatewayFeatures && (activity == AgentActivity.Idle || activity == AgentActivity.Reacting)) "" else activity.statusLabel(),
                 transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
                 label = "status",
             ) { label ->
@@ -487,15 +492,16 @@ private fun ConnectionPill(connection: ConnectionState.Connected?, gatewayFeatur
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val online = connection?.online == true
-        Box(Modifier.size(7.dp).graphicsLayer { alpha = pulse }.background(if (online) Ink.Success else Ink.Warning, CircleShape))
-        Spacer(Modifier.width(6.dp))
-        val label = when {
-            connection == null -> stringResource(R.string.conn_offline)
-            !connection.online -> connection.reconnectReason ?: stringResource(R.string.conn_reconnecting)
-            !gatewayFeatures -> stringResource(R.string.api_direct_status)
-            else -> stringResource(R.string.latency_ms, connection.latencyMs)
+        // Vert : en ligne ; orange : le gateway se reconnecte ; rouge : le téléphone n'a plus Internet.
+        val deviceOnline = rememberDeviceOnline()
+        val (dot, label) = when {
+            !deviceOnline || connection == null -> Ink.Danger to stringResource(R.string.conn_offline)
+            !connection.online -> Ink.Warning to (connection.reconnectReason ?: stringResource(R.string.conn_reconnecting))
+            !gatewayFeatures -> Ink.Success to stringResource(R.string.conn_online)
+            else -> Ink.Success to stringResource(R.string.latency_ms, connection.latencyMs)
         }
+        Box(Modifier.size(7.dp).graphicsLayer { alpha = pulse }.background(dot, CircleShape))
+        Spacer(Modifier.width(6.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, color = Ink.Primary)
     }
 }

@@ -4,6 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.material3.*
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -124,7 +128,15 @@ private fun DirectConnectForm(
                 Hairline()
                 Box {
                     FieldRow(stringResource(R.string.api_model_label), model, { model = it }, !working,
-                        placeholder = stringResource(if (autoModel) R.string.api_model_auto else R.string.api_model_hint))
+                        placeholder = stringResource(if (autoModel) R.string.api_model_auto else R.string.api_model_hint),
+                        trailing = {
+                            Box(Modifier.size(44.dp).clip(CircleShape)
+                                .clickable(enabled = !working && (apiKey.isNotBlank() || keySaved), onClickLabel = stringResource(R.string.api_choose_model)) { loadModels() },
+                                contentAlignment = Alignment.Center) {
+                                if (working) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                else Icon(Icons.Rounded.ExpandMore, stringResource(R.string.api_choose_model), tint = Ink.Secondary)
+                            }
+                        })
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         models.forEach { id -> DropdownMenuItem(text = { Text(id) }, onClick = { model = id; expanded = false }) }
                     }
@@ -154,7 +166,6 @@ private fun DirectConnectForm(
             if (autoModel && !keySaved) TextLink(stringResource(R.string.api_get_key_groq), enabled = !working) { uri.openUri(GROQ_KEYS_URL) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            if (showModel) TextLink(stringResource(R.string.api_choose_model), enabled = !working && (apiKey.isNotBlank() || keySaved), onClick = ::loadModels)
             // Supprimer le compte vit dans les réglages ; ici seulement si la clé enregistrée est illisible.
             onRemove?.takeIf { recoveryFailure != null }?.let { TextLink(stringResource(R.string.api_delete_account), enabled = !working, color = Ink.Danger, onClick = it) }
             onHermes?.let { TextLink(stringResource(R.string.connect_use_hermes), enabled = !working, color = Ink.Secondary, onClick = it) }

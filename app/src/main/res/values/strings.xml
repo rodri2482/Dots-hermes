@@ -389,6 +389,9 @@ Paste a Groq API key to get started.</string>
     <string name="gmail_error">Couldn\'t connect to Gmail. Try again.</string>
     <string name="gmail_error_setup">Gmail isn\'t set up for this app yet: it needs a Google Cloud sign-in client (see docs/gmail-setup.md).</string>
     <string name="agents_add_hermes">Connect a Hermes server</string>
+    <string name="conn_online">Online</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_appearance_row">Mascot, colours and accessory</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>
@@ -473,11 +476,9 @@ Paste a Groq API key to get started.</string>
     <string name="api_error_response">The provider could not complete this request. Check the model and try again.</string>
     <string name="api_source">Direct API · encrypted local history</string>
     <string name="api_retry_wait">%d s</string>
-    <string name="api_direct_status">Direct API</string>
     <string name="api_provider_label">Provider</string>
     <string name="api_delete_account">Delete account and history</string>
     <string name="api_delete_warning">This permanently deletes this account’s API key and all its saved conversations from this phone. This cannot be undone.</string>
-    <string name="api_ready">Ready</string>
     <string name="api_limits_unknown">Limits appear after your next reply.</string>
     <string name="api_limits_requests">Requests remaining · daily window</string>
     <string name="api_limits_tokens">Tokens remaining · minute window</string>
