@@ -57,7 +57,9 @@ class PhoneActions(
             props("hour" to int("0-23"), "minute" to int("0-59"), "label" to str("Optional alarm label")), "hour", "minute"))
         .put(function("set_timer", "Start a countdown timer on the user's phone (the user confirms first).",
             props("seconds" to int("Duration in seconds, 1 to 86400"), "label" to str("Optional label")), "seconds"))
-        .put(function("open_app", "Open an app installed on the user's phone, by its name (the user confirms first).",
+        .put(function("phone_info", "Read the phone's status: battery, charging, storage, network, volume, model, Android version " +
+            "and the installed apps. Read-only.", props()))
+        .put(function("open_app", "Open an app installed on the user's phone, by its name. Opens right away; use the screen tools to continue inside it.",
             props("name" to str("App name as shown on the home screen, e.g. 'WhatsApp'")), "name"))
         .put(function("add_calendar_event",
             "Prepare a calendar event; the phone's calendar opens pre-filled so the user can save it (the user confirms first).",
@@ -90,6 +92,16 @@ class PhoneActions(
         // La musique part tout de suite (comme un assistant vocal) : rien d'irréversible, on l'arrête d'un geste.
         if (call.name == "play_music") return withContext(Dispatchers.Main) { playMusic(args.optString("query").trim(), args.optString("app").trim()) }
         if (call.name == "media_control") return withContext(Dispatchers.Main) { mediaControl(args.optString("action")) }
+        if (call.name == "phone_info") return withContext(Dispatchers.IO) { phoneInfo() }
+        // Ouvrir une app ne change rien : elle s'ouvre tout de suite, sans fenêtre d'accord.
+        if (call.name == "open_app") {
+            val wanted = args.optString("name").trim()
+            val app = findApp(wanted) ?: return result("invalid", "No installed app is called '$wanted'.")
+            return withContext(Dispatchers.Main) {
+                try { context.startActivity(app.second.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); result("done", "Opened ${app.first}.") }
+                catch (_: Exception) { result("unavailable", "${app.first} could not open.") }
+            }
+        }
         val plan = try { plan(call.name, args) } catch (e: IllegalArgumentException) { return result("invalid", e.message) }
             ?: return result("unknown_tool", call.name)
         val ok = ask(plan.title, plan.detail)
@@ -189,6 +201,37 @@ class PhoneActions(
             if (waitForMusic(audio, 2_500)) return answer("playing", "Playback started in ${app.name} (Claydot tapped '${target.text.take(60)}').")
         }
         return answer("opened_not_playing", "${app.name} shows '$query' but playback did not start. Ask the user to tap the song.")
+    }
+
+    /** L'état du téléphone, en lecture seule (aucune autorisation nécessaire). */
+    private fun phoneInfo(): String {
+        val battery = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = battery?.let { it.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) * 100 / it.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1) }
+        val plugged = (battery?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
+        val stat = android.os.StatFs(android.os.Environment.getDataDirectory().path)
+        val gb = 1024.0 * 1024 * 1024
+        val net = context.getSystemService(android.net.ConnectivityManager::class.java)
+        val caps = net?.activeNetwork?.let(net::getNetworkCapabilities)
+        val network = when {
+            caps == null -> "offline"
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "mobile data"
+            else -> "connected"
+        }
+        val audio = context.getSystemService(AudioManager::class.java)
+        val apps = context.packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+            .map { it.loadLabel(context.packageManager).toString() }.distinct().sorted()
+        return JSONObject()
+            .put("battery_percent", level).put("charging", plugged)
+            .put("storage_free_gb", "%.1f".format(stat.availableBytes / gb)).put("storage_total_gb", "%.1f".format(stat.totalBytes / gb))
+            .put("network", network)
+            .put("music_volume", audio?.let { "${it.getStreamVolume(AudioManager.STREAM_MUSIC)}/${it.getStreamMaxVolume(AudioManager.STREAM_MUSIC)}" })
+            .put("music_playing", audio?.isMusicActive == true)
+            .put("ringer", when (audio?.ringerMode) { AudioManager.RINGER_MODE_SILENT -> "silent"; AudioManager.RINGER_MODE_VIBRATE -> "vibrate"; else -> "normal" })
+            .put("device", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+            .put("android", android.os.Build.VERSION.RELEASE)
+            .put("installed_apps", JSONArray(apps.take(200)))
+            .toString()
     }
 
     /** Attend qu'une app joue de la musique (true) ou [timeoutMs]. */

@@ -347,8 +347,15 @@ class DirectChatRepository(
     private val _usage = MutableStateFlow<UsageWindow?>(null)
     override val usage = _usage.asStateFlow()
 
+    /** Consommation du compte entier : toutes ses discussions, pas seulement celle qui est ouverte. */
     override fun requestUsage(from: Instant, to: Instant) {
-        _usage.value = synchronized(lock) { usageWindow(transcript.messages, from, to) }
+        scope.launch(Dispatchers.IO) {
+            val all = synchronized(lock) {
+                val others = (index.map { it.id } + accountId).distinct().filter { it != current }
+                transcript.messages + others.flatMap { id -> runCatching { storage.load(id).messages }.getOrDefault(emptyList()) }
+            }
+            _usage.value = usageWindow(all, from, to)
+        }
     }
 
     override fun clearHistory() {
@@ -492,7 +499,7 @@ class DirectChatRepository(
             } ?: MessageContent.Text(entry.text), sentAt = Instant.ofEpochMilli(entry.timestampMs),
             delivery = if (entry.role == "user") Delivery.Sent else Delivery.Read,
             remoteId = entry.id, turn = entry.replyTo, failed = entry.role == "user" && entry.state == DirectEntryState.Failed,
-            footer = if (entry.id == newestDone) replyFooter(model, entry.durationMs ?: 0) else null,
+            footer = if (entry.id == newestDone) replyFooter(model, entry.durationMs ?: 0, entry.tokens) else null,
             streaming = entry.role == "assistant" && entry.state == DirectEntryState.Streaming,
             reactions = entry.reaction?.let { mapOf((if (entry.role == "user") Sender.Agent else Sender.User) to it) } ?: emptyMap(),
         ) }
@@ -566,19 +573,21 @@ internal fun usageWindow(entries: List<DirectEntry>, from: Instant, to: Instant)
     return UsageWindow(from, to, hours)
 }
 
-/** « gpt-oss-120b · 1.4 s » : le modèle sans son préfixe d'éditeur, et la durée de la réponse. */
-internal fun replyFooter(model: String, durationMs: Long): String {
+/** « gpt-oss-120b · 412 tokens · 1.4 s » : le modèle sans son préfixe d'éditeur, les jetons et la durée de la réponse. */
+internal fun replyFooter(model: String, durationMs: Long, tokens: Long? = null): String {
     val name = model.substringAfterLast('/')
     val seconds = durationMs / 1000.0
     val time = if (seconds < 10) String.format(java.util.Locale.ROOT, "%.1f s", seconds) else "${Math.round(seconds)} s"
-    return "$name · $time"
+    val used = tokens?.takeIf { it > 0 }?.let { if (it >= 10_000) String.format(java.util.Locale.ROOT, "%.1fK tokens", it / 1000.0) else "$it tokens" }
+    return listOfNotNull(name, used, time).joinToString(" · ")
 }
 
 /** Pendant une réponse, le fil chiffré est réécrit au plus à cet intervalle (et toujours à la fin). */
 private const val STREAM_SAVE_MS = 750L
 
 /** Les réactions possibles, celles de la barre de réactions de l'app. */
-internal val Reactions = setOf("❤️", "👍", "😂", "😮", "🎉", "👀", "🔥", "😢")
+internal val Reactions = linkedSetOf("❤️", "👍", "😂", "😮", "🎉", "👀", "🔥", "😢", "🙏", "💯", "😍", "🤔", "👏", "🥳", "😎", "🤯",
+    "😅", "🙌", "💪", "✅", "😭", "🤣", "💀", "🫶", "⚡", "🎶", "😴", "🤝", "👎", "😡", "🥺", "😇")
 
 /** « Now: Wednesday 2026-11-11 10:40 (Africa/Lagos) » : le modèle ne connaît pas la date du jour. */
 internal fun nowLine(now: java.time.ZonedDateTime = java.time.ZonedDateTime.now()): String =
@@ -595,7 +604,9 @@ private fun memoryFn(name: String, description: String, arg: String) = org.json.
             .put("required", org.json.JSONArray().put(arg))))
 
 internal const val TOOL_RULE = "You run on the user's Android phone and have tools that act on it: play music, pause or skip, " +
-    "alarms, timers, opening apps, calendar events, reading Gmail, routines, remembering facts and, when allowed, using the screen. " +
+    "alarms, timers, opening apps, calendar events, phone status, texting (SMS, WhatsApp), reading Gmail, searching the web and news, " +
+    "routines, remembering facts, reading the screen and, with the user's approval, operating it (tap, type, Enter, swipe, scroll). " +
+    "For anything recent or that you are unsure about (news, prices, scores, releases, tips), search the web instead of guessing. " +
     "When a request matches a tool, call it instead of saying you can't; only say you can't when no tool fits. " +
     "Finish the job: if an app opens but the task is not done yet (a song still needs a tap, a message still needs typing), " +
     "use the screen tools to complete it when they are available, otherwise tell the user the one step left. " +
@@ -603,7 +614,8 @@ internal const val TOOL_RULE = "You run on the user's Android phone and have too
 
 internal val REACTION_RULE = "Start every reply with a reaction to the user's latest message, written exactly as " +
     "[[react:EMOJI]] where EMOJI is one of ${Reactions.joinToString(" ")}, or [[react:none]] when nothing fits. " +
-    "React like a friend would (😂 for a joke, 🎉 for good news, ❤️ for thanks, 😢 for sad news, 👀 for a curious question). " +
+    "React like a friend would and vary it (😂 or 🤣 for a joke, 🎉 or 🥳 for good news, ❤️ or 🙏 for thanks, 😢 for sad news, " +
+    "👀 or 🤔 for a curious question, 🔥 or 💯 for something impressive, 🎶 for music, 💪 for effort). " +
     "Then write your reply. The tag is hidden from the user: never mention it."
 
 /**

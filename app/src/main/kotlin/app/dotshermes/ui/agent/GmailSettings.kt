@@ -113,6 +113,25 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
                         checkedThumbColor = androidx.compose.ui.graphics.Color.White))
             }
             if (enabled) {
+                // Contacts et SMS : demandés une fois, ici, pour que Claydot puisse écrire à quelqu'un (chaque message reste approuvé).
+                val context0 = androidx.compose.ui.platform.LocalContext.current
+                fun textingAllowed() = app.dotshermes.data.direct.MessagingTools.PERMISSIONS.all {
+                    androidx.core.content.ContextCompat.checkSelfPermission(context0, it) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                }
+                var texting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(textingAllowed()) }
+                val ask = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { texting = textingAllowed() }
+                Hairline()
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Text(stringResource(R.string.texting_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                    Text(stringResource(if (texting) R.string.texting_on else R.string.texting_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                }
+                if (!texting) {
+                    Hairline()
+                    Text(stringResource(R.string.texting_allow), style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
+                        modifier = Modifier.fillMaxWidth().clickable { ask.launch(app.dotshermes.data.direct.MessagingTools.PERMISSIONS) }
+                            .padding(horizontal = 16.dp, vertical = 13.dp))
+                }
                 // Contrôle de l'écran : seul Android peut l'activer (Réglages > Accessibilité).
                 val screenOn by app.dotshermes.screen.ClaydotAccessibilityService.running.collectAsStateWithLifecycle()
                 val context = androidx.compose.ui.platform.LocalContext.current

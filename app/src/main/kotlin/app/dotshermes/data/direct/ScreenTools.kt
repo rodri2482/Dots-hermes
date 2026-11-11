@@ -67,7 +67,8 @@ class ScreenTools(
         .put(fn("start_screen_control", "Ask the user for permission to operate their phone screen for one task " +
             "(read the screen, tap, type, scroll, open apps). Call this once before any other screen tool, while the user is in the chat. " +
             "Permission lasts a few minutes.", JSONObject().put("goal", str("What you will do, in one short sentence the user will read")), "goal"))
-        .put(fn("read_screen", "Read what is on the phone screen now: the app and a numbered list of visible elements.", JSONObject()))
+        .put(fn("read_screen", "Read what is on the phone screen now: the app and a numbered list of visible elements. " +
+            "Allowed any time; acting on the screen needs start_screen_control.", JSONObject()))
         .put(fn("tap", "Tap a screen element by its number from the latest read.", JSONObject().put("id", int("Element number")), "id"))
         .put(fn("long_press", "Press and hold a screen element (menus, selecting a message…).", JSONObject().put("id", int("Element number")), "id"))
         .put(fn("swipe", "Swipe the finger across the screen: up/down to scroll, left/right for pages, stories or carousels.",
@@ -78,7 +79,7 @@ class ScreenTools(
             JSONObject().put("id", int("Element number")).put("text", str("Text to type")), "id", "text"))
         .put(fn("scroll", "Scroll the screen.", JSONObject().put("direction", JSONObject().put("type", "string").put("enum", JSONArray().put("down").put("up"))), "direction"))
         .put(fn("press_key", "Press a system key.", JSONObject().put("key", JSONObject().put("type", "string")
-            .put("enum", JSONArray().put("back").put("home").put("recents").put("notifications"))), "key"))
+            .put("enum", JSONArray().put("back").put("home").put("recents").put("notifications").put("enter"))), "key"))
         .put(fn("launch_app", "Open an installed app by its name.", JSONObject().put("name", str("App name as on the home screen")), "name"))
 
     override fun label(call: ApiToolCall) = "📱…"
@@ -93,8 +94,9 @@ class ScreenTools(
             driver.showActive(true)
             return JSONObject().put("status", "granted").put("minutes", grantMs / 60_000).toString()
         }
-        if (!active()) return err("no permission: call start_screen_control first")
+        // Voir l'écran est permis dès que le service est activé ; agir demande l'accord de la tâche.
         if (call.name == "read_screen") return describe()
+        if (!active()) return err("no permission: call start_screen_control first")
         if (call.name == "wait") { delay(args.optInt("seconds", 2).coerceIn(1, 5) * 1_000L); return describe() }
         val before = driver.snapshot()
         val blocked = before?.packageName?.let { blockedReason(it) }
@@ -116,7 +118,10 @@ class ScreenTools(
                 }
             }
             // Revenir en arrière ou à l'accueil reste permis partout : c'est la sortie.
-            "press_key" -> if (driver.press(args.optString("key"))) null else "unknown key"
+            "press_key" -> args.optString("key").let { key ->
+                // Entrée valide un formulaire : mêmes interdits que toucher ; les autres touches servent de sortie.
+                if (key == "enter" && blocked != null) blocked else if (driver.press(key)) null else "unknown key or nothing to submit"
+            }
             "launch_app" -> driver.launch(args.optString("name").trim()).let { if (it == null) "no app with that name" else null }
             else -> "unknown tool"
         }

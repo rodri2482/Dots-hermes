@@ -159,9 +159,18 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
             "home" -> AccessibilityService.GLOBAL_ACTION_HOME
             "recents" -> AccessibilityService.GLOBAL_ACTION_RECENTS
             "notifications" -> AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS
+            "enter" -> return enter()
             else -> return false
         }
         return service?.performGlobalAction(action) == true
+    }
+
+    /** Touche Entrée / Rechercher du clavier, sur le champ qui a le focus. */
+    private fun enter(): Boolean {
+        val field = service?.rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
+        showTap(Rect().also(field::getBoundsInScreen))
+        return android.os.Build.VERSION.SDK_INT >= 30 &&
+            field.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
     }
 
     override fun launch(name: String): String? {

@@ -235,15 +235,24 @@ fun ChatScreen(
     // Seul le sur-message le plus récent porte l'aperçu de l'écran : c'est lui qui correspond au navigateur actuel.
     val newestToolsKey = state.rows.firstOrNull { it is ChatRow.Tools }?.key
 
+    // Pièce jointe choisie mais pas encore envoyée : on peut écrire un texte dessous, puis Envoyer.
+    var pendingAttachment by remember { mutableStateOf<Uri?>(null) }
+
     fun attach(uri: Uri) {
         if (!gatewayFeatures && !imageInput) return
-        onSendFile(uri, draft) { Toast.makeText(context, R.string.chat_file_too_big, Toast.LENGTH_SHORT).show() }
-        draft = ""
+        pendingAttachment = uri
         suggestionsOpen = false
     }
 
     fun submit(text: String) {
         if (!gatewayFeatures && (state.activity != AgentActivity.Idle || cooldownRemaining > 0)) return
+        pendingAttachment?.let { uri ->
+            onSendFile(uri, text.trim()) { Toast.makeText(context, R.string.chat_file_too_big, Toast.LENGTH_SHORT).show() }
+            pendingAttachment = null
+            draft = ""
+            suggestionsOpen = false
+            return
+        }
         onSend(text)
         draft = ""
         suggestionsOpen = false
@@ -363,6 +372,8 @@ fun ChatScreen(
                 onSend = ::submit,
                 voice = voice,
                 onAttach = ::attach,
+                attachment = pendingAttachment,
+                onRemoveAttachment = { pendingAttachment = null },
                 room = state.room,
                 canOpenRoom = state.roomCandidates.isNotEmpty(),
                 onNewChat = onNewChat?.let { action -> { suggestionsOpen = false; action() } },
@@ -542,6 +553,8 @@ private fun Composer(
     onSend: (String) -> Unit,
     voice: VoiceControls,
     onAttach: (Uri) -> Unit,
+    attachment: Uri? = null,
+    onRemoveAttachment: () -> Unit = {},
     room: List<SubDot> = emptyList(),
     canOpenRoom: Boolean = false,
     onOpenRoom: () -> Unit = {},
@@ -613,6 +626,9 @@ private fun Composer(
             RecordingBar(recording, onCancel = voice.onCancelRecording, onSend = voice.onSendRecording)
             return@Column
         }
+        AnimatedVisibility(attachment != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            attachment?.let { AttachmentPreview(it, onRemoveAttachment) }
+        }
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom,
@@ -637,7 +653,11 @@ private fun Composer(
                 Box(Modifier.weight(1f).padding(vertical = 9.dp)) {
                     if (draft.isEmpty()) {
                         Text(
-                            if (room.isEmpty()) stringResource(R.string.composer_placeholder, agentName) else stringResource(R.string.room_placeholder),
+                            when {
+                                attachment != null -> stringResource(R.string.composer_caption)
+                                room.isEmpty() -> stringResource(R.string.composer_placeholder, agentName)
+                                else -> stringResource(R.string.room_placeholder)
+                            },
                             style = MaterialTheme.typography.bodyLarge, color = Ink.Secondary,
                         )
                     }
@@ -652,7 +672,7 @@ private fun Composer(
                 }
                 // Une seule commande, cible de 44 dp : Arrêter pendant la réponse, Envoyer dès qu'il y a du texte, sinon le micro.
                 val action = when {
-                    draft.isNotBlank() -> ComposerAction.Send
+                    draft.isNotBlank() || attachment != null -> ComposerAction.Send
                     voiceEnabled && sendingEnabled -> ComposerAction.Mic
                     else -> ComposerAction.Idle
                 }

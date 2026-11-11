@@ -397,7 +397,7 @@ Colle une clé API Groq pour commencer.</string>
     <string name="conn_online">En ligne</string>
     <string name="phone_section">Téléphone</string>
     <string name="phone_title">Laisser Claydot utiliser ton téléphone</string>
-    <string name="phone_hint">Musique, réveils, minuteurs, ouvrir une app, événements d\'agenda. La musique démarre tout de suite ; le reste te demande d\'abord.</string>
+    <string name="phone_hint">Musique, apps, état du téléphone, réveils, minuteurs, agenda. La musique et l\'ouverture d\'une app se font tout de suite ; le reste te demande d\'abord.</string>
     <string name="phone_confirm_title">Claydot veut</string>
     <string name="phone_do">Faire</string>
     <string name="companion_hands_free">Envoyer quand j\'ai fini de parler</string>
@@ -431,6 +431,12 @@ Colle une clé API Groq pour commencer.</string>
     <string name="screen_overlay_stop">Arrêter</string>
     <string name="permission_not_now">Pas maintenant</string>
     <string name="permission_hint">Rien ne se passe tant que tu n\'appuies pas sur %1$s.</string>
+    <string name="composer_caption">Ajoute un message…</string>
+    <string name="attach_remove">Retirer la pièce jointe</string>
+    <string name="texting_title">Messages (SMS et WhatsApp)</string>
+    <string name="texting_hint">Claydot trouve les gens dans tes contacts et leur écrit pour toi. Tu vois et tu approuves chaque message avant qu\'il parte.</string>
+    <string name="texting_on">Activé. Tu approuves chaque message avant l\'envoi.</string>
+    <string name="texting_allow">Autoriser contacts et messages</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

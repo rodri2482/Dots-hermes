@@ -1,5 +1,7 @@
 package app.dotshermes.ui.chat
 
+import androidx.compose.foundation.horizontalScroll
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.MutableTransitionState
@@ -76,7 +78,8 @@ import app.dotshermes.R
 import app.dotshermes.ui.formatTime
 import app.dotshermes.ui.DotAppearance
 
-private val QuickReactions = listOf("❤️", "👍", "😂", "😮", "🎉", "👀")
+// Les six habituelles d'abord, puis le reste en faisant défiler la barre.
+private val QuickReactions = app.dotshermes.data.direct.Reactions.toList()
 
 @Composable
 fun MessageRow(
@@ -324,6 +327,8 @@ private fun ReactionPicker(
                     .shadow(16.dp, CircleShape)
                     .clip(CircleShape)
                     .background(Ink.Raised)
+                    .widthIn(max = 316.dp)
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
                     .padding(horizontal = 6.dp, vertical = 4.dp),
             ) {
                 QuickReactions.forEach { emoji ->

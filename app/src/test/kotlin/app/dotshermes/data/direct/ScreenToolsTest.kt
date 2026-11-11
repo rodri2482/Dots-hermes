@@ -46,7 +46,8 @@ class ScreenToolsTest {
         val screen = FakeScreen()
         val t = tools(screen)
         assertTrue(t.run(call("tap", """{"id":1}""")).contains("start_screen_control"))
-        assertTrue(t.run(call("read_screen")).contains("error"))
+        // Voir est permis sans accord ; agir ne l'est pas.
+        assertTrue(JSONObject(t.run(call("read_screen"))).has("elements"))
         assertTrue(screen.actions.isEmpty())
     }
 

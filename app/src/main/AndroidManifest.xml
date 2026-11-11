@@ -22,6 +22,8 @@
         <intent>
             <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
         </intent>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="spotify" />
@@ -29,6 +31,10 @@
     </queries>
     <!-- Appairage de l'app web : scan du QR code affiché par le navigateur ; demandée à l'ouverture du scanner. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Écrire à quelqu'un pour l'utilisateur : trouver le numéro d'un contact, envoyer un SMS (chaque message est approuvé). -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Mises à jour depuis les releases GitHub : Android demande l'accord une fois (« sources inconnues »). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

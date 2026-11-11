@@ -390,7 +390,7 @@ Paste a Groq API key to get started.</string>
     <string name="conn_online">Online</string>
     <string name="phone_section">Phone</string>
     <string name="phone_title">Let Claydot use your phone</string>
-    <string name="phone_hint">Music, alarms, timers, opening apps and calendar events. Music plays straight away; everything else asks you first.</string>
+    <string name="phone_hint">Music, apps, phone status, alarms, timers and calendar events. Music and opening apps happen straight away; anything else asks you first.</string>
     <string name="phone_confirm_title">Claydot wants to</string>
     <string name="phone_do">Do it</string>
     <string name="companion_hands_free">Send when I stop talking</string>
@@ -424,6 +424,12 @@ Paste a Groq API key to get started.</string>
     <string name="screen_overlay_stop">Stop</string>
     <string name="permission_not_now">Not now</string>
     <string name="permission_hint">Nothing happens unless you tap %1$s.</string>
+    <string name="composer_caption">Add a message…</string>
+    <string name="attach_remove">Remove attachment</string>
+    <string name="texting_title">Texting (SMS and WhatsApp)</string>
+    <string name="texting_hint">Claydot finds people in your contacts and texts them for you. You see and approve every message before it goes.</string>
+    <string name="texting_on">On. You approve every message before it is sent.</string>
+    <string name="texting_allow">Allow contacts and texting</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

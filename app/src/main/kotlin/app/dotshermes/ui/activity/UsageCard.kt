@@ -160,11 +160,14 @@ fun UsageCard(usage: UsageWindow?, onRequest: (Instant, Instant) -> Unit) {
                             style = MaterialTheme.typography.labelLarge, color = Ink.Primary, maxLines = 2,
                         )
                         val total = focus ?: inMonth.values.fold(DayUsage()) { a, b -> a + b }
-                        Text(tokensText(total, locale), style = MaterialTheme.typography.labelSmall, color = Ink.Secondary)
-                        Text(messagesText(total), style = MaterialTheme.typography.labelSmall, color = Ink.Secondary)
+                        Text(tokensText(total, locale), style = MaterialTheme.typography.labelSmall, color = Ink.Secondary, maxLines = 1, softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(messagesText(total), style = MaterialTheme.typography.labelSmall, color = Ink.Secondary, maxLines = 1, softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         if (focus == null) {
                             val active = inMonth.values.count { it.value(metric) > 0 }
-                            Text(pluralStringResource(R.plurals.usage_active_days, active, active), style = MaterialTheme.typography.labelSmall, color = Ink.Secondary)
+                            Text(pluralStringResource(R.plurals.usage_active_days, active, active), style = MaterialTheme.typography.labelSmall, color = Ink.Secondary,
+                                maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         }
                     }
                     timedOut -> Text(stringResource(R.string.usage_unavailable), style = MaterialTheme.typography.labelSmall, color = Ink.Secondary)

@@ -47,6 +47,8 @@ class ReplyFooterTest {
     @Test fun `footer drops the vendor prefix and rounds the time`() {
         assertEquals("gpt-oss-120b · 1.4 s", replyFooter("openai/gpt-oss-120b", 1_420))
         assertEquals("llama-3.1-8b-instant · 12 s", replyFooter("llama-3.1-8b-instant", 12_400))
+        assertEquals("gpt-oss-120b · 412 tokens · 1.4 s", replyFooter("openai/gpt-oss-120b", 1_420, 412))
+        assertEquals("m · 12.3K tokens · 2.0 s", replyFooter("m", 2_000, 12_345))
     }
 }
 
