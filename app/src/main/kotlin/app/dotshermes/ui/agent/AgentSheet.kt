@@ -88,6 +88,8 @@ fun AgentSettings(
     onClearConversation: (() -> Unit)? = null,
     /** Compte direct : la liste des discussions. */
     onOpenChats: (() -> Unit)? = null,
+    /** Modèle de routine touché dans les réglages : la demande part dans la conversation. */
+    onRoutineTemplate: (String) -> Unit = {},
     /** App web : scanner le QR code d'un navigateur, et la liste des navigateurs appairés (null : section masquée). */
     onConnectBrowser: (() -> Unit)? = null,
     onBrowserSessions: (() -> Unit)? = null,
@@ -208,12 +210,12 @@ fun AgentSettings(
             if (!gatewayFeatures) {
                 companion?.let { CompanionSettings(it) }
                 // Les outils (Gmail) passent par les appels de fonction de Groq.
-                if (connected?.gatewayUrl == app.dotshermes.data.direct.ApiProvider.Groq.title) {
+                if (connected?.gatewayUrl in setOf(app.dotshermes.data.direct.ApiProvider.Groq.title, app.dotshermes.data.direct.ApiProvider.Local.title)) {
                     GmailSettings(app.dotshermes.AppContainer.gmail)
                     PhoneSettings(app.dotshermes.AppContainer.phoneActions)
                     (app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value?.let { app.dotshermes.AppContainer.agents.repo(it) } as? app.dotshermes.data.direct.DirectChatRepository)
                         ?.let { MemorySettings(it) }
-                    RoutinesSettings(app.dotshermes.AppContainer.routines, app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value)
+                    RoutinesSettings(app.dotshermes.AppContainer.routines, app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value, onTemplate = onRoutineTemplate)
                 }
             }
 

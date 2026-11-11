@@ -46,18 +46,26 @@ object ChatLog {
         }
     }
 
-    @Synchronized fun add(context: Context, new: List<ChatPost>, reply: Notification.Action?) {
+    /** Ajoute les messages nouveaux et renvoie seulement ceux-là (pour les routines « message »). */
+    @Synchronized fun add(context: Context, new: List<ChatPost>, reply: Notification.Action?): List<ChatPost> {
         attach(context)
-        var changed = false
-        for (p in new) {
-            if (posts.none { it.chat == p.chat && it.sender == p.sender && it.timeMs == p.timeMs && it.text == p.text }) { posts += p; changed = true }
-        }
+        val fresh = new.filter { p -> posts.none { it.chat == p.chat && it.sender == p.sender && it.timeMs == p.timeMs && it.text == p.text } }
+        posts += fresh
         new.firstOrNull()?.let { p -> reply?.let { replies[key(p.chat)] = it } }
-        if (!changed) return
+        if (fresh.isEmpty()) return fresh
         val cutoff = System.currentTimeMillis() - KEEP_MS
         posts.removeAll { it.timeMs < cutoff }
         while (posts.size > MAX_POSTS) posts.removeAt(0)
-        save()
+        saveSoon()
+        return fresh
+    }
+
+    // Écriture du fichier hors du fil principal, regroupée : une rafale de messages = une écriture.
+    private val writer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
+    private var pendingSave: java.util.concurrent.ScheduledFuture<*>? = null
+    private fun saveSoon() {
+        if (pendingSave?.isDone == false) return
+        pendingSave = writer.schedule({ synchronized(this) { save() } }, 2, java.util.concurrent.TimeUnit.SECONDS)
     }
 
     @Synchronized fun clear(context: Context) { attach(context); posts.clear(); replies.clear(); save() }
@@ -112,6 +120,16 @@ object ChatLog {
 
     fun startOfToday(zone: ZoneId = ZoneId.systemDefault()) = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
 
+    /** Au lancement de l'app : si l'accès est donné, on s'assure que l'écoute de WhatsApp tourne. */
+    fun keepListening(context: Context) {
+        if (!accessGranted(context)) return
+        runCatching { NotificationListenerService.requestRebind(ComponentName(context, ChatNotificationListener::class.java)) }
+    }
+
+    /** Claydot n'est pas mis en veille par Android (économie de batterie) : l'écoute ne s'arrête pas. */
+    fun neverSleeps(context: Context): Boolean =
+        context.getSystemService(android.os.PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true
+
     /** L'utilisateur a donné à Claydot l'accès aux notifications (réglage Android). */
     fun accessGranted(context: Context): Boolean {
         val enabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners").orEmpty()
@@ -122,12 +140,18 @@ object ChatLog {
 /** Lit les notifications de WhatsApp (rien d'autre) pour le journal des discussions ; n'agit jamais seul. */
 class ChatNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() { ChatLog.attach(this); activeNotifications?.forEach(::read) }
+
+    /** Android a coupé le lien (mémoire, mise à jour…) : on demande tout de suite à être rebranché. */
+    override fun onListenerDisconnected() {
+        runCatching { requestRebind(ComponentName(this, ChatNotificationListener::class.java)) }
+    }
     override fun onNotificationPosted(sbn: StatusBarNotification?) { sbn?.let(::read) }
 
     private fun read(sbn: StatusBarNotification) {
         if (sbn.packageName !in ChatLog.WATCHED) return
         val n = sbn.notification ?: return
-        if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+        // Résumés de groupe et notifications « en cours » (« Recherche de nouveaux messages… ») : pas des messages.
+        if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0 || n.flags and Notification.FLAG_ONGOING_EVENT != 0) return
         val style = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)
         val extras = n.extras
         val chat = (style?.conversationTitle ?: extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)
@@ -141,6 +165,7 @@ class ChatNotificationListener : NotificationListenerService() {
             ChatPost(sbn.packageName, chat, chat, it, sbn.postTime, group)
         })
         val reply = n.actions?.firstOrNull { a -> a.remoteInputs?.any { it.allowFreeFormInput } == true }
-        ChatLog.add(this, posts, reply)
+        val fresh = ChatLog.add(this, posts, reply)
+        if (fresh.isNotEmpty()) RoutineTriggers.onPosts(this, fresh)
     }
 }

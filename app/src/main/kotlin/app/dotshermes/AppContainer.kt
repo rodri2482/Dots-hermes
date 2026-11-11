@@ -35,7 +35,7 @@ object AppContainer {
         AgentRegistry(appContext, appScope, AgentStore(appContext), onApprovalResolved = { _, approvalId -> Notifications.cancelApproval(appContext, approvalId) },
             persona = { name -> companion.persona(name) },
             directTools = { app.dotshermes.data.direct.CombinedTools(listOf(app.dotshermes.data.direct.GmailTools(gmail), phoneActions,
-                app.dotshermes.data.direct.RoutineTools(routines, accountId = { agents.activeId.value }, confirm = phoneActions::ask), screen,
+                app.dotshermes.data.direct.RoutineTools(appContext, routines, accountId = { agents.activeId.value }, confirm = phoneActions::ask), screen,
                 app.dotshermes.data.direct.MessagingTools(appContext, enabled = { phoneActions.enabled.value }, confirm = phoneActions::ask, screen = { screenDriver }),
                 app.dotshermes.data.direct.WebTools())) })
     }

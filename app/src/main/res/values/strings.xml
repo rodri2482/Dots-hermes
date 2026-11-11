@@ -468,6 +468,10 @@ Paste a Groq API key to get started.</string>
     <string name="chatwatch_title">Read WhatsApp notifications</string>
     <string name="chatwatch_hint">For routines like a daily attendance in a group: Claydot reads WhatsApp messages from notifications and can reply even with the phone locked. Tap to allow Claydot.</string>
     <string name="chatwatch_on">On. Only WhatsApp messages are kept, on this phone, for 3 days.</string>
+    <string name="routines_run_now">Run now</string>
+    <string name="keep_listening_title">Keep listening in the background</string>
+    <string name="keep_listening_hint">Tap so Android never puts Claydot to sleep: WhatsApp listening and routines keep working all day. On Samsung, also check Battery > Never sleeping apps.</string>
+    <string name="keep_listening_on">On. Claydot keeps listening to WhatsApp on its own, even after a restart.</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>
@@ -565,4 +569,16 @@ Paste a Groq API key to get started.</string>
     <string name="api_limits_balance">%1$d of %2$d remaining</string>
     <string name="api_limits_resets">Resets: %1$s</string>
     <string name="api_limits_remaining">%1$d remaining</string>
+    <string-array name="routine_templates">
+        <item>Daily attendance</item>
+        <item>Morning emails</item>
+        <item>Evening news</item>
+        <item>Reply when tagged</item>
+    </string-array>
+    <string-array name="routine_template_prompts">
+        <item>Set up a routine: every day at 8:00, post today\'s attendance in my WhatsApp group. Ask me which group.</item>
+        <item>Set up a routine: every weekday at 7:30, summarise my unread emails.</item>
+        <item>Set up a routine: every day at 19:00, send me the top 5 news headlines for my country.</item>
+        <item>Set up a routine: when someone writes my name in my WhatsApp group, reply that I will answer soon. Ask me the group and my name.</item>
+    </string-array>
 </resources>

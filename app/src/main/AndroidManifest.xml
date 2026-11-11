@@ -15,6 +15,8 @@
     <!-- Routines : à l'heure exacte, reprises après un redémarrage, et longues tâches en arrière-plan. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- « Garder l'écoute » : l'utilisateur peut exempter Claydot de la mise en veille (écoute WhatsApp, routines). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Android 16 : la bannière « Claydot travaille » dans la barre d'état (Now Bar sur Samsung). -->

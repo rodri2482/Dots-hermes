@@ -20,6 +20,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -175,6 +178,19 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
                     Text(stringResource(R.string.chatwatch_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
                     Text(stringResource(if (watching) R.string.chatwatch_on else R.string.chatwatch_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
                 }
+                // Ne jamais mettre Claydot en veille : l'écoute de WhatsApp et les routines tiennent toute la journée.
+                if (watching) {
+                    val awake = remember(enabled) { app.dotshermes.data.direct.ChatLog.neverSleeps(context0) }
+                    Hairline()
+                    Column(Modifier.fillMaxWidth().clickable(enabled = !awake) {
+                        runCatching { context0.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            android.net.Uri.parse("package:" + context0.packageName)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Text(stringResource(R.string.keep_listening_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+                        Text(stringResource(if (awake) R.string.keep_listening_on else R.string.keep_listening_hint),
+                            style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                    }
+                }
                 // Contrôle de l'écran : seul Android peut l'activer (Réglages > Accessibilité).
                 val screenOn by app.dotshermes.screen.ClaydotAccessibilityService.running.collectAsStateWithLifecycle()
                 val context = androidx.compose.ui.platform.LocalContext.current
@@ -198,7 +214,7 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
 
 /** Routines du compte : interrupteur et suppression ; on les crée en le demandant à Claydot. */
 @Composable
-fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: String?) {
+fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: String?, onTemplate: (String) -> Unit = {}) {
     val all by store.routines.collectAsStateWithLifecycle()
     val mine = all.filter { it.accountId == accountId }
     Column(Modifier.fillMaxWidth()) {
@@ -218,6 +234,19 @@ fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: 
                 Text(stringResource(R.string.routines_empty), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp))
             }
+            // Modèles prêts : un toucher envoie la demande à Claydot, qui demande ce qui manque (groupe, heure…).
+            val templates = androidx.compose.ui.res.stringArrayResource(R.array.routine_templates)
+            val prompts = androidx.compose.ui.res.stringArrayResource(R.array.routine_template_prompts)
+            androidx.compose.foundation.lazy.LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(vertical = 10.dp)) {
+                items(templates.size) { i ->
+                    Text(templates[i], style = MaterialTheme.typography.labelLarge, color = LocalDotPalette.current.deep,
+                        modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).background(LocalDotPalette.current.light)
+                            .clickable { onTemplate(prompts[i]) }.padding(horizontal = 14.dp, vertical = 8.dp))
+                }
+            }
+            Hairline()
             mine.forEachIndexed { i, routine ->
                 if (i > 0) Hairline()
                 androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
@@ -225,6 +254,11 @@ fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: 
                     Column(Modifier.weight(1f)) {
                         Text(routine.name, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
                         Text(routine.scheduleLabel(), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                    }
+                    // Lancer maintenant : on voit tout de suite si la routine marche, sans attendre son heure.
+                    androidx.compose.foundation.layout.Box(Modifier.clickable { app.dotshermes.data.direct.RoutineWorker.runNow(context, routine.id) }.padding(10.dp)) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow,
+                            stringResource(R.string.routines_run_now), tint = LocalDotPalette.current.deep)
                     }
                     androidx.compose.material3.Switch(checked = routine.enabled, onCheckedChange = { store.setEnabled(routine.id, it) },
                         colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,

@@ -475,6 +475,10 @@ Colle une clé API Groq pour commencer.</string>
     <string name="chatwatch_title">Lire les notifications WhatsApp</string>
     <string name="chatwatch_hint">Pour des routines comme l\'appel quotidien d\'un groupe : Claydot lit les messages WhatsApp dans les notifications et peut répondre téléphone verrouillé. Touche pour autoriser Claydot.</string>
     <string name="chatwatch_on">Activé. Seuls les messages WhatsApp sont gardés, sur ce téléphone, 3 jours.</string>
+    <string name="routines_run_now">Lancer maintenant</string>
+    <string name="keep_listening_title">Garder l\'écoute en arrière-plan</string>
+    <string name="keep_listening_hint">Touche pour qu\'Android ne mette jamais Claydot en veille : l\'écoute de WhatsApp et les routines marchent toute la journée. Sur Samsung, regarde aussi Batterie > Applis jamais en veille.</string>
+    <string name="keep_listening_on">Activé. Claydot écoute WhatsApp tout seul, même après un redémarrage.</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>
@@ -573,4 +577,16 @@ Colle une clé API Groq pour commencer.</string>
     <string name="api_limits_balance">%1$d restants sur %2$d</string>
     <string name="api_limits_resets">Réinitialisation : %1$s</string>
     <string name="api_limits_remaining">%1$d restants</string>
+    <string-array name="routine_templates">
+        <item>Appel du jour</item>
+        <item>E-mails du matin</item>
+        <item>Actus du soir</item>
+        <item>Répondre si on me cite</item>
+    </string-array>
+    <string-array name="routine_template_prompts">
+        <item>Crée une routine : chaque jour à 8 h, publie l\'appel du jour dans mon groupe WhatsApp. Demande-moi quel groupe.</item>
+        <item>Crée une routine : chaque jour de semaine à 7 h 30, résume mes e-mails non lus.</item>
+        <item>Crée une routine : chaque jour à 19 h, envoie-moi les 5 grands titres de l\'actualité de mon pays.</item>
+        <item>Crée une routine : quand quelqu\'un écrit mon prénom dans mon groupe WhatsApp, réponds que je reviens vite. Demande-moi le groupe et mon prénom.</item>
+    </string-array>
 </resources>

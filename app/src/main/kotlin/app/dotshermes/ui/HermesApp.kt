@@ -422,6 +422,7 @@ fun HermesApp(
                             // Serveur Hermes ou compte direct : toujours une confirmation, puis tout est effacé.
                             deletingAccount = activeAgent
                         },
+                        onRoutineTemplate = { text -> agentSheetOpen = false; viewModel.send(text) },
                         onAddAgent = {
                             agentSheetOpen = false
                             viewModel.addAgent()
