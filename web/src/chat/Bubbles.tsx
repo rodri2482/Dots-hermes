@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ChatMessage } from "../gateway/model";
 import { lang } from "../i18n";
-import type { GatewayClient } from "../gateway/GatewayClient";
+import type { ChatClient } from "../gateway/client";
 import { ApprovalCard, ClarifyCard, TakeoverCard } from "./Cards";
 import { formatClock, formatFull, formatSize, formatTime } from "./format";
 import { Icon } from "./icons";
@@ -16,7 +16,7 @@ export function MessageRow({
   online,
 }: {
   row: Extract<ChatRow, { type: "bubble" }>;
-  client: GatewayClient;
+  client: ChatClient;
   online: boolean;
 }) {
   const message = row.message;
@@ -108,7 +108,7 @@ function TextBubble({ row, onReact }: { row: Extract<ChatRow, { type: "bubble" }
 
 /* -- Pièces jointes et vocaux -------------------------------------------------------------------- */
 
-function useAttachment(client: GatewayClient, message: ChatMessage, kind: "file" | "audio") {
+function useAttachment(client: ChatClient, message: ChatMessage, kind: "file" | "audio") {
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
   const url = useRef<string | null>(null);
   useEffect(() => () => void (url.current && URL.revokeObjectURL(url.current)), []);
@@ -131,7 +131,7 @@ function useAttachment(client: GatewayClient, message: ChatMessage, kind: "file"
   return { state, load };
 }
 
-function FileBubble({ message, client }: { message: ChatMessage; client: GatewayClient }) {
+function FileBubble({ message, client }: { message: ChatMessage; client: ChatClient }) {
   const fromUser = message.role === "user";
   const { state, load } = useAttachment(client, message, "file");
   const name = message.name || t.file;
@@ -182,7 +182,7 @@ function bars(waveform: number[] | undefined): number[] {
   return Array.from({ length: BARS }, (_, i) => waveform[Math.floor((i * waveform.length) / BARS)] ?? 0);
 }
 
-function VoiceBubble({ message, client }: { message: ChatMessage; client: GatewayClient }) {
+function VoiceBubble({ message, client }: { message: ChatMessage; client: ChatClient }) {
   const fromUser = message.role === "user";
   const { state, load } = useAttachment(client, message, "audio");
   const audio = useRef<HTMLAudioElement | null>(null);

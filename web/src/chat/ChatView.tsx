@@ -2,7 +2,7 @@ import type { Ref } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { ClayDot, type DotMood } from "../dot/ClayDot";
 import { paletteStyle } from "../dot/palettes";
-import type { GatewayClient } from "../gateway/GatewayClient";
+import type { ChatClient } from "../gateway/client";
 import { MAIN_CHAT, type GatewaySnapshot } from "../gateway/model";
 import { useGateway } from "../gateway/registry";
 import type { AccessoryId, PaletteId, SpeciesId, WebAgent } from "../types";
@@ -57,7 +57,7 @@ function looksOf(agent: WebAgent, snapshot: GatewaySnapshot): DotLook[] {
  * La conversation ouverte d'un agent : en-tête (posé sur le fil, en dégradé du blanc vers le
  * transparent, comme l'app), fil et champ de saisie, teintés par la palette du dot ouvert.
  */
-export function ChatView({ agent, client }: { agent: WebAgent; client: GatewayClient }) {
+export function ChatView({ agent, client }: { agent: WebAgent; client: ChatClient }) {
   const snapshot = useGateway(client)!;
   const looks = looksOf(agent, snapshot);
   const look = looks.find((l) => l.chat === snapshot.activeChat) ?? looks[0];
@@ -102,7 +102,7 @@ export function ChatView({ agent, client }: { agent: WebAgent; client: GatewayCl
       class="chat"
       style={{ ...paletteStyle(look.palette), "--header-h": `${headerHeight}px` }}
       onDragEnter={(e) => {
-        if (!hasFiles(e)) return;
+        if (!hasFiles(e) || !client.media) return;
         e.preventDefault();
         dragDepth.current++;
         setDragging(true);
@@ -117,7 +117,7 @@ export function ChatView({ agent, client }: { agent: WebAgent; client: GatewayCl
         if (dragDepth.current === 0) setDragging(false);
       }}
       onDrop={(e) => {
-        if (!hasFiles(e)) return;
+        if (!hasFiles(e) || !client.media) return;
         e.preventDefault();
         dragDepth.current = 0;
         setDragging(false);
@@ -149,7 +149,7 @@ function ChatHeader({
   headerRef: Ref<HTMLElement>;
   look: DotLook;
   looks: DotLook[];
-  client: GatewayClient;
+  client: ChatClient;
   snapshot: GatewaySnapshot;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -218,7 +218,7 @@ function ChatHeader({
  * Sélecteur des dots de l'agent : le principal puis ses sous-dots, chacun avec sa mascotte, une
  * pastille de non lus et un point quand il travaille. Sur l'app, on balaie la mascotte ; ici, on clique.
  */
-function DotSwitcher({ looks, client, snapshot }: { looks: DotLook[]; client: GatewayClient; snapshot: GatewaySnapshot }) {
+function DotSwitcher({ looks, client, snapshot }: { looks: DotLook[]; client: ChatClient; snapshot: GatewaySnapshot }) {
   return (
     <nav class="dot-switcher" aria-label={t.dots}>
       {looks.map((l) => {
@@ -252,7 +252,7 @@ const STICK_PX = 80;
 /** Distance du haut à partir de laquelle on demande la page précédente. */
 const PREFETCH_PX = 400;
 
-function Thread({ client, snapshot, look }: { client: GatewayClient; snapshot: GatewaySnapshot; look: DotLook }) {
+function Thread({ client, snapshot, look }: { client: ChatClient; snapshot: GatewaySnapshot; look: DotLook }) {
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const firstKey = useRef<string | undefined>(undefined);
@@ -369,7 +369,7 @@ function Composer({
   sendFiles,
 }: {
   draftKey: string;
-  client: GatewayClient;
+  client: ChatClient;
   name: string;
   notice: string | null;
   setNotice: (notice: string | null) => void;
@@ -380,7 +380,7 @@ function Composer({
   const picker = useRef<HTMLInputElement>(null);
   const recorder = useRef<VoiceRecorder | null>(null);
   const [recording, setRecording] = useState<Recording | null>(null);
-  const micAvailable = useMemo(canRecord, []);
+  const micAvailable = useMemo(canRecord, []) && client.voice;
 
   // On quitte la conversation (autre dot, autre agent) en plein enregistrement : on l'abandonne.
   useEffect(() => () => recorder.current?.cancel(), []);
@@ -530,9 +530,11 @@ function Composer({
             input.value = "";
           }}
         />
-        <button type="button" class="composer-plus" onClick={() => picker.current?.click()} title={t.attach} aria-label={t.attach}>
-          <Icon name="paperclip" size={19} />
-        </button>
+        {client.media && (
+          <button type="button" class="composer-plus" onClick={() => picker.current?.click()} title={t.attach} aria-label={t.attach}>
+            <Icon name="paperclip" size={19} />
+          </button>
+        )}
         <div class="composer-field">
           <textarea
             ref={field}

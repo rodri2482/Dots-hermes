@@ -22,6 +22,10 @@ export interface WebAgent {
   species: SpeciesId;
   palette: PaletteId;
   accessory: AccessoryId;
+  /** Compte direct « groq » (sans gateway) : la clé et le modèle restent dans ce navigateur. */
+  provider?: "groq";
+  apiKey?: string;
+  model?: string;
 }
 
 /** Contenu déchiffré d'un dépôt d'appairage (voir docs/appairage-web.md). */

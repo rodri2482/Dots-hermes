@@ -68,6 +68,9 @@ const DELIVERY_RANK: Record<Delivery, number> = { sending: 0, sent: 1, read: 2 }
 
 export class GatewayClient {
   agent: WebAgent;
+  /** Pièces jointes et vocaux passent par le gateway. */
+  readonly media = true;
+  readonly voice = true;
   private snapshot: GatewaySnapshot = EMPTY_SNAPSHOT;
   private readonly listeners = new Set<() => void>();
 

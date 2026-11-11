@@ -230,3 +230,22 @@
   .pair-ring-fill, .pair-qr { transition: none; }
   .pair-success { animation: none; }
 }
+
+/* Compte Groq sans téléphone : un champ, un bouton, deux liens discrets. */
+.groq-switch, .groq-back {
+  margin-top: 14px; padding: 8px 0; border: 0; background: none; cursor: pointer;
+  color: var(--dot-deep, #1764d6); font: inherit; font-weight: 600;
+}
+.groq-form { display: flex; flex-direction: column; gap: 10px; width: 100%; text-align: left; }
+.groq-key {
+  width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.12); font: inherit; background: #fff;
+}
+.groq-connect {
+  min-height: 48px; border: 0; border-radius: 999px; cursor: pointer; font: inherit; font-weight: 600;
+  color: #fff; background: var(--dot-base, #2f8cff);
+}
+.groq-connect:disabled { opacity: 0.45; cursor: default; }
+.groq-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; }
+.groq-links a { color: var(--dot-deep, #1764d6); font-weight: 600; text-decoration: none; }
+.groq-back { margin-top: 0; color: rgba(0, 0, 0, 0.55); font-weight: 500; }

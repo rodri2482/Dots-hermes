@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { ClayDot } from "../dot/ClayDot";
 import { paletteStyle } from "../dot/palettes";
-import type { GatewayClient } from "../gateway/GatewayClient";
+import type { ChatClient } from "../gateway/client";
 import { getClient, syncClients, useGateway } from "../gateway/registry";
 import { PairingScreen } from "../pairing/PairingScreen";
 import type { WebAgent } from "../types";
@@ -150,7 +150,7 @@ function AgentItem({
   onSelect,
 }: {
   agent: WebAgent;
-  client: GatewayClient | undefined;
+  client: ChatClient | undefined;
   selected: boolean;
   size: number;
   onSelect: () => void;
@@ -191,7 +191,7 @@ function AgentItem({
 /** « (3) Claydot » dans l'onglet quand des messages attendent. */
 function useUnreadTitle(agents: WebAgent[]) {
   useEffect(() => {
-    const clients = agents.map(getClient).filter((c): c is GatewayClient => !!c);
+    const clients = agents.map(getClient).filter((c): c is ChatClient => !!c);
     const base = "Claydot";
     const update = () => {
       const total = clients.reduce((sum, c) => sum + c.getSnapshot().unread, 0);

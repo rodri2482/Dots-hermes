@@ -6,6 +6,7 @@ import { lang, strings } from "../i18n";
 import { mergeAgents } from "../store";
 import type { PairingPayload } from "../types";
 import { decryptDeposit, generatePairingKeys, pairingUrl, type PairingKeys } from "./crypto";
+import { GroqKeyForm } from "./GroqKeyForm";
 import "./pairing.css";
 
 /**
@@ -41,6 +42,7 @@ const t = strings({
     successSub: "Opening the chat…",
     fromLink: "This link is meant to be scanned with the Claydot app: scan the code below from your phone.",
     close: "Close",
+    useGroq: "No phone? Use a Groq API key",
     footer: "Your conversations go directly from this browser to your gateway; nothing goes through this site.",
   },
   fr: {
@@ -59,6 +61,7 @@ const t = strings({
     successSub: "Ouverture du chat…",
     fromLink: "Ce lien se scanne avec l’app Claydot : scanne le code ci-dessous depuis ton téléphone.",
     close: "Fermer",
+    useGroq: "Pas de téléphone ? Utilise une clé API Groq",
     footer: "Tes conversations vont directement de ce navigateur à ton gateway ; rien ne passe par ce site.",
   },
 });
@@ -71,6 +74,7 @@ export function PairingScreen({ onCancel }: { onCancel?: () => void }) {
   const [remaining, setRemaining] = useState(ROTATE_MS / 1000);
   const [names, setNames] = useState("");
   const [fromLink, setFromLink] = useState(false);
+  const [groq, setGroq] = useState(false);
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
 
@@ -205,10 +209,15 @@ export function PairingScreen({ onCancel }: { onCancel?: () => void }) {
             <li><span class="pair-step-n">3</span>{t.step3}</li>
           </ol>
           {fromLink && <p class="pair-note t-body-sm">{t.fromLink}</p>}
+          {!groq && (
+            <button type="button" class="groq-switch" onClick={() => setGroq(true)}>{t.useGroq}</button>
+          )}
         </section>
 
         <section class="pair-card" aria-live="polite">
-          {status === "success" ? (
+          {groq ? (
+            <GroqKeyForm onBack={() => setGroq(false)} onDone={onCancel} />
+          ) : status === "success" ? (
             <div class="pair-success">
               <ClayDot species="nuage" palette="sky" mood="happy" size={148} />
               <p class="t-headline">{t.success(names)}</p>

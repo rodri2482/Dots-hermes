@@ -1,6 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 import type { WebAgent } from "../types";
 import { GatewayClient } from "./GatewayClient";
+import { GroqClient } from "./GroqClient";
+import type { ChatClient } from "./client";
 import type { GatewaySnapshot } from "./model";
 
 /**
@@ -8,7 +10,7 @@ import type { GatewaySnapshot } from "./model";
  * non-lus des agents qui ne sont pas à l'écran). La clé est la session web : un réappairage du même
  * agent donne un nouveau jeton, donc une nouvelle connexion.
  */
-const clients = new Map<string, GatewayClient>();
+const clients = new Map<string, ChatClient>();
 
 /** L'onglet est visible ET a le focus : c'est ce que le gateway appelle « premier plan ». */
 function isForeground(): boolean {
@@ -51,19 +53,20 @@ export function syncClients(agents: WebAgent[]): void {
     if (existing) {
       existing.setAgent(agent);
     } else {
-      const client = new GatewayClient(agent, foreground);
+      // Compte Groq : pas de gateway, les messages partent directement à l'API de Groq.
+      const client: ChatClient = agent.provider === "groq" ? new GroqClient(agent) : new GatewayClient(agent, foreground);
       clients.set(agent.session_id, client);
       client.start();
     }
   }
 }
 
-export function getClient(agent: WebAgent): GatewayClient | undefined {
+export function getClient(agent: WebAgent): ChatClient | undefined {
   return clients.get(agent.session_id);
 }
 
 /** État courant d'une connexion, rafraîchi à chaque changement. */
-export function useGateway(client: GatewayClient | undefined): GatewaySnapshot | null {
+export function useGateway(client: ChatClient | undefined): GatewaySnapshot | null {
   const [snapshot, setSnapshot] = useState<GatewaySnapshot | null>(() => client?.getSnapshot() ?? null);
   useEffect(() => {
     if (!client) {
