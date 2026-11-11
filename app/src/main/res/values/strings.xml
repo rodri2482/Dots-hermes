@@ -587,6 +587,38 @@ Paste a Groq API key to get started.</string>
         <item>Set up a routine: when someone writes my name in my WhatsApp group, reply that I will answer soon. Ask me the group and my name.</item>
     </string-array>
     <string name="local_note_gemma4">Fastest and smartest on most phones. Good at phone tasks.</string>
-    <string name="local_note_qwen">Many languages. Needs about 4 GB of RAM.</string>
+    <string name="local_note_qwen">Many languages. Needs about 6 GB of RAM.</string>
     <string name="local_note_lfm">Light and quick, for phones with less space.</string>
+    <string name="local_note_qwen08">Small and quick, still uses tools. Good for most phones.</string>
+    <string name="local_note_qwen06">Tiny and fastest. Quick chat only: no phone tasks.</string>
+    <string name="cap_phone">Phone control</string>
+    <string name="cap_messages">Messages</string>
+    <string name="cap_routines">Routines</string>
+    <string name="cap_web">Web</string>
+    <string name="cap_photos">Photos</string>
+    <string name="cap_voice">Voice</string>
+    <string name="cap_quick">Quick replies</string>
+    <string name="cap_offline">Offline</string>
+    <string name="cap_private">Private</string>
+    <string name="models_title">Models</string>
+    <string name="models_subtitle">Download a model to use Claydot without internet, or connect Groq.</string>
+    <string name="models_on_phone">On this phone</string>
+    <string name="models_online">Online</string>
+    <string name="models_use">Use</string>
+    <string name="models_add_key">Add key</string>
+    <string name="models_recommended">Best for this phone</string>
+    <string name="models_needs_memory">Needs more memory</string>
+    <string name="models_groq_note">Free key, the smartest and fastest answers.</string>
+    <string name="routines_none">None yet · tap for ideas</string>
+    <string name="memory_none">Nothing yet</string>
+    <string name="reply_cancel">Cancel reply</string>
+    <string name="reply_you">You</string>
+    <plurals name="routines_summary">
+        <item quantity="one">%1$d routine · %2$d on</item>
+        <item quantity="other">%1$d routines · %2$d on</item>
+    </plurals>
+    <plurals name="memory_summary">
+        <item quantity="one">%1$d thing remembered</item>
+        <item quantity="other">%1$d things remembered</item>
+    </plurals>
 </resources>

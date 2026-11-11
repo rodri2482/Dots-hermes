@@ -71,6 +71,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -159,6 +160,8 @@ fun ChatScreen(
     connection: ConnectionState.Connected?,
     appearance: DotAppearance,
     onSend: (String) -> Unit,
+    /** Réponse à un message précis (glisser une bulle vers la droite) ; null : geste désactivé. */
+    onSendReply: ((text: String, quote: String) -> Unit)? = null,
     onReact: (messageId: String, emoji: String) -> Unit,
     onApproval: (messageId: String, approved: Boolean) -> Unit,
     onClarify: (messageId: String, response: String) -> Unit,
@@ -239,6 +242,10 @@ fun ChatScreen(
 
     // Pièce jointe choisie mais pas encore envoyée : on peut écrire un texte dessous, puis Envoyer.
     var pendingAttachment by remember { mutableStateOf<Uri?>(null) }
+    // Message auquel on répond (glissé vers la droite) : qui l'a écrit et son texte cité.
+    var replyTo by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val focusComposer = remember { androidx.compose.ui.focus.FocusRequester() }
+    val youLabel = stringResource(R.string.reply_you)
 
     fun attach(uri: Uri) {
         if (!gatewayFeatures && !imageInput) return
@@ -255,7 +262,9 @@ fun ChatScreen(
             suggestionsOpen = false
             return
         }
-        onSend(text)
+        val reply = replyTo
+        if (reply != null && onSendReply != null && text.isNotBlank()) onSendReply(text, reply.second) else onSend(text)
+        replyTo = null
         draft = ""
         suggestionsOpen = false
     }
@@ -282,7 +291,15 @@ fun ChatScreen(
                         placementSpec = if (streamingReply) null else spring(stiffness = Spring.StiffnessMediumLow, visibilityThreshold = IntOffset.VisibilityThreshold)).fillMaxWidth()) {
                         when (row) {
                             is ChatRow.Day -> DaySeparator(dayLabel(row))
-                            is ChatRow.Bubble -> MessageRow(
+                            is ChatRow.Bubble -> SwipeToReply(
+                                enabled = onSendReply != null && !row.message.streaming && quoteOf(row.message) != null,
+                                onReply = {
+                                    quoteOf(row.message)?.let { q ->
+                                        replyTo = (if (row.message.sender == app.dotshermes.data.model.Sender.User) youLabel else state.agentName) to q
+                                        runCatching { focusComposer.requestFocus() }
+                                    }
+                                },
+                            ) { MessageRow(
                                 row = row,
                                 reactionsEnabled = true,
                                 speakerLook = if (row.showSpeaker) lookFor(row.message) else null,
@@ -295,7 +312,7 @@ fun ChatScreen(
                                 attachments = attachments,
                                 onTakeover = onTakeover,
                                 onListen = onListen?.let { listen -> (row.message.content as? app.dotshermes.data.model.MessageContent.Text)?.let { { listen(it.text) } } },
-                            )
+                            ) }
                             is ChatRow.Tools -> ToolTrail(
                                 row,
                                 screen = screen.takeIf { row.key == newestToolsKey && row.calls.any { it.kind == ToolKind.Web } },
@@ -377,6 +394,9 @@ fun ChatScreen(
                 onAttach = ::attach,
                 attachment = pendingAttachment,
                 onRemoveAttachment = { pendingAttachment = null },
+                replyTo = replyTo,
+                onCancelReply = { replyTo = null },
+                focusRequester = focusComposer,
                 room = state.room,
                 canOpenRoom = state.roomCandidates.isNotEmpty(),
                 onNewChat = onNewChat?.let { action -> { suggestionsOpen = false; action() } },
@@ -558,6 +578,9 @@ private fun Composer(
     onAttach: (Uri) -> Unit,
     attachment: Uri? = null,
     onRemoveAttachment: () -> Unit = {},
+    replyTo: Pair<String, String>? = null,
+    onCancelReply: () -> Unit = {},
+    focusRequester: androidx.compose.ui.focus.FocusRequester? = null,
     room: List<SubDot> = emptyList(),
     canOpenRoom: Boolean = false,
     onOpenRoom: () -> Unit = {},
@@ -629,6 +652,9 @@ private fun Composer(
             RecordingBar(recording, onCancel = voice.onCancelRecording, onSend = voice.onSendRecording)
             return@Column
         }
+        AnimatedVisibility(replyTo != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            replyTo?.let { (name, quote) -> ReplyBar(name, quote, onCancelReply) }
+        }
         AnimatedVisibility(attachment != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             attachment?.let { AttachmentPreview(it, onRemoveAttachment) }
         }
@@ -670,7 +696,7 @@ private fun Composer(
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink.Primary),
                         cursorBrush = SolidColor(palette.base),
                         maxLines = 6,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier),
                     )
                 }
                 // Une seule commande, cible de 44 dp : Arrêter pendant la réponse, Envoyer dès qu'il y a du texte, sinon le micro.

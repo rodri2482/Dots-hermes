@@ -106,6 +106,7 @@ private fun ModelRow(
             Column(Modifier.weight(1f)) {
                 Text(model.name, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
                 Text("${gigabytes(model.sizeBytes)} · ${stringResource(model.note)}", style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                app.dotshermes.ui.chat.CapabilityChips(app.dotshermes.ui.chat.capabilitiesOf(ApiProvider.Local, model.id), Modifier.padding(top = 6.dp))
             }
         }
         Spacer(Modifier.height(10.dp))

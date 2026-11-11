@@ -156,4 +156,45 @@ class RateLimitTest {
             assertEquals("Here is my answer.", storage.transcript.messages.last().text)
         } finally { scope.cancel() }
     }
+
+    /** Réponse à un message précis : le modèle voit la citation, le message garde sa citation. */
+    private class Capture : ProviderClient {
+        var lastUser: String? = null
+        override suspend fun models(provider: ApiProvider, key: String) = listOf("openai/gpt-oss-120b")
+        override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) = error("unused")
+        override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+            extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+            lastUser = turns.last { it.role == "user" }.text
+            onDelta("Sure.")
+            return emptyList()
+        }
+    }
+
+    @Test fun `a swiped reply sends the quoted message along`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage(); val client = Capture()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "openai/gpt-oss-120b", scope, storage, client)
+            repo.restore(); repo.sendReply("Why?", "The meeting moved to 3 pm")
+            withTimeout(10_000) {
+                while (storage.transcript.messages.lastOrNull()?.state != DirectEntryState.Complete || repo.activity.value != AgentActivity.Idle) delay(20)
+            }
+            assertEquals("(Replying to: \"The meeting moved to 3 pm\")\nWhy?", client.lastUser)
+            assertEquals("The meeting moved to 3 pm", storage.transcript.messages.first { it.role == "user" }.quote)
+            assertEquals("The meeting moved to 3 pm", repo.messages.value.first { it.sender == app.dotshermes.data.model.Sender.User }.quote)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `the phone tier never uses every core`() {
+        assertEquals(2, DeviceTier.Level.Low.threads(8))
+        assertEquals(4, DeviceTier.Level.Mid.threads(8))
+        assertEquals(6, DeviceTier.Level.High.threads(8))
+        assertEquals(2, DeviceTier.Level.High.threads(4))
+    }
+
+    @Test fun `quick chat models are small and listed last`() {
+        val quick = LocalModels.CATALOG.filter { it.chatOnly }
+        assertTrue(quick.isNotEmpty() && quick.all { it.sizeBytes < 500_000_000 })
+        assertEquals(LocalModels.CATALOG.last(), quick.last())
+    }
 }

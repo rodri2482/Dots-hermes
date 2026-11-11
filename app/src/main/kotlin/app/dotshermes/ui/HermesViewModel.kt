@@ -324,6 +324,12 @@ class HermesViewModel(
         if (text.isNotBlank()) repository.send(text.trim())
     }
 
+    /** Réponse à un message précis (glisser vers la droite). */
+    fun sendReply(text: String, quote: String) {
+        companion?.stop()
+        if (text.isNotBlank()) repository.sendReply(text.trim(), quote)
+    }
+
     /** Micro : la permission est demandée par l'écran avant l'appel. */
     fun startRecording(): Boolean {
         player.stop()

@@ -18,6 +18,8 @@ data class DirectEntry(
     val image: String? = null,
     /** Réponse donnée par un autre modèle que celui du compte (quota épuisé, modèle sans outils…). */
     val model: String? = null,
+    /** Message auquel l'utilisateur répond (glisser vers la droite) : son texte, court. */
+    val quote: String? = null,
 ) {
     init {
         require(role == "user" || role == "assistant")
@@ -87,7 +89,8 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                     if (row.has("tokens") && !row.isNull("tokens")) row.getLong("tokens").coerceAtLeast(0) else null,
                     row.optString("reaction").takeIf { it in Reactions },
                     row.optString("image").takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,64}\\.jpg")) },
-                    row.optString("model").takeIf { it.isNotBlank() && it.length <= 120 })
+                    row.optString("model").takeIf { it.isNotBlank() && it.length <= 120 },
+                    row.optString("quote").takeIf { it.isNotBlank() }?.take(200))
             }
             val retry = if (root.isNull("retry_user_id")) null else root.getString("retry_user_id")
             val failure = if (root.isNull("failure")) null else ApiFailure.valueOf(root.getString("failure"))
@@ -114,7 +117,7 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                 put(JSONObject().put("id", row.id).put("role", row.role).put("text", row.text)
                     .put("timestamp_ms", row.timestampMs).put("state", row.state.name)
                     .put("reply_to", row.replyTo ?: JSONObject.NULL)
-                    .apply { row.durationMs?.let { put("duration_ms", it) }; row.tokens?.let { put("tokens", it) }; row.reaction?.let { put("reaction", it) }; row.image?.let { put("image", it) }; row.model?.let { put("model", it) } })
+                    .apply { row.durationMs?.let { put("duration_ms", it) }; row.tokens?.let { put("tokens", it) }; row.reaction?.let { put("reaction", it) }; row.image?.let { put("image", it) }; row.model?.let { put("model", it) }; row.quote?.let { put("quote", it) } })
             }
         }
         val limits = transcript.limits?.let { row ->

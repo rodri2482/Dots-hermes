@@ -71,6 +71,7 @@ class RoutingChatRepository(
 
     override fun disconnect() = active.value.disconnect()
     override fun send(text: String) = active.value.send(text)
+    override fun sendReply(text: String, quote: String) = active.value.sendReply(text, quote)
     override fun toggleReaction(messageId: String, emoji: String) = active.value.toggleReaction(messageId, emoji)
     override fun answerApproval(messageId: String, approved: Boolean) = active.value.answerApproval(messageId, approved)
     override fun answerClarify(messageId: String, response: String) = active.value.answerClarify(messageId, response)

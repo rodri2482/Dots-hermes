@@ -88,6 +88,8 @@ data class ChatMessage(
     val footer: String? = null,
     /** Réponse encore en train d'arriver : le texte s'affiche progressivement, sans à-coups. */
     val streaming: Boolean = false,
+    /** Message auquel celui-ci répond (citation courte) ; null = message normal. */
+    val quote: String? = null,
 )
 
 enum class ToolState { Running, Done, Error }

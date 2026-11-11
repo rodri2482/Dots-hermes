@@ -32,7 +32,11 @@ import java.io.File
  * garde l'état d'une conversation à l'autre (bogue connu de LiteRT-LM ≤ 0.19.1) : un moteur neuf par conversation.
  */
 data class LocalModel(val id: String, val name: String, val sizeBytes: Long, val url: String, val file: String,
-    @param:androidx.annotation.StringRes val note: Int, val maker: String, val freshEngine: Boolean = false)
+    @param:androidx.annotation.StringRes val note: Int, val maker: String, val freshEngine: Boolean = false,
+    /** Petit modèle de conversation : pas d'outils, consigne courte, réponses brèves (contexte réduit). */
+    val chatOnly: Boolean = false,
+    /** Mémoire vive conseillée (Go annoncés par le fabricant) pour qu'il tourne sans ralentir le téléphone. */
+    val minRamGb: Int = 0)
 
 /** État du téléchargement d'un modèle. */
 sealed interface LocalModelState {
@@ -139,13 +143,21 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
             // Gemma 4 E2B : le plus rapide sur la puce graphique (premier mot en ~0,3 s), appels d'outils natifs.
             LocalModel("gemma4-e2b", "Gemma 4 E2B", 2_588_147_712,
                 "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
-                "gemma-4-E2B-it.litertlm", app.dotshermes.R.string.local_note_gemma4, "Google"),
+                "gemma-4-E2B-it.litertlm", app.dotshermes.R.string.local_note_gemma4, "Google", minRamGb = 6),
             LocalModel("qwen3.5-2b", "Qwen 3.5 2B", 2_119_744_416,
                 "https://huggingface.co/litert-community/Qwen3.5-2B/resolve/main/Qwen3.5-2B_int8.litertlm",
-                "Qwen3.5-2B_int8.litertlm", app.dotshermes.R.string.local_note_qwen, "Alibaba Qwen", freshEngine = true),
+                "Qwen3.5-2B_int8.litertlm", app.dotshermes.R.string.local_note_qwen, "Alibaba Qwen", freshEngine = true, minRamGb = 6),
+            LocalModel("qwen3.5-0.8b", "Qwen 3.5 0.8B", 964_657_152,
+                "https://huggingface.co/litert-community/Qwen3.5-0.8B/resolve/main/Qwen3.5-0.8B_int8.litertlm",
+                "Qwen3.5-0.8B_int8.litertlm", app.dotshermes.R.string.local_note_qwen08, "Alibaba Qwen", freshEngine = true, minRamGb = 4),
             LocalModel("lfm2.5-1.2b", "LFM 2.5 1.2B", 736_015_744,
                 "https://huggingface.co/litert-community/LFM2.5-1.2B-Instruct/resolve/main/LFM2.5-1.2B-Instruct_int4.litertlm",
-                "LFM2.5-1.2B-Instruct_int4.litertlm", app.dotshermes.R.string.local_note_lfm, "Liquid AI"),
+                "LFM2.5-1.2B-Instruct_int4.litertlm", app.dotshermes.R.string.local_note_lfm, "Liquid AI", minRamGb = 3),
+            // Sans « réflexion » (bloc <think> vide prérempli) : réponses directes, les plus rapides.
+            LocalModel("qwen3-0.6b", "Qwen3 0.6B", 347_251_840,
+                "https://huggingface.co/litert-community/Qwen3-0.6B-int4/resolve/main/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",
+                "qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm", app.dotshermes.R.string.local_note_qwen06, "Alibaba Qwen",
+                chatOnly = true, minRamGb = 2),
         )
 
         fun byId(id: String) = CATALOG.firstOrNull { it.id == id }
@@ -171,23 +183,47 @@ class LocalProviderClient(private val context: Context, private val models: () -
     private var releaseJob: Job? = null
     private val guard = DeviceGuard(context)
     private val gpuPrefs = context.getSharedPreferences("local-gpu", Context.MODE_PRIVATE)
+    private val tier = DeviceTier.level(context)
+    /** Le moteur chargé a déjà servi à une conversation (Qwen 3.5 : il faut alors un moteur neuf). */
+    private var engineUsed = false
+    /** Modèle chargé sur la puce graphique qui n'a pas encore donné de réponse complète sur ce téléphone. */
+    private var gpuUnproven: String? = null
 
     init {
-        // Un essai de la puce graphique n'a jamais fini (l'app s'est arrêtée pendant le chargement) :
-        // ce modèle restera sur le processeur sur ce téléphone.
+        instance = this
+        // La puce graphique était à l'essai (chargement ou première réponse) et l'app s'est arrêtée en
+        // plantant : ce modèle restera sur le processeur sur ce téléphone. Arrêt normal : on réessaiera.
+        val crashed = lastExitWasCrash(context)
         gpuPrefs.all.keys.filter { it.startsWith("trying:") }.forEach { k ->
-            gpuPrefs.edit().putBoolean("off:" + k.removePrefix("trying:"), true).remove(k).commit()
+            gpuPrefs.edit().apply { if (crashed) putBoolean("off:" + k.removePrefix("trying:"), true) }.remove(k).commit()
         }
+    }
+
+    private fun lastExitWasCrash(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < 30) return true
+        val last = runCatching {
+            context.getSystemService(android.app.ActivityManager::class.java)?.getHistoricalProcessExitReasons(context.packageName, 0, 1)?.firstOrNull()
+        }.getOrNull() ?: return false
+        return last.reason == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE || last.reason == android.app.ApplicationExitInfo.REASON_CRASH
+    }
+
+    /** Une réponse complète est sortie de la puce graphique : elle est validée pour ce modèle. */
+    private fun gpuProven(id: String) {
+        if (gpuUnproven != id) return
+        gpuUnproven = null
+        gpuPrefs.edit().putBoolean("ok:$id", true).remove("trying:$id").commit()
     }
 
     /** Au repos depuis quelques minutes : le moteur est fermé (mémoire rendue, processeur au calme). */
     private fun scheduleRelease() {
         releaseJob?.cancel()
         releaseJob = idle.launch {
-            delay(IDLE_RELEASE_MS)
+            delay(tier.idleReleaseMs)
             lock.withLock {
                 runCatching { taskConversation?.close() }; taskConversation = null; taskKey = null
                 runCatching { engine?.close() }; engine = null; loadedPath = null
+                // Fermé sans incident : l'essai de la puce graphique reprendra au prochain chargement.
+                gpuUnproven?.let { gpuPrefs.edit().remove("trying:$it").commit() }; gpuUnproven = null
             }
         }
     }
@@ -196,7 +232,8 @@ class LocalProviderClient(private val context: Context, private val models: () -
         LocalModels.CATALOG.filter { models().isReady(it) }.map { it.id }
 
     private fun engineFor(entry: LocalModel, path: String, fresh: Boolean = false): Engine {
-        engine?.takeIf { loadedPath == path && !fresh }?.let { return it }
+        engine?.takeIf { loadedPath == path && !(fresh && engineUsed) }?.let { return it }
+        engineUsed = false
         runCatching { taskConversation?.close() }; taskConversation = null; taskKey = null
         runCatching { engine?.close() }
         engine = null; loadedPath = null
@@ -207,19 +244,43 @@ class LocalProviderClient(private val context: Context, private val models: () -
             val gpu = try {
                 Engine(EngineConfig(modelPath = path, backend = Backend.GPU(), cacheDir = context.cacheDir.path)).also { it.initialize() }
             } catch (_: Throwable) {
-                gpuPrefs.edit().putBoolean("off:" + entry.id, true).commit()
+                gpuPrefs.edit().putBoolean("off:" + entry.id, true).remove("trying:" + entry.id).commit()
                 null
-            } finally {
-                gpuPrefs.edit().remove("trying:" + entry.id).commit()
             }
-            if (gpu != null) { engine = gpu; loadedPath = path; return gpu }
+            if (gpu != null) {
+                // Chargé ; l'essai ne se termine qu'après une première réponse complète (un plantage pendant
+                // celle-ci renverrait aussi ce modèle sur le processeur).
+                if (gpuPrefs.getBoolean("ok:" + entry.id, false)) gpuPrefs.edit().remove("trying:" + entry.id).commit()
+                else gpuUnproven = entry.id
+                engine = gpu; loadedPath = path; return gpu
+            }
         }
-        // Quatre fils au plus : les cœurs restants gardent le téléphone fluide.
-        val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 8).let { minOf(4, it - 1).coerceAtLeast(2) }
+        // Fils de calcul selon le téléphone : les cœurs restants gardent l'interface fluide.
+        val threads = tier.threads(Runtime.getRuntime().availableProcessors())
         val cpu = Engine(EngineConfig(modelPath = path, backend = Backend.CPU(threads, null), cacheDir = context.cacheDir.path))
         cpu.initialize()
         engine = cpu; loadedPath = path
         return cpu
+    }
+
+    /**
+     * Charge le moteur dès que le modèle est choisi (ou l'app ouverte sur lui) : la première réponse part
+     * aussitôt au lieu d'attendre le chargement. Pas sur les petits téléphones (mémoire gardée libre).
+     */
+    fun warmUp(modelId: String) {
+        if (tier == DeviceTier.Level.Low || !LocalModels.deviceSupported()) return
+        val entry = LocalModels.byId(modelId)?.takeIf { runCatching { models().isReady(it) }.getOrDefault(false) } ?: return
+        idle.launch {
+            if (lock.isLocked) return@launch
+            lock.withLock {
+                withContext(Dispatchers.IO) {
+                    val path = models().fileOf(entry).path
+                    if (loadedPath == path) return@withContext
+                    runCatching { guard.check(entry.sizeBytes, loaded = false); engineFor(entry, path) }
+                }
+            }
+            scheduleRelease()
+        }
     }
 
     override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) {
@@ -262,9 +323,11 @@ class LocalProviderClient(private val context: Context, private val models: () -
             }))
         } else {
             runCatching { taskConversation?.close() }; taskConversation = null
-            val system = turns.filter { it.role == "system" }.joinToString("\n\n") { it.text }
-            val earlier = history.dropLast(1).takeLast(6).map { if (it.role == "user") Message.user(it.text) else Message.model(it.text) }
-            val providers = tools?.let { defs -> (0 until defs.length()).mapNotNull { defs.optJSONObject(it)?.optJSONObject("function") }
+            val system = if (entry.chatOnly) QUICK_NOTE else turns.filter { it.role == "system" }.joinToString("\n\n") { it.text }
+            // Petit modèle (contexte de 1 280 jetons) : les derniers échanges seulement, raccourcis.
+            val earlier = (if (entry.chatOnly) history.dropLast(1).takeLast(4) else history.dropLast(1).takeLast(6))
+                .map { val t = if (entry.chatOnly) it.text.take(300) else it.text; if (it.role == "user") Message.user(t) else Message.model(t) }
+            val providers = if (entry.chatOnly) emptyList() else tools?.let { defs -> (0 until defs.length()).mapNotNull { defs.optJSONObject(it)?.optJSONObject("function") }
                 .map { fn -> com.google.ai.edge.litertlm.tool(LocalTool(fn)) } }.orEmpty()
             val config = ConversationConfig(
                 systemInstruction = Contents.of(system.ifBlank { "You are Claydot, a friendly assistant." } + "\n\n" +
@@ -273,9 +336,14 @@ class LocalProviderClient(private val context: Context, private val models: () -
                 tools = providers,
                 samplerConfig = SamplerConfig(40, 0.95, 0.6, 0),
                 automaticToolCalling = false,
-                maxOutputToken = if (mode == DeviceGuard.Mode.Gentle) 256 else 640,
+                maxOutputToken = when {
+                    entry.chatOnly -> 220
+                    mode == DeviceGuard.Mode.Gentle -> 256
+                    else -> tier.maxOutputTokens
+                },
             )
             conversation = engine.createConversation(config)
+            engineUsed = true
             message = Message.user(last.text)
         }
         val thinking = ThinkFilter()
@@ -294,6 +362,7 @@ class LocalProviderClient(private val context: Context, private val models: () -
             taskConversation = null; taskKey = null
             throw e
         }
+        gpuProven(entry.id)
         if (calls.isEmpty()) { runCatching { conversation.close() }; taskConversation = null; taskKey = null }
         else { taskConversation = conversation; taskKey = key }
         return calls
@@ -306,7 +375,10 @@ class LocalProviderClient(private val context: Context, private val models: () -
     }
 
     companion object {
-        private const val IDLE_RELEASE_MS = 3 * 60_000L
+        /** Le client du téléphone (un seul dans l'app) : pour précharger le modèle choisi. */
+        @Volatile var instance: LocalProviderClient? = null
+            private set
+        private const val QUICK_NOTE = "You are Claydot, a friendly companion. Reply in one to three short sentences, plainly."
         private const val GENTLE_PAUSE_MS = 2_500L
         private const val OFFLINE_TOOLS_NOTE = "You run on the user's phone, offline. You can act on the phone with your tools " +
             "(apps, music, alarms, texting, the screen with the user's approval). Keep tool use to the few steps needed, then answer briefly."
@@ -389,4 +461,37 @@ class DeviceGuard(private val context: Context) {
         }
         return if (level <= 20 && !charging) Mode.Gentle else Mode.Normal
     }
+}
+
+/**
+ * Haut, milieu ou bas de gamme, d'après la mémoire vive : le nombre de fils de calcul, la longueur des
+ * réponses, le temps où le modèle reste chargé et le modèle conseillé s'y adaptent.
+ */
+object DeviceTier {
+    enum class Level(val idleReleaseMs: Long, val maxOutputTokens: Int, private val maxThreads: Int) {
+        Low(2 * 60_000L, 384, 2), Mid(5 * 60_000L, 640, 4), High(10 * 60_000L, 1024, 6);
+
+        /** Jamais tous les cœurs : il en reste pour l'interface. */
+        fun threads(cores: Int) = minOf(maxThreads, cores - 2).coerceAtLeast(2)
+    }
+
+    /** Mémoire vive totale en Go (un téléphone « 8 Go » en annonce environ 7,5). */
+    fun ramGb(context: Context): Double {
+        val info = android.app.ActivityManager.MemoryInfo()
+        context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(info)
+        return info.totalMem / 1_000_000_000.0
+    }
+
+    fun level(context: Context): Level {
+        val low = context.getSystemService(android.app.ActivityManager::class.java)?.isLowRamDevice == true
+        val ram = ramGb(context)
+        return when { low || ram < 4.5 -> Level.Low; ram < 7.0 -> Level.Mid; else -> Level.High }
+    }
+
+    /** Le modèle tient dans la mémoire de ce téléphone (marge pour l'écart entre Go annoncés et réels). */
+    fun fits(context: Context, model: LocalModel) = ramGb(context) + 0.8 >= model.minRamGb
+
+    /** Le plus capable des modèles qui tiennent, outils compris. */
+    fun recommended(context: Context): LocalModel? =
+        LocalModels.CATALOG.firstOrNull { !it.chatOnly && fits(context, it) } ?: LocalModels.CATALOG.firstOrNull { fits(context, it) }
 }

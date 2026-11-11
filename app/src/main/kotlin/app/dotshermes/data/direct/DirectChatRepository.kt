@@ -168,6 +168,12 @@ class DirectChatRepository(
         begin(trimmed, null)
     }
 
+    override fun sendReply(text: String, quote: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        begin(trimmed, null, quote = quote.trim().take(200).ifBlank { null })
+    }
+
     /**
      * Photo choisie sur le téléphone : réduite, gardée dans le dossier privé du compte, puis envoyée
      * avec la légende au modèle de vision du compte. Les autres fichiers ne sont pas pris en charge.
@@ -234,7 +240,7 @@ class DirectChatRepository(
         }
     }
 
-    private fun begin(text: String?, retryId: String?, image: String? = null) {
+    private fun begin(text: String?, retryId: String?, image: String? = null, quote: String? = null) {
         synchronized(lock) {
             if (!ready || busy) return
             if (maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs) > clockMs() && !hasAlternative()) {
@@ -247,11 +253,11 @@ class DirectChatRepository(
             val token = ++generation
             _failure.value = null
             _activity.value = AgentActivity.Thinking
-            job = scope.launch(Dispatchers.IO) { runTurn(token, text, retryId, image) }
+            job = scope.launch(Dispatchers.IO) { runTurn(token, text, retryId, image, quote) }
         }
     }
 
-    private suspend fun runTurn(token: Long, text: String?, retryId: String?, image: String? = null) {
+    private suspend fun runTurn(token: Long, text: String?, retryId: String?, image: String? = null, quote: String? = null) {
         var userId: String? = retryId
         var answerId: String? = null
         try {
@@ -259,7 +265,7 @@ class DirectChatRepository(
                 if (token != generation) return
                 val previous = transcript.messages
                 val user = if (retryId != null) previous.first { it.id == retryId && it.role == "user" }
-                    else DirectEntry(UUID.randomUUID().toString(), "user", requireNotNull(text), System.currentTimeMillis(), DirectEntryState.Pending, image = image)
+                    else DirectEntry(UUID.randomUUID().toString(), "user", requireNotNull(text), System.currentTimeMillis(), DirectEntryState.Pending, image = image, quote = quote)
                 userId = user.id
                 val retained = if (retryId == null) previous else previous.filterNot { it.id == retryId || it.replyTo == retryId }
                 val answer = DirectEntry(UUID.randomUUID().toString(), "assistant", "", System.currentTimeMillis(), DirectEntryState.Streaming, user.id)
@@ -267,10 +273,13 @@ class DirectChatRepository(
                 commit(transcript.copy(messages = retained + user.copy(state = DirectEntryState.Pending) + answer, retryUserId = user.id, failure = null, cooldownUntilMs = 0))
                 val known = if (provider.hasTools) loadedFacts() else emptyList()
                 // Avec des outils, le modèle doit s'en servir au lieu de répondre « je ne peux pas ».
-                val toolLine = if (provider.hasTools && toolbox()?.definitions() != null) "\n\n" + TOOL_RULE else ""
+                // Modèle du téléphone : consignes courtes (moins de texte à lire avant de répondre = réponse plus rapide).
+                val compact = provider == ApiProvider.Local
+                val toolLine = if (provider.hasTools && toolbox()?.definitions() != null) "\n\n" + (if (compact) LOCAL_TOOL_RULE else TOOL_RULE) else ""
                 val memoryLine = if (known.isEmpty()) "" else "\n\nWhat you remember about the user (from earlier chats):\n" + known.joinToString("\n") { "- $it" }
-                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE + toolLine + memoryLine + "\n\n" + nowLine()) }) +
-                    completedContext(retained) + ApiTurn("user", user.text.ifBlank { if (user.image != null) "What do you see in this photo?" else user.text },
+                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + (if (compact) LOCAL_REACTION_RULE else REACTION_RULE) + toolLine + memoryLine + "\n\n" + nowLine()) }) +
+                    completedContext(retained) + ApiTurn("user", user.text.ifBlank { if (user.image != null) "What do you see in this photo?" else user.text }
+                        .let { t -> user.quote?.let { q -> "(Replying to: \"$q\")\n$t" } ?: t },
                         user.image?.let { name -> imageDir?.let { File(it, name) } }?.takeIf { it.isFile }?.let { photo ->
                             "data:image/jpeg;base64," + java.util.Base64.getEncoder().encodeToString(photo.readBytes())
                         })
@@ -382,7 +391,7 @@ class DirectChatRepository(
                     commit(transcript.copy(messages = transcript.messages.map {
                         when (it.id) {
                             answerId -> it.copy(text = it.text + tail, state = DirectEntryState.Complete, durationMs = (doneAt - it.timestampMs).coerceAtLeast(0), tokens = replyTokens,
-                                model = turnModel.takeIf { m -> m != model })
+                                model = turnModel)
                             userId -> it.copy(state = DirectEntryState.Complete)
                             else -> it
                         }
@@ -622,6 +631,7 @@ class DirectChatRepository(
             remoteId = entry.id, turn = entry.replyTo, failed = entry.role == "user" && entry.state == DirectEntryState.Failed,
             footer = if (entry.id == newestDone) replyFooter(entry.model ?: model, entry.durationMs ?: 0, entry.tokens) else null,
             streaming = entry.role == "assistant" && entry.state == DirectEntryState.Streaming,
+            quote = entry.quote,
             reactions = entry.reaction?.let { mapOf((if (entry.role == "user") Sender.Agent else Sender.User) to it) } ?: emptyMap(),
         ) }
     }
@@ -756,6 +766,13 @@ internal const val TOOL_RULE = "You run on the user's Android phone and have too
     "call show_image when a picture helps. Keep small talk short and casual. " +
     "use the screen tools to complete it when they are available, otherwise tell the user the one step left. " +
     "After a tool runs, say briefly what happened."
+
+/** Version courte de [TOOL_RULE] pour les modèles du téléphone. */
+internal const val LOCAL_TOOL_RULE = "You run on the user's phone and have tools: music, alarms, timers, apps, texting, routines, " +
+    "memory and, with approval, the screen. When a request matches a tool, call it; do one step at a time and say briefly what you did."
+
+/** Version courte de [REACTION_RULE] pour les modèles du téléphone. */
+internal val LOCAL_REACTION_RULE = "Start each reply with [[react:EMOJI]] (one of 😂 🎉 ❤️ 👍 😢 🤔 🔥 🙏) or [[react:none]]. The tag is hidden."
 
 internal val REACTION_RULE = "Start every reply with a reaction to the user's latest message, written exactly as " +
     "[[react:EMOJI]] where EMOJI is one of ${Reactions.joinToString(" ")}, or [[react:none]] when nothing fits. " +

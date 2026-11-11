@@ -70,10 +70,11 @@ fun ModelMenu(
     onPickLocal: (String) -> Unit,
     onDownload: (LocalModel) -> Unit,
     onCancelDownload: (LocalModel) -> Unit,
-    onAddModel: () -> Unit,
+    onAddGroqKey: () -> Unit,
 ) {
     val palette = LocalDotPalette.current
     var open by remember { mutableStateOf(false) }
+    var sheetOpen by remember { mutableStateOf(false) }
     val deviceOnline = rememberDeviceOnline()
     val local = active.provider == ApiProvider.Local
     // Hors ligne, un modèle du téléphone marche quand même : son point reste vert.
@@ -100,11 +101,12 @@ fun ModelMenu(
                     onClick = { open = false; if (!chosen) onPickGroq(id) }) {
                     if (chosen) Icon(Icons.Rounded.Check, null, tint = palette.deep, modifier = Modifier.size(20.dp))
                 }
+                if (chosen) CapabilityChips(capabilitiesOf(ApiProvider.Groq, id), Modifier.padding(start = 62.dp, end = 16.dp, bottom = 10.dp).widthIn(max = 250.dp))
             }
             LocalModels.CATALOG.forEach { model ->
                 val state = localStates[model.id] ?: LocalModelState.Missing
                 val chosen = local && active.model == model.id
-                val size = String.format(java.util.Locale.ROOT, "%.1f GB", model.sizeBytes / 1_000_000_000.0)
+                val size = gigabytes(model.sizeBytes)
                 ModelRow(Icons.Rounded.PhoneAndroid, model.name, "$size · ${model.maker}", onClick = {
                     when (state) {
                         LocalModelState.Ready -> { open = false; if (!chosen) onPickLocal(model.id) }
@@ -124,10 +126,16 @@ fun ModelMenu(
                         }
                     }
                 }
+                // Ce que sait faire le modèle choisi, juste sous lui.
+                if (chosen) CapabilityChips(capabilitiesOf(ApiProvider.Local, model.id), Modifier.padding(start = 62.dp, end = 16.dp, bottom = 10.dp).widthIn(max = 250.dp))
             }
             HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Ink.Separator)
-            ModelRow(Icons.Rounded.Add, stringResource(R.string.model_add), null, onClick = { open = false; onAddModel() }, plain = true) {}
+            ModelRow(Icons.Rounded.Add, stringResource(R.string.model_add), null, onClick = { open = false; sheetOpen = true }, plain = true) {}
         }
+    }
+    if (sheetOpen) {
+        AddModelSheet(active, groqModel, localStates, onPickGroq, onPickLocal, onDownload, onCancelDownload,
+            onAddGroqKey = onAddGroqKey, onDismiss = { sheetOpen = false })
     }
 }
 

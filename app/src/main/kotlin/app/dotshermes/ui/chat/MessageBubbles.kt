@@ -247,6 +247,8 @@ private fun TextBubble(
                 .padding(horizontal = 14.dp, vertical = 9.dp),
         ) {
             val ink = if (fromUser) palette.onBase else Ink.Primary
+            Column {
+            message.quote?.let { QuoteBlock(it, fromUser, ink) }
             // L'utilisateur tape du texte simple ; l'agent répond en markdown complet.
             SelectionContainer {
                 Box(Modifier.onGloballyPositioned { textBoundsInRoot = it.boundsInRoot() }) {
@@ -256,6 +258,7 @@ private fun TextBubble(
                         RichMarkdown(rememberRevealed(message, text), ink = ink, link = palette.deep)
                     }
                 }
+            }
             }
         }
         if (reactions.isNotEmpty()) {

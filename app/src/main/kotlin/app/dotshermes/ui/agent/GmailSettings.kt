@@ -1,5 +1,9 @@
 package app.dotshermes.ui.agent
 
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Psychology
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.ui.graphics.graphicsLayer
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -240,10 +244,16 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
 fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: String?, onTemplate: (String) -> Unit = {}) {
     val all by store.routines.collectAsStateWithLifecycle()
     val mine = all.filter { it.accountId == accountId }
+    var expanded by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
-        SectionLabel(stringResource(R.string.routines_section))
         val context = androidx.compose.ui.platform.LocalContext.current
+        androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
         GroupedCard {
+            CollapsedHeader(androidx.compose.material.icons.Icons.Rounded.Schedule, stringResource(R.string.routines_section),
+                if (mine.isEmpty()) stringResource(R.string.routines_none)
+                else androidx.compose.ui.res.pluralStringResource(R.plurals.routines_summary, mine.size, mine.size, mine.count { it.enabled }), expanded) { expanded = !expanded }
+            androidx.compose.animation.AnimatedVisibility(expanded) { Column {
+            Hairline()
             // Android 12+ : sans « alarmes et rappels », une routine peut partir quelques minutes en retard.
             if (mine.isNotEmpty() && !app.dotshermes.data.direct.RoutineAlarms.canBeExact(context) && android.os.Build.VERSION.SDK_INT >= 31) {
                 Text(stringResource(R.string.routines_exact), style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
@@ -255,7 +265,7 @@ fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: 
             }
             if (mine.isEmpty()) {
                 Text(stringResource(R.string.routines_empty), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp))
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp))
             }
             // Modèles prêts : un toucher envoie la demande à Claydot, qui demande ce qui manque (groupe, heure…).
             val templates = androidx.compose.ui.res.stringArrayResource(R.array.routine_templates)
@@ -292,6 +302,7 @@ fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: 
                     }
                 }
             }
+            } }
         }
     }
 }
@@ -300,9 +311,14 @@ fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: 
 @Composable
 fun MemorySettings(repo: app.dotshermes.data.direct.DirectChatRepository) {
     val facts by repo.facts.collectAsStateWithLifecycle()
+    var expanded by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
-        SectionLabel(stringResource(R.string.memory_section))
+        androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
         GroupedCard {
+            CollapsedHeader(androidx.compose.material.icons.Icons.Rounded.Psychology, stringResource(R.string.memory_section),
+                if (facts.isEmpty()) stringResource(R.string.memory_none) else androidx.compose.ui.res.pluralStringResource(R.plurals.memory_summary, facts.size, facts.size), expanded) { expanded = !expanded }
+            androidx.compose.animation.AnimatedVisibility(expanded) { Column {
+            Hairline()
             if (facts.isEmpty()) {
                 Text(stringResource(R.string.memory_empty), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp))
@@ -318,7 +334,29 @@ fun MemorySettings(repo: app.dotshermes.data.direct.DirectChatRepository) {
                     }
                 }
             }
+            } }
         }
+    }
+}
+
+/** Une ligne repliée : icône, titre, résumé d'un mot ; la flèche tourne quand la section s'ouvre. */
+@Composable
+private fun CollapsedHeader(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, summary: String, expanded: Boolean, onToggle: () -> Unit) {
+    val palette = LocalDotPalette.current
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
+    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = 14.dp, end = 12.dp, top = 11.dp, bottom = 11.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        androidx.compose.foundation.layout.Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp)).background(palette.light),
+            contentAlignment = androidx.compose.ui.Alignment.Center) {
+            androidx.compose.material3.Icon(icon, null, tint = palette.deep, modifier = Modifier.size(18.dp))
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, maxLines = 1)
+        }
+        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.ExpandMore, null, tint = Ink.Tertiary,
+            modifier = Modifier.size(22.dp).graphicsLayer { rotationZ = turn })
     }
 }
 

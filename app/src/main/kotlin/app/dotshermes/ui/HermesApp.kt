@@ -178,7 +178,7 @@ fun HermesApp(
                             onPickLocal = { viewModel.switchModel(app.dotshermes.data.direct.ApiProvider.Local, it) },
                             onDownload = AppContainer.localModels::download,
                             onCancelDownload = AppContainer.localModels::cancel,
-                            onAddModel = viewModel::addAgent,
+                            onAddGroqKey = viewModel::addAgent,
                         )
                     }),
                     onListen = if (!gatewayFeatures && companion.fishKeySaved && companion.voiceId.isNotBlank()) viewModel::listen else null,
@@ -186,6 +186,7 @@ fun HermesApp(
                     connection = connection as? ConnectionState.Connected,
                     appearance = look.appearance,
                     onSend = viewModel::send,
+                    onSendReply = if (!gatewayFeatures) viewModel::sendReply else null,
                     onReact = viewModel::toggleReaction,
                     onApproval = viewModel::answerApproval,
                     onClarify = viewModel::answerClarify,

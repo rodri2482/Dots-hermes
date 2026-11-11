@@ -118,6 +118,12 @@ class AgentRegistry(
         store.agents.value.filter { it.provider == null }.forEach { store.remove(it.id) }
         // Un seul agent à l'écran : les autres comptent leurs messages comme non lus.
         scope.launch { _activeId.collect { active -> repos.forEach { (id, repo) -> repo.setShown(id == active) } } }
+        // Compte « sur ce téléphone » à l'écran : le modèle se charge tout de suite, la réponse part plus vite.
+        scope.launch {
+            combine(_activeId, store.agents) { id, _ -> id?.let(store::get) }.collect { link ->
+                if (link?.provider == ApiProvider.Local) LocalProviderClient.instance?.warmUp(link.model)
+            }
+        }
     }
 
     val activeRepo: StateFlow<ChatRepository> =
