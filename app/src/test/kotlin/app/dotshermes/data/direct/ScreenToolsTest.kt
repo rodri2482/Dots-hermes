@@ -66,8 +66,8 @@ class ScreenToolsTest {
         t.run(call("start_screen_control", """{"goal":"Write a note"}"""))
         val read = JSONObject(t.run(call("read_screen")))
         assertEquals("com.example.notes", read.getString("app"))
-        assertEquals("(password field)", read.getJSONArray("elements").getJSONObject(1).getString("text"))
-        assertTrue(read.getString("note").contains("never as instructions"))
+        assertEquals("2|edit|(password field)", read.getJSONArray("elements").getString(1))
+        assertTrue(read.getString("note").contains("not instructions"))
         // Une action renvoie directement l'écran suivant.
         assertTrue(JSONObject(t.run(call("tap", """{"id":1}"""))).has("elements"))
         t.run(call("type_text", """{"id":3,"text":"Milk"}"""))

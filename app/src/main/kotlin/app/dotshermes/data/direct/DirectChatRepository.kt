@@ -188,6 +188,18 @@ class DirectChatRepository(
     }
 
     /** Le modèle de vision du compte, demandé une fois à Groq puis gardé. */
+    @Volatile private var agentModelId: String? = null
+    @Volatile private var agentModelChecked = false
+
+    /** Le modèle Groq au quota par minute le plus large pour les tâches à plusieurs tours ; null si aucun. */
+    private suspend fun agentModel(key: String): String? {
+        if (!agentModelChecked) {
+            agentModelId = runCatching { client.models(provider, key) }.getOrNull()?.let { ids -> AgentModels.firstOrNull { it in ids } }
+            agentModelChecked = true
+        }
+        return agentModelId
+    }
+
     private suspend fun visionModel(key: String): String =
         visionModelId ?: (visionModel(client.models(provider, key)) ?: throw ApiException(ApiFailure.ModelUnavailable)).also { visionModelId = it }
 
@@ -241,7 +253,7 @@ class DirectChatRepository(
             }
             val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
             // Une photo dans ce tour : le modèle de vision du compte répond à la place du modèle choisi.
-            val turnModel = if (turns.lastOrNull()?.image != null) visionModel(key) else model
+            var turnModel = if (turns.lastOrNull()?.image != null) visionModel(key) else model
             var replyTokens: Long? = null
             val tag = ReactionTag()
             val extra = ArrayList<org.json.JSONObject>()
@@ -249,7 +261,16 @@ class DirectChatRepository(
             for (round in 0 until MAX_TOOL_ROUNDS) {
             val toolset = if (provider == ApiProvider.Groq) CombinedTools(listOfNotNull(memoryTools, toolbox())) else null
             val offered = toolset?.definitions()?.takeIf { round < MAX_TOOL_ROUNDS - 1 }
-            val calls = client.streamTools(provider, key, turnModel, turns, extra, offered, { limits ->
+            // Tâche à plusieurs tours (écran, WhatsApp…) : un modèle au petit quota par minute (gpt-oss : 8 000
+            // jetons) s'épuise dès le 2e tour. La suite passe alors par un modèle au quota large (Llama 4 Scout).
+            if (round >= 1 && provider == ApiProvider.Groq && (transcript.limits?.tokenLimit ?: 0L) in 1L until AGENT_TPM) {
+                agentModel(key)?.let { turnModel = it }
+            }
+            var calls: List<ApiToolCall> = emptyList()
+            var attempt = 0
+            while (true) {
+            try {
+            calls = client.streamTools(provider, key, turnModel, turns, extra, offered, { limits ->
                 synchronized(lock) {
                     if (token == generation) {
                         memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, limits.exhaustedUntilMs())
@@ -273,9 +294,26 @@ class DirectChatRepository(
                     }
                 }
             }
+            break
+            } catch (e: ApiException) {
+                // Quota par minute dépassé : courte attente puis on reprend ; sinon, le modèle au quota large.
+                if (e.failure != ApiFailure.RateLimited || attempt >= 3 || provider != ApiProvider.Groq) throw e
+                attempt++
+                val agent = agentModel(key)?.takeIf { it != turnModel }
+                if (agent != null && (round == 0 || e.retryAfterSeconds > SHORT_WAIT_S || attempt >= 2)) { turnModel = agent; continue }
+                // Longue attente (quota du jour…) et pas d'autre modèle : on s'arrête, le délai s'affiche.
+                // Une courte attente ne se fait qu'en pleine tâche ; sur un premier envoi, le délai s'affiche avec « Réessayer ».
+                if (round == 0 || e.retryAfterSeconds !in 1..SHORT_WAIT_S) throw e
+                val wait = e.retryAfterSeconds.coerceAtLeast(2)
+                synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working("⏳ ${wait}s…") }
+                kotlinx.coroutines.delay(wait * 1_000 + 300)
+            }
+            }
             if (calls.isEmpty() || toolset == null) break
             synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working(toolset.label(calls.first())) }
             val results = calls.map { keepScreenshot(toolset.run(it), answerId) }
+            // Les anciens résultats (écrans déjà lus…) sont résumés : seul le dernier tour reste entier.
+            for (i in extra.indices) extra[i] = shrinkOldToolResult(extra[i])
             extra += ProviderProtocol.toolExchange(calls, results)
             }
             synchronized(lock) {
@@ -615,6 +653,21 @@ internal fun nowLine(now: java.time.ZonedDateTime = java.time.ZonedDateTime.now(
     "Now: " + now.format(java.time.format.DateTimeFormatter.ofPattern("EEEE yyyy-MM-dd HH:mm", java.util.Locale.ENGLISH)) + " (" + now.zone.id + ")."
 
 /** Consigne ajoutée à la personnalité : une réaction en tête de chaque réponse, retirée du texte. */
+/** Sous ce quota (jetons par minute), une tâche à plusieurs tours passe au modèle « agent ». */
+private const val AGENT_TPM = 20_000L
+/** Attente acceptée avant de réessayer après un « rate limit » (secondes). */
+private const val SHORT_WAIT_S = 20L
+/** Modèles Groq aux quotas larges qui savent appeler des outils, du préféré au suivant. */
+private val AgentModels = listOf("meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile", "meta-llama/llama-4-maverick-17b-128e-instruct")
+
+/** Un résultat d'outil d'un tour précédent, réduit à son début (le modèle en a déjà tiré parti). */
+internal fun shrinkOldToolResult(message: org.json.JSONObject): org.json.JSONObject {
+    if (message.optString("role") != "tool") return message
+    val content = message.optString("content")
+    if (content.length <= 600) return message
+    return org.json.JSONObject(message.toString()).put("content", content.take(400) + " …(older result shortened)")
+}
+
 private const val MAX_FACTS = 60
 private const val MAX_FACT_CHARS = 200
 
