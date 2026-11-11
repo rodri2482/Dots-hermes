@@ -53,9 +53,15 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
     fun fileOf(model: LocalModel) = File(dir(), model.file)
     fun fileOf(id: String) = CATALOG.firstOrNull { it.id == id }?.let(::fileOf)
 
+    // Android réserve la taille complète du fichier dès le début : seul un téléchargement terminé compte.
+    private fun pending(model: LocalModel) = prefs.getLong(model.id, -1L) >= 0
+
+    /** Modèle complet et utilisable. */
+    fun isReady(model: LocalModel) = !pending(model) && fileOf(model).let { it.isFile && it.length() == model.sizeBytes }
+
     private fun stateOf(model: LocalModel): LocalModelState = when {
-        fileOf(model).let { it.isFile && it.length() == model.sizeBytes } -> LocalModelState.Ready
-        prefs.getLong(model.id, -1L) >= 0 -> LocalModelState.Downloading(0f)
+        pending(model) -> LocalModelState.Downloading(0f)
+        isReady(model) -> LocalModelState.Ready
         else -> LocalModelState.Missing
     }
 
@@ -151,7 +157,7 @@ class LocalProviderClient(private val context: Context, private val models: () -
     private var loadedPath: String? = null
 
     override suspend fun models(provider: ApiProvider, key: String): List<String> =
-        LocalModels.CATALOG.filter { models().fileOf(it).let { f -> f.isFile && f.length() == it.sizeBytes } }.map { it.id }
+        LocalModels.CATALOG.filter { models().isReady(it) }.map { it.id }
 
     private fun engineFor(path: String): Engine {
         engine?.takeIf { loadedPath == path }?.let { return it }
@@ -165,7 +171,8 @@ class LocalProviderClient(private val context: Context, private val models: () -
 
     override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) {
         if (!LocalModels.deviceSupported()) throw ApiException(ApiFailure.ModelUnavailable)
-        val file = models().fileOf(model)?.takeIf { it.isFile } ?: throw ApiException(ApiFailure.ModelUnavailable)
+        val entry = LocalModels.byId(model)?.takeIf { models().isReady(it) } ?: throw ApiException(ApiFailure.ModelUnavailable)
+        val file = models().fileOf(entry)
         lock.withLock {
             withContext(Dispatchers.IO) {
                 val engine = try { engineFor(file.path) } catch (_: Throwable) { throw ApiException(ApiFailure.ModelUnavailable) }
