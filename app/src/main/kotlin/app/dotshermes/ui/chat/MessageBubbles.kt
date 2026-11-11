@@ -250,7 +250,7 @@ private fun TextBubble(
                     if (fromUser) {
                         Text(text, style = MaterialTheme.typography.bodyLarge, color = ink)
                     } else {
-                        MarkdownText(rememberRevealed(message, text), ink = ink, link = palette.deep)
+                        RichMarkdown(rememberRevealed(message, text), ink = ink, link = palette.deep)
                     }
                 }
             }

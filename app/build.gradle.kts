@@ -128,6 +128,9 @@ dependencies {
     implementation(libs.mlkit.barcode.scanning)
     // Gmail en lecture seule : écran d'accord de Google et jeton d'accès (API d'autorisation d'Identity).
     implementation(libs.play.services.auth)
+    // Réponses en Markdown : titres, listes, tableaux, et coloration du code (mikepenz, Apache-2.0).
+    implementation(libs.markdown.renderer.m3)
+    implementation(libs.markdown.renderer.code)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

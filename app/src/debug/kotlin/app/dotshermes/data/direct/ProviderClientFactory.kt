@@ -45,6 +45,26 @@ private class OfflineProviderClient : ProviderClient {
         if (turns.last().text == "offline error") throw ApiException(ApiFailure.Unavailable)
         // Comme un vrai modèle : une balise de réaction en tête (👍, ou 🎉 si le message parle de bonne nouvelle).
         val react = if (turns.last().text.contains("news", ignoreCase = true)) "🎉" else "👍"
+        if (turns.last().text.contains("code", ignoreCase = true)) {
+            // Réponse Markdown d'exemple : titre, liste, code coloré, pour voir le rendu.
+            val md = """[[react:👀]] ## Sorting a list
+
+Two ways to do it:
+
+- `sorted()` returns a **new** list
+- `sort()` changes it *in place*
+
+```kotlin
+val names = listOf("Claydot", "Ada")
+fun main() {
+    println(names.sorted()) // [Ada, Claydot]
+}
+```
+
+> Tip: prefer `sorted()` for read-only lists."""
+            for (part in md.chunked(12)) { delay(60); onDelta(part) }
+            return
+        }
         val answer = "[[react:$react]] Offline ${provider.title} reply. Your mascot and saved conversation stay on this device, " +
             "and this longer sentence shows how the text unrolls smoothly while it streams in."
         for (part in answer.chunked(6)) {
