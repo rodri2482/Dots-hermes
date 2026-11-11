@@ -138,6 +138,9 @@ data class GatewayConfig(val url: String, val token: String)
 
 data class AgentProfile(val name: String, val tagline: String)
 
+/** Une conversation d'un compte direct, pour la liste « Discussions ». */
+data class ConversationInfo(val id: String, val title: String, val updatedMs: Long, val open: Boolean)
+
 /** Dernière image de l'écran du navigateur de l'agent. [live] : flux en cours (vue ouverte). */
 class ScreenState(
     val frame: ByteArray? = null,

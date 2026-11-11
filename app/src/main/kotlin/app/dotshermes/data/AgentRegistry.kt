@@ -339,7 +339,10 @@ class AgentRegistry(
     suspend fun remove(id: String) = withContext(Dispatchers.IO) {
         accountWrites.withLock {
             drop(id)
-            if (store.get(id)?.provider != null) apiStorage.remove(id)
+            if (store.get(id)?.provider != null) {
+                runCatching { apiStorage.load(id).conversations.filter { it.id != id }.forEach { apiStorage.remove(it.id) } }
+                apiStorage.remove(id)
+            }
             // Navigation et métadonnées d'éditeur publiées ensemble, comme les gestes utilisateur.
             withContext(Dispatchers.Main.immediate) {
                 selectionRevision.incrementAndGet()

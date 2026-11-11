@@ -106,6 +106,8 @@ fun HermesApp(
     val otherAgentsUnread by viewModel.otherAgentsUnread.collectAsStateWithLifecycle()
     var deletingAccount by remember { mutableStateOf<String?>(null) }
     var clearingChat by remember { mutableStateOf(false) }
+    var chatsOpen by rememberSaveable { mutableStateOf(false) }
+    val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     var creatingDot by rememberSaveable { mutableStateOf(false) }
     // Apparence saisie dans l'éditeur d'un sous-dot (ou du nouveau) : le carrousel l'affiche en direct.
     var editPreview by remember { mutableStateOf<DotAppearance?>(null) }
@@ -177,6 +179,8 @@ fun HermesApp(
                     state = chat,
                     gatewayFeatures = gatewayFeatures, voiceInput = voiceInput, requestIssue = requestIssue,
                     speaking = speech.speaking, onStopSpeaking = viewModel::stopSpeaking,
+                    onNewChat = if (!gatewayFeatures) viewModel::newConversation else null,
+                    onOpenChats = if (!gatewayFeatures) ({ chatsOpen = true }) else null,
                     onListen = if (!gatewayFeatures && companion.fishKeySaved && companion.voiceId.isNotBlank()) viewModel::listen else null,
                     onRetryRequest = viewModel::retryRequest, onStopRequest = viewModel::stopTurn,
                     connection = connection as? ConnectionState.Connected,
@@ -299,6 +303,15 @@ fun HermesApp(
                 text = { androidx.compose.material3.Text(stringResource(app.dotshermes.ui.connect.apiFailureMessage(failure))) },
                 confirmButton = { androidx.compose.material3.TextButton(onClick = viewModel::clearAccountFailure) { androidx.compose.material3.Text("OK") } })
         }
+        if (chatsOpen) {
+            app.dotshermes.ui.chat.ConversationsSheet(
+                conversations = conversations,
+                onNew = viewModel::newConversation,
+                onOpen = viewModel::openConversation,
+                onDelete = viewModel::deleteConversation,
+                onDismiss = { chatsOpen = false },
+            )
+        }
         if (activityOpen) {
             ActivitySheet(
                 agentName = chat.agentName,
@@ -379,6 +392,7 @@ fun HermesApp(
                         gatewayFeatures = gatewayFeatures,
                         onEditDirect = { agentSheetOpen = false; viewModel.editDirectAccount() },
                         onClearConversation = if (!gatewayFeatures) ({ clearingChat = true }) else null,
+                        onOpenChats = if (!gatewayFeatures) ({ agentSheetOpen = false; chatsOpen = true }) else null,
                         companion = app.dotshermes.ui.agent.CompanionControls(
                             state = companion, status = speech,
                             onPersonality = { viewModel.setPersonality(it) }, onSpeak = { viewModel.setSpeakReplies(it) },

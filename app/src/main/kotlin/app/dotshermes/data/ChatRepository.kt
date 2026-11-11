@@ -39,6 +39,11 @@ interface ChatRepository {
     fun retryRequest() {}
     /** Efface le fil enregistré sur le téléphone (comptes directs) ; sans effet ailleurs. */
     fun clearHistory() {}
+    /** Comptes directs : plusieurs conversations ; ailleurs, liste vide et actions sans effet. */
+    val conversations: StateFlow<List<app.dotshermes.data.model.ConversationInfo>> get() = NoConversations
+    fun newConversation() {}
+    fun openConversation(id: String) {}
+    fun deleteConversation(id: String) {}
     fun setShown(shown: Boolean) {}
     val profile: StateFlow<AgentProfile>
     val connection: StateFlow<ConnectionState>
@@ -131,6 +136,7 @@ interface ChatRepository {
 }
 
 private val GatewayFeatures = MutableStateFlow(true).asStateFlow()
+private val NoConversations = MutableStateFlow<List<app.dotshermes.data.model.ConversationInfo>>(emptyList()).asStateFlow()
 private val NoRequestIssue = MutableStateFlow<app.dotshermes.data.direct.DirectRequestIssue?>(null).asStateFlow()
 
 private val NoDirectUsage = MutableStateFlow<app.dotshermes.data.direct.DirectApiUsage?>(null).asStateFlow()

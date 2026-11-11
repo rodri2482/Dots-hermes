@@ -399,6 +399,12 @@ Paste a Groq API key to get started.</string>
     <string name="phone_do">Do it</string>
     <string name="companion_hands_free">Send when I stop talking</string>
     <string name="companion_hands_free_hint">Tap the mic once and talk: the note goes by itself after a short pause.</string>
+    <string name="chats_title">Chats</string>
+    <string name="chats_new">New chat</string>
+    <string name="chats_untitled">New chat</string>
+    <string name="chats_delete">Delete</string>
+    <string name="chats_delete_title">Delete this chat?</string>
+    <string name="chats_delete_warning">Its messages are erased from this phone. This can\'t be undone.</string>
     <string name="api_back_to_chat">Back to chat</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Group room</string>

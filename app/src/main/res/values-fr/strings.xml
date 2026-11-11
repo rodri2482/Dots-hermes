@@ -406,6 +406,12 @@ Colle une clé API Groq pour commencer.</string>
     <string name="phone_do">Faire</string>
     <string name="companion_hands_free">Envoyer quand j\'ai fini de parler</string>
     <string name="companion_hands_free_hint">Touche le micro une fois et parle : le vocal part tout seul après une courte pause.</string>
+    <string name="chats_title">Discussions</string>
+    <string name="chats_new">Nouvelle discussion</string>
+    <string name="chats_untitled">Nouvelle discussion</string>
+    <string name="chats_delete">Supprimer</string>
+    <string name="chats_delete_title">Supprimer cette discussion ?</string>
+    <string name="chats_delete_warning">Ses messages sont effacés de ce téléphone. Impossible de revenir en arrière.</string>
     <string name="api_back_to_chat">Retour à la conversation</string>
     <!-- Salon de groupe -->
     <string name="room_chip">Salon de groupe</string>

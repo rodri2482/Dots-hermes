@@ -97,6 +97,8 @@ fun AgentSettings(
     companion: CompanionControls? = null,
     /** Compte direct : effacer la conversation (après confirmation) ; null = ligne masquée. */
     onClearConversation: (() -> Unit)? = null,
+    /** Compte direct : la liste des discussions. */
+    onOpenChats: (() -> Unit)? = null,
     /** App web : scanner le QR code d'un navigateur, et la liste des navigateurs appairés (null : section masquée). */
     onConnectBrowser: (() -> Unit)? = null,
     onBrowserSessions: (() -> Unit)? = null,
@@ -126,6 +128,10 @@ fun AgentSettings(
                         Text(profile.tagline, style = MaterialTheme.typography.bodyMedium, color = Ink.Secondary, maxLines = 1,
                             overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(start = 12.dp))
                         Text("  ›", style = MaterialTheme.typography.bodyLarge, color = Ink.Tertiary)
+                    }
+                    onOpenChats?.let {
+                        Hairline()
+                        LinkRow(stringResource(R.string.chats_title), it)
                     }
                     onClearConversation?.let {
                         Hairline()

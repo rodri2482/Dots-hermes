@@ -73,7 +73,10 @@ class DirectChatRepository(
             try {
                 val key = storage.key(accountId)?.takeIf { it.isNotBlank() } ?: throw ApiException(ApiFailure.MissingKey)
                 val scopeId = quotaScope(provider, model, key)
-                val saved = storage.load(accountId)
+                val main = storage.load(accountId)
+                index = main.conversations
+                current = main.activeConversation?.takeIf { id -> index.any { it.id == id } } ?: accountId
+                val saved = if (current == accountId) main else storage.load(current)
                 if (loadedQuotaScope != null && loadedQuotaScope != scopeId) memoryCooldownUntilMs = 0
                 loadedQuotaScope = scopeId
                 val scoped = if (saved.quotaScope == scopeId) saved else saved.copy(
@@ -90,6 +93,7 @@ class DirectChatRepository(
                 _failure.value = normalized.failure?.let { issue(it) }
                     ?: ApiFailure.RateLimited.takeIf { normalized.cooldownUntilMs > clockMs() }?.let { issue(it, cooldownOnly = true) }
                 _connection.value = ConnectionState.Connected(provider.title, 0)
+                publishConversations()
                 ready = true
             } catch (e: Exception) {
                 _failure.value = issue((e as? ApiException)?.failure ?: ApiFailure.Storage)
@@ -202,6 +206,7 @@ class DirectChatRepository(
                             else -> it
                         }
                     }, retryUserId = null, failure = null))
+                    try { touchCurrent() } catch (_: Exception) { }
                     if (transcript.cooldownUntilMs > clockMs()) _failure.value = issue(ApiFailure.RateLimited, cooldownOnly = true)
                     if (!shown) _unread.value = mapOf(MAIN_CHAT to ((_unread.value[MAIN_CHAT] ?: 0) + 1))
                 }
@@ -281,8 +286,99 @@ class DirectChatRepository(
 
     private var lastSaveMs = 0L
 
+    // -- Conversations -------------------------------------------------------------------------------
+    /** Dossier chiffré de la conversation ouverte ; celui du compte pour la conversation principale. */
+    private var current = accountId
+    private var index: List<ConversationMeta> = emptyList()
+    private val _conversations = MutableStateFlow<List<ConversationInfo>>(emptyList())
+    override val conversations = _conversations.asStateFlow()
+
+    private fun publishConversations() {
+        val rows = index.ifEmpty { listOf(ConversationMeta(accountId, "", 0)) }
+        _conversations.value = rows.sortedByDescending { it.updatedMs }.map { ConversationInfo(it.id, it.title, it.updatedMs, it.id == current) }
+    }
+
+    /** L'index vit dans l'enregistrement principal ; on le réécrit sans toucher aux messages qui s'y trouvent. */
+    private fun saveIndex() {
+        if (current == accountId) commit(transcript)
+        else storage.save(accountId, storage.load(accountId).copy(conversations = index, activeConversation = current))
+        publishConversations()
+    }
+
+    /** Titre et date de la conversation ouverte, d'après son premier message. */
+    private fun touchCurrent() {
+        val title = transcript.messages.firstOrNull { it.role == "user" }?.text?.replace(Regex("\\s+"), " ")?.trim()?.take(60).orEmpty()
+        val meta = ConversationMeta(current, title, clockMs())
+        index = if (index.none { it.id == current }) (if (index.isEmpty() && current != accountId) listOf(ConversationMeta(accountId, mainTitle(), 0)) else index) + meta
+            else index.map { if (it.id == current) meta else it }
+        saveIndex()
+    }
+
+    private fun mainTitle(): String = try {
+        storage.load(accountId).messages.firstOrNull { it.role == "user" }?.text?.take(60).orEmpty()
+    } catch (_: Exception) { "" }
+
+    override fun newConversation() {
+        stopTurn()
+        synchronized(lock) {
+            if (!ready || transcript.messages.isEmpty()) return
+            try {
+                if (index.none { it.id == current }) touchCurrent()
+                current = accountId + "--c" + UUID.randomUUID().toString().replace("-", "").take(10)
+                index = index + ConversationMeta(current, "", clockMs())
+                commit(DirectTranscript(quotaScope = transcript.quotaScope))
+                saveIndex()
+                _failure.value = null
+            } catch (_: Exception) { _failure.value = issue(ApiFailure.Storage) }
+        }
+    }
+
+    override fun openConversation(id: String) {
+        stopTurn()
+        synchronized(lock) {
+            if (!ready || id == current || (index.none { it.id == id } && id != accountId)) return
+            try {
+                val loaded = storage.load(id)
+                current = id
+                commit(loaded.copy(messages = loaded.messages.map {
+                    if (it.state == DirectEntryState.Pending || it.state == DirectEntryState.Streaming) it.copy(state = DirectEntryState.Failed) else it
+                }), persist = false)
+                saveIndex()
+                _failure.value = null
+            } catch (_: Exception) { _failure.value = issue(ApiFailure.Storage) }
+        }
+    }
+
+    override fun deleteConversation(id: String) {
+        if (id == current) stopTurn()
+        synchronized(lock) {
+            if (!ready) return
+            try {
+                if (id == accountId) {
+                    // La conversation principale porte l'index : on vide ses messages, le dossier reste.
+                    val main = if (current == accountId) transcript else storage.load(accountId)
+                    val emptied = main.copy(messages = emptyList(), retryUserId = null, failure = null)
+                    if (current == accountId) commit(emptied) else storage.save(accountId, emptied.copy(conversations = index, activeConversation = current))
+                    index = index.map { if (it.id == accountId) it.copy(title = "") else it }
+                } else {
+                    storage.remove(id)
+                    index = index.filterNot { it.id == id }
+                }
+                if (id == current && id != accountId) {
+                    val next = index.maxByOrNull { it.updatedMs }?.id ?: accountId
+                    current = next
+                    commit(storage.load(next), persist = false)
+                }
+                saveIndex()
+            } catch (_: Exception) { _failure.value = issue(ApiFailure.Storage) }
+        }
+    }
+
     private fun commit(value: DirectTranscript, persist: Boolean = true) {
-        if (persist) { storage.save(accountId, value); lastSaveMs = clockMs() }
+        if (persist) {
+            storage.save(current, if (current == accountId) value.copy(conversations = index, activeConversation = null) else value)
+            lastSaveMs = clockMs()
+        }
         transcript = value
         memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, value.cooldownUntilMs)
         _directUsage.value = DirectApiUsage(provider, model, value.limits, value.cooldownUntilMs)

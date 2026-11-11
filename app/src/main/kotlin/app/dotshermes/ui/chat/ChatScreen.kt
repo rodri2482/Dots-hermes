@@ -120,6 +120,7 @@ import androidx.compose.ui.res.stringArrayResource
 import app.dotshermes.R
 import app.dotshermes.ui.dayLabel
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Forum
 import app.dotshermes.data.model.ChatMessage
 import app.dotshermes.data.model.SubDot
 import app.dotshermes.ui.dot.DotSpecies
@@ -190,6 +191,9 @@ fun ChatScreen(
     onStopRequest: () -> Unit = {},
     /** Salon de groupe : invite ces sous-dots dans la conversation affichée (liste vide : salon fermé). */
     onSetRoom: (List<String>) -> Unit = {},
+    /** Compte direct : nouvelle discussion, et la liste des discussions (null : pastilles masquées). */
+    onNewChat: (() -> Unit)? = null,
+    onOpenChats: (() -> Unit)? = null,
     /** Plusieurs agents Hermes : le nom de l'en-tête ouvre leur menu ; null avec un seul agent (en-tête d'avant). */
     onOpenAgents: (() -> Unit)? = null,
     /** Messages non lus chez les autres agents : pastille à côté du nom. */
@@ -358,6 +362,8 @@ fun ChatScreen(
                 onAttach = ::attach,
                 room = state.room,
                 canOpenRoom = state.roomCandidates.isNotEmpty(),
+                onNewChat = onNewChat?.let { action -> { suggestionsOpen = false; action() } },
+                onOpenChats = onOpenChats?.let { action -> { suggestionsOpen = false; action() } },
                 onOpenRoom = {
                     suggestionsOpen = false
                     roomSheetOpen = true
@@ -535,6 +541,8 @@ private fun Composer(
     room: List<SubDot> = emptyList(),
     canOpenRoom: Boolean = false,
     onOpenRoom: () -> Unit = {},
+    onNewChat: (() -> Unit)? = null,
+    onOpenChats: (() -> Unit)? = null,
     roomBar: @Composable () -> Unit = {},
 ) {
     val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(onAttach) }
@@ -573,6 +581,8 @@ private fun Composer(
                 }
                 if (mediaEnabled) item { AttachChip(Modifier.staggerIn(1), Icons.Rounded.AttachFile, stringResource(R.string.attach_file)) { pickDocument.launch(arrayOf("*/*")) } }
                 if (canOpenRoom) item { AttachChip(Modifier.staggerIn(2), Icons.Rounded.Groups, stringResource(R.string.room_chip), onClick = onOpenRoom) }
+                onNewChat?.let { action -> item { AttachChip(Modifier.staggerIn(0), Icons.Rounded.Add, stringResource(R.string.chats_new), onClick = action) } }
+                onOpenChats?.let { action -> item { AttachChip(Modifier.staggerIn(1), Icons.Rounded.Forum, stringResource(R.string.chats_title), onClick = action) } }
                 itemsIndexed(suggestions) { index, suggestion ->
                     Text(
                         suggestion,

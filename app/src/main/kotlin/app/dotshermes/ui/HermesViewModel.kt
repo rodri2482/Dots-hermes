@@ -154,6 +154,10 @@ class HermesViewModel(
     fun forgetFishKey() { viewModelScope.launch { companion?.forgetFishKey() } }
     fun stopSpeaking() = companion?.stop()
     fun listen(text: String) { companion?.speak(text, force = true) }
+    val conversations = repository.conversations
+    fun newConversation() { companion?.stop(); val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.newConversation() } }
+    fun openConversation(id: String) { companion?.stop(); val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.openConversation(id) } }
+    fun deleteConversation(id: String) { val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.deleteConversation(id) } }
     fun clearConversation() {
         companion?.stop()
         val target = repository.currentTarget()

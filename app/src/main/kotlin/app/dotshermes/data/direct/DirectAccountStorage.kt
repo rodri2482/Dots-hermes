@@ -28,7 +28,14 @@ data class DirectTranscript(
     val limits: ProviderLimits? = null,
     val cooldownUntilMs: Long = 0,
     val quotaScope: String? = null,
+    /** Compte : ses conversations (seulement dans l'enregistrement principal du compte). */
+    val conversations: List<ConversationMeta> = emptyList(),
+    /** Conversation ouverte ; null = la conversation principale. */
+    val activeConversation: String? = null,
 )
+
+/** Une conversation d'un compte direct : son dossier chiffré, son titre (premier message), sa date. */
+data class ConversationMeta(val id: String, val title: String, val updatedMs: Long)
 
 interface DirectAccountStorage {
     fun key(accountId: String): String?
@@ -80,8 +87,12 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                 ProviderLimits(row.getLong("observed"), number("request_limit"), number("requests_remaining"),
                     number("requests_reset"), number("token_limit"), number("tokens_remaining"), number("tokens_reset"))
             }
+            val chats = root.optJSONArray("conversations")?.let { rows ->
+                List(rows.length()) { i -> rows.getJSONObject(i).let { ConversationMeta(it.getString("id"), it.optString("title"), it.optLong("updated")) } }
+            }.orEmpty()
             DirectTranscript(entries, retry, failure, limits, root.optLong("cooldown_until_ms", 0),
-                if (root.isNull("quota_scope")) null else root.getString("quota_scope")).also(::validate)
+                if (root.isNull("quota_scope")) null else root.getString("quota_scope"),
+                chats, root.optString("active_conversation").takeIf { it.isNotEmpty() }).also(::validate)
         } catch (e: ApiException) { throw e }
         catch (_: Exception) { throw ApiException(ApiFailure.Storage) }
         finally { bytes.fill(0) }
@@ -111,6 +122,12 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
             .put("failure", transcript.failure?.name ?: JSONObject.NULL)
             .put("limits", limits ?: JSONObject.NULL).put("cooldown_until_ms", transcript.cooldownUntilMs)
             .put("quota_scope", transcript.quotaScope ?: JSONObject.NULL)
+            .apply {
+                if (transcript.conversations.isNotEmpty()) put("conversations", JSONArray().apply {
+                    transcript.conversations.forEach { put(JSONObject().put("id", it.id).put("title", it.title).put("updated", it.updatedMs)) }
+                })
+                transcript.activeConversation?.let { put("active_conversation", it) }
+            }
             .toString().toByteArray(Charsets.UTF_8)
         try { records.write(accountId, AccountRecord.History, bytes) }
         finally { bytes.fill(0) }
@@ -126,6 +143,9 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
             listOfNotNull(it.observedAtMs, it.requestLimit, it.requestsRemaining, it.requestsResetAtMs,
                 it.tokenLimit, it.tokensRemaining, it.tokensResetAtMs).any { value -> value < 0 }
         } == true) throw ApiException(ApiFailure.Storage)
+        if (transcript.conversations.size > 500 || transcript.conversations.any { !it.id.matches(Regex("[A-Za-z0-9_-]{1,80}")) || it.title.length > 200 }) {
+            throw ApiException(ApiFailure.Storage)
+        }
         val entries = transcript.messages
         if (entries.size > 2000 || entries.map { it.id }.toSet().size != entries.size || entries.any { it.text.length > 1_000_000 }) {
             throw ApiException(ApiFailure.Storage)
