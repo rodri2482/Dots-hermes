@@ -18,6 +18,14 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- « Mets du Davido » : les apps de musique qui savent lancer une lecture depuis une recherche. -->
+        <intent>
+            <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="spotify" />
+        </intent>
     </queries>
     <!-- Appairage de l'app web : scan du QR code affiché par le navigateur ; demandée à l'ouverture du scanner. -->
     <uses-permission android:name="android.permission.CAMERA" />

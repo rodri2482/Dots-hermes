@@ -230,8 +230,10 @@ class DirectChatRepository(
                 answerId = answer.id
                 commit(transcript.copy(messages = retained + user.copy(state = DirectEntryState.Pending) + answer, retryUserId = user.id, failure = null, cooldownUntilMs = 0))
                 val known = if (provider == ApiProvider.Groq) loadedFacts() else emptyList()
+                // Avec des outils, le modèle doit s'en servir au lieu de répondre « je ne peux pas ».
+                val toolLine = if (provider == ApiProvider.Groq && toolbox()?.definitions() != null) "\n\n" + TOOL_RULE else ""
                 val memoryLine = if (known.isEmpty()) "" else "\n\nWhat you remember about the user (from earlier chats):\n" + known.joinToString("\n") { "- $it" }
-                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE + memoryLine + "\n\n" + nowLine()) }) +
+                listOfNotNull(persona().trim().takeIf { it.isNotEmpty() }?.let { ApiTurn("system", it + "\n\n" + REACTION_RULE + toolLine + memoryLine + "\n\n" + nowLine()) }) +
                     completedContext(retained) + ApiTurn("user", user.text.ifBlank { if (user.image != null) "What do you see in this photo?" else user.text },
                         user.image?.let { name -> imageDir?.let { File(it, name) } }?.takeIf { it.isFile }?.let { photo ->
                             "data:image/jpeg;base64," + java.util.Base64.getEncoder().encodeToString(photo.readBytes())
@@ -591,6 +593,11 @@ private fun memoryFn(name: String, description: String, arg: String) = org.json.
         .put("parameters", org.json.JSONObject().put("type", "object")
             .put("properties", org.json.JSONObject().put(arg, org.json.JSONObject().put("type", "string")))
             .put("required", org.json.JSONArray().put(arg))))
+
+internal const val TOOL_RULE = "You run on the user's Android phone and have tools that act on it: play music, pause or skip, " +
+    "alarms, timers, opening apps, calendar events, reading Gmail, routines, remembering facts and, when allowed, using the screen. " +
+    "When a request matches a tool, call it instead of saying you can't; only say you can't when no tool fits. " +
+    "After a tool runs, say briefly what happened."
 
 internal val REACTION_RULE = "Start every reply with a reaction to the user's latest message, written exactly as " +
     "[[react:EMOJI]] where EMOJI is one of ${Reactions.joinToString(" ")}, or [[react:none]] when nothing fits. " +

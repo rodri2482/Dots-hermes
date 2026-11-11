@@ -3,7 +3,13 @@ package app.dotshermes.data.direct
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.app.SearchManager
+import android.media.AudioManager
+import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.AlarmClock
+import android.provider.MediaStore
+import android.view.KeyEvent
 import android.provider.CalendarContract
 import androidx.core.content.edit
 import kotlinx.coroutines.CompletableDeferred
@@ -53,6 +59,14 @@ class PhoneActions(private val context: Context) : DirectTools {
             "Prepare a calendar event; the phone's calendar opens pre-filled so the user can save it (the user confirms first).",
             props("title" to str("Event title"), "start" to str("Local start, ISO 8601 like 2026-11-12T15:00"),
                 "end" to str("Optional local end, ISO 8601"), "location" to str("Optional location")), "title", "start"))
+        .put(function("play_music",
+            "Play a song, artist, album or playlist in a music app on the user's phone; it starts playing right away. " +
+                "Use it whenever the user asks to play or put on music.",
+            props("query" to str("What to play, with the artist when known, e.g. 'Unavailable Davido' or 'Davido'"),
+                "app" to str("Optional app the user named: ${MUSIC_APPS.joinToString { it.name }}")), "query"))
+        .put(function("media_control", "Control what is playing on the phone (any music or video app): pause, resume, skip, volume.",
+            props("action" to JSONObject().put("type", "string")
+                .put("enum", JSONArray(listOf("pause", "play", "next", "previous", "volume_up", "volume_down")))), "action"))
 
     /** Fenêtre « Claydot veut… » : true si l'utilisateur appuie sur « Faire » (2 min, sinon refus). */
     suspend fun ask(title: String, detail: String): Boolean {
@@ -64,11 +78,14 @@ class PhoneActions(private val context: Context) : DirectTools {
     }
 
     override fun label(call: ApiToolCall) = when (call.name) {
-        "set_alarm" -> "⏰…"; "set_timer" -> "⏱…"; "open_app" -> "📱…"; "add_calendar_event" -> "📅…"; else -> "…"
+        "set_alarm" -> "⏰…"; "set_timer" -> "⏱…"; "open_app" -> "📱…"; "add_calendar_event" -> "📅…"; "play_music", "media_control" -> "🎵…"; else -> "…"
     }
 
     override suspend fun run(call: ApiToolCall): String {
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }
+        // La musique part tout de suite (comme un assistant vocal) : rien d'irréversible, on l'arrête d'un geste.
+        if (call.name == "play_music") return withContext(Dispatchers.Main) { playMusic(args.optString("query").trim(), args.optString("app").trim()) }
+        if (call.name == "media_control") return withContext(Dispatchers.Main) { mediaControl(args.optString("action")) }
         val plan = try { plan(call.name, args) } catch (e: IllegalArgumentException) { return result("invalid", e.message) }
             ?: return result("unknown_tool", call.name)
         val ok = ask(plan.title, plan.detail)
@@ -127,6 +144,51 @@ class PhoneActions(private val context: Context) : DirectTools {
         else -> null
     }
 
+    /** Lance la lecture dans l'app de musique choisie (celle nommée, sinon la dernière utilisée, sinon la première installée). */
+    private fun playMusic(query: String, requested: String): String {
+        if (query.isEmpty()) return result("invalid", "query is required")
+        val pm = context.packageManager
+        val installed = MUSIC_APPS.filter { pm.getLaunchIntentForPackage(it.packageName) != null }
+        val app = chooseMusicApp(installed, requested, prefs.getString("music_app", null))
+            ?: return result("unavailable", "No music app is installed (Spotify, YouTube Music, Boomplay, Audiomack, YouTube…).")
+        if (requested.isNotEmpty()) prefs.edit { putString("music_app", app.packageName) }
+        // « Lire depuis une recherche » : l'intention des assistants vocaux, la lecture démarre seule.
+        val play = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).setPackage(app.packageName)
+            .putExtra(SearchManager.QUERY, query).putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
+        val search = app.searchUrl?.let { Intent(Intent.ACTION_VIEW, (it + Uri.encode(query)).toUri()).setPackage(app.packageName) }
+        val others = installed.filter { it != app }.joinToString { it.name }
+        for ((intent, autoplay) in listOfNotNull(play to true, search?.let { it to false })) {
+            if (intent.resolveActivity(pm) == null) continue
+            try {
+                context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return JSONObject().put("status", if (autoplay) "playing" else "opened_search")
+                    .put("app", app.name).put("query", query)
+                    .put("detail", if (autoplay) "Playback started in ${app.name}." else "${app.name} shows the search results; the user taps one to play.")
+                    .put("other_music_apps", others).toString()
+            } catch (_: Exception) { }
+        }
+        return result("unavailable", "${app.name} could not start playback.")
+    }
+
+    private fun mediaControl(action: String): String {
+        val audio = context.getSystemService(AudioManager::class.java) ?: return result("unavailable", "No audio service.")
+        val key = when (action) {
+            "pause" -> KeyEvent.KEYCODE_MEDIA_PAUSE
+            "play" -> KeyEvent.KEYCODE_MEDIA_PLAY
+            "next" -> KeyEvent.KEYCODE_MEDIA_NEXT
+            "previous" -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
+            "volume_up", "volume_down" -> {
+                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                    if (action == "volume_up") AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                return result("done", action)
+            }
+            else -> return result("invalid", "unknown action")
+        }
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
+        return result("done", action)
+    }
+
     /** L'app dont le nom ressemble le plus à [wanted] parmi celles de l'écran d'accueil. */
     internal fun findApp(wanted: String): Pair<String, Intent>? {
         val pm = context.packageManager
@@ -150,7 +212,32 @@ class PhoneActions(private val context: Context) : DirectTools {
         .put("function", JSONObject().put("name", name).put("description", description).put("parameters",
             JSONObject().put("type", "object").put("properties", properties).put("required", JSONArray(required.toList()))))
 
+    /** Une app de musique connue : son nom, son paquet, et une recherche par lien si la lecture directe échoue. */
+    data class MusicApp(val name: String, val packageName: String, val searchUrl: String?)
+
     companion object {
+        /** Par ordre de préférence quand l'utilisateur n'en nomme aucune. */
+        val MUSIC_APPS = listOf(
+            MusicApp("Spotify", "com.spotify.music", "spotify:search:"),
+            MusicApp("YouTube Music", "com.google.android.apps.youtube.music", "https://music.youtube.com/search?q="),
+            MusicApp("Boomplay", "com.afmobi.boomplayer", null),
+            MusicApp("Audiomack", "com.audiomack", null),
+            MusicApp("Apple Music", "com.apple.android.music", null),
+            MusicApp("Deezer", "deezer.android.app", null),
+            MusicApp("YouTube", "com.google.android.youtube", "https://www.youtube.com/results?search_query="),
+            MusicApp("SoundCloud", "com.soundcloud.android", null),
+        )
+
+        /** L'app nommée par l'utilisateur, sinon sa dernière préférence, sinon la première installée. */
+        internal fun chooseMusicApp(installed: List<MusicApp>, requested: String, preferredPackage: String?): MusicApp? {
+            val wanted = requested.lowercase().replace(" ", "")
+            if (wanted.isNotEmpty()) installed.firstOrNull { it.name.lowercase().replace(" ", "") == wanted }
+                ?.let { return it }
+            if (wanted.isNotEmpty()) installed.firstOrNull { wanted in it.name.lowercase().replace(" ", "") || it.name.lowercase().replace(" ", "") in wanted }
+                ?.let { return it }
+            return installed.firstOrNull { it.packageName == preferredPackage } ?: installed.firstOrNull()
+        }
+
         internal fun parseLocal(text: String): LocalDateTime? = text.trim().takeIf { it.isNotEmpty() }?.let {
             try { LocalDateTime.parse(it.removeSuffix("Z").substringBefore('+').let { s -> if (s.length == 16) "$s:00" else s }) }
             catch (_: Exception) { null }

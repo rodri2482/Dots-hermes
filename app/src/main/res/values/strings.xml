@@ -392,7 +392,7 @@ Paste a Groq API key to get started.</string>
     <string name="conn_online">Online</string>
     <string name="phone_section">Phone</string>
     <string name="phone_title">Let Claydot use your phone</string>
-    <string name="phone_hint">Alarms, timers, opening apps and calendar events. Claydot always asks before doing anything.</string>
+    <string name="phone_hint">Music, alarms, timers, opening apps and calendar events. Music plays straight away; everything else asks you first.</string>
     <string name="phone_confirm_title">Claydot wants to</string>
     <string name="phone_do">Do it</string>
     <string name="companion_hands_free">Send when I stop talking</string>
