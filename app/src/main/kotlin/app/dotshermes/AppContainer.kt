@@ -49,11 +49,12 @@ object AppContainer {
     /** Actions sur le téléphone (réveil, minuteur, app, agenda), toujours confirmées par l'utilisateur. */
     /** Contrôle de l'écran (service d'accessibilité), après accord pour chaque tâche. */
     val screen: app.dotshermes.data.direct.ScreenTools by lazy {
-        app.dotshermes.data.direct.ScreenTools(app.dotshermes.screen.AccessibilityScreenDriver(appContext, phoneActions),
+        app.dotshermes.data.direct.ScreenTools(screenDriver,
             enabled = { phoneActions.enabled.value }, confirm = phoneActions::ask, ownPackage = appContext.packageName,
             consent = { appContext.getString(app.dotshermes.R.string.screen_consent) })
     }
-    val phoneActions: app.dotshermes.data.direct.PhoneActions by lazy { app.dotshermes.data.direct.PhoneActions(appContext) }
+    val phoneActions: app.dotshermes.data.direct.PhoneActions by lazy { app.dotshermes.data.direct.PhoneActions(appContext) { screenDriver } }
+    private val screenDriver: app.dotshermes.data.direct.ScreenDriver by lazy { app.dotshermes.screen.AccessibilityScreenDriver(appContext, phoneActions) }
     /** Routines programmées (déclencheur horaire + consigne), exécutées par WorkManager. */
     val routines: app.dotshermes.data.direct.RoutineStore by lazy { app.dotshermes.data.direct.RoutineStore(appContext) }
     /** Gmail en lecture seule pour les comptes Groq (outils de recherche et de lecture). */

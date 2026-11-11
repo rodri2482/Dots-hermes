@@ -597,6 +597,8 @@ private fun memoryFn(name: String, description: String, arg: String) = org.json.
 internal const val TOOL_RULE = "You run on the user's Android phone and have tools that act on it: play music, pause or skip, " +
     "alarms, timers, opening apps, calendar events, reading Gmail, routines, remembering facts and, when allowed, using the screen. " +
     "When a request matches a tool, call it instead of saying you can't; only say you can't when no tool fits. " +
+    "Finish the job: if an app opens but the task is not done yet (a song still needs a tap, a message still needs typing), " +
+    "use the screen tools to complete it when they are available, otherwise tell the user the one step left. " +
     "After a tool runs, say briefly what happened."
 
 internal val REACTION_RULE = "Start every reply with a reaction to the user's latest message, written exactly as " +

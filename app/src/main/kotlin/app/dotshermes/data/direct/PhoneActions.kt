@@ -38,7 +38,11 @@ class PendingPhoneAction(val title: String, val detail: String, internal val ans
  * d'agenda. Rien ne part sans un appui sur « Faire » dans la fenêtre de confirmation ; aucune action
  * ne lit ni n'envoie de données, et un e-mail ne peut pas en déclencher une sans cette confirmation.
  */
-class PhoneActions(private val context: Context) : DirectTools {
+class PhoneActions(
+    private val context: Context,
+    /** L'écran (service d'accessibilité) : finir une lecture que l'app de musique n'a pas lancée seule. */
+    private val screen: () -> ScreenDriver? = { null },
+) : DirectTools {
     private val prefs = context.getSharedPreferences("phone-actions", Context.MODE_PRIVATE)
     private val _enabled = MutableStateFlow(prefs.getBoolean("enabled", true))
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
@@ -144,8 +148,13 @@ class PhoneActions(private val context: Context) : DirectTools {
         else -> null
     }
 
-    /** Lance la lecture dans l'app de musique choisie (celle nommée, sinon la dernière utilisée, sinon la première installée). */
-    private fun playMusic(query: String, requested: String): String {
+    /**
+     * Lance la lecture dans l'app de musique choisie (celle nommée, sinon la dernière utilisée, sinon la
+     * première installée). Certaines apps (Spotify sans compte Premium, YouTube) n'ouvrent que les
+     * résultats : si rien ne joue au bout de quelques secondes et que l'écran est accessible, Claydot
+     * touche lui-même la chanson, puis « Lecture » — dans cette app seulement, c'est la demande de l'utilisateur.
+     */
+    private suspend fun playMusic(query: String, requested: String): String {
         if (query.isEmpty()) return result("invalid", "query is required")
         val pm = context.packageManager
         val installed = MUSIC_APPS.filter { pm.getLaunchIntentForPackage(it.packageName) != null }
@@ -157,17 +166,40 @@ class PhoneActions(private val context: Context) : DirectTools {
             .putExtra(SearchManager.QUERY, query).putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
         val search = app.searchUrl?.let { Intent(Intent.ACTION_VIEW, (it + Uri.encode(query)).toUri()).setPackage(app.packageName) }
         val others = installed.filter { it != app }.joinToString { it.name }
-        for ((intent, autoplay) in listOfNotNull(play to true, search?.let { it to false })) {
-            if (intent.resolveActivity(pm) == null) continue
-            try {
-                context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                return JSONObject().put("status", if (autoplay) "playing" else "opened_search")
-                    .put("app", app.name).put("query", query)
-                    .put("detail", if (autoplay) "Playback started in ${app.name}." else "${app.name} shows the search results; the user taps one to play.")
-                    .put("other_music_apps", others).toString()
-            } catch (_: Exception) { }
+        val audio = context.getSystemService(AudioManager::class.java)
+        val launched = listOfNotNull(play, search).firstOrNull { intent ->
+            intent.resolveActivity(pm) != null && runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+        } ?: return result("unavailable", "${app.name} could not open.")
+        fun answer(status: String, detail: String) = JSONObject().put("status", status).put("app", app.name).put("query", query)
+            .put("detail", detail).put("other_music_apps", others).toString()
+        // La lecture a-t-elle démarré toute seule ?
+        if (launched === play && waitForMusic(audio, 4_000)) return answer("playing", "Playback started in ${app.name}.")
+        val driver = screen()?.takeIf { it.connected() }
+            ?: return answer("opened_not_playing", "${app.name} opened on '$query' but did not start playing by itself. " +
+                "Tell the user to tap the song, and that turning on 'Let Claydot use your screen' in Claydot's settings lets you tap it for them next time.")
+        // Rien ne joue : on touche le bon résultat (ou « Lecture » sur la page ouverte), trois essais au plus.
+        var tappedRow = false
+        repeat(4) {
+            // Les résultats se chargent : un court temps avant chaque lecture de l'écran.
+            kotlinx.coroutines.delay(700)
+            val shot = driver.snapshot()?.takeIf { it.packageName == app.packageName } ?: return@repeat
+            val target = pickPlayTarget(shot.elements, query, preferPlayButton = tappedRow) ?: return@repeat
+            if (!driver.tap(target.id)) return@repeat
+            tappedRow = tappedRow || !isPlayButton(target.text)
+            if (waitForMusic(audio, 2_500)) return answer("playing", "Playback started in ${app.name} (Claydot tapped '${target.text.take(60)}').")
         }
-        return result("unavailable", "${app.name} could not start playback.")
+        return answer("opened_not_playing", "${app.name} shows '$query' but playback did not start. Ask the user to tap the song.")
+    }
+
+    /** Attend qu'une app joue de la musique (true) ou [timeoutMs]. */
+    private suspend fun waitForMusic(audio: AudioManager?, timeoutMs: Long): Boolean {
+        if (audio == null) return false
+        var waited = 0L
+        while (waited < timeoutMs) {
+            kotlinx.coroutines.delay(300); waited += 300
+            if (audio.isMusicActive) return true
+        }
+        return false
     }
 
     private fun mediaControl(action: String): String {
@@ -227,6 +259,29 @@ class PhoneActions(private val context: Context) : DirectTools {
             MusicApp("YouTube", "com.google.android.youtube", "https://www.youtube.com/results?search_query="),
             MusicApp("SoundCloud", "com.soundcloud.android", null),
         )
+
+        private val PLAY_LABELS = setOf("play", "shuffle play", "play all", "play artist", "lecture", "lire", "tout lire")
+
+        internal fun isPlayButton(text: String): Boolean {
+            val t = text.trim().lowercase()
+            return t in PLAY_LABELS || t.startsWith("play ")
+        }
+
+        /**
+         * Ce qu'il faut toucher pour lancer [query] : la ligne de résultat qui en reprend le plus de mots
+         * (hors champ de recherche et haut de l'écran), ou le bouton « Lecture » une fois sur la page du titre.
+         */
+        internal fun pickPlayTarget(elements: List<ScreenElement>, query: String, preferPlayButton: Boolean): ScreenElement? {
+            val words = query.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 2 && it !in setOf("by", "the", "song", "music", "de", "la", "le") }
+            val height = elements.maxOfOrNull { it.bounds.split(",").getOrNull(3)?.toIntOrNull() ?: 0 } ?: 0
+            fun top(e: ScreenElement) = e.bounds.split(",").getOrNull(1)?.toIntOrNull() ?: 0
+            val usable = elements.filter { it.role != "edit" && !it.password && !it.text.startsWith("hint:") && top(it) > height * 0.12 }
+            val playButton = usable.firstOrNull { isPlayButton(it.text) }
+            val row = usable.map { e -> e to words.count { it in e.text.lowercase() } }
+                .filter { (e, score) -> score > 0 && !isPlayButton(e.text) }
+                .maxByOrNull { (_, score) -> score }?.first
+            return if (preferPlayButton) playButton ?: row else row ?: playButton
+        }
 
         /** L'app nommée par l'utilisateur, sinon sa dernière préférence, sinon la première installée. */
         internal fun chooseMusicApp(installed: List<MusicApp>, requested: String, preferredPackage: String?): MusicApp? {
