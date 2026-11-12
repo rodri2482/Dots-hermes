@@ -197,9 +197,23 @@ class LocalProviderClient(private val context: Context, private val models: () -
     private var engineUsed = false
     /** Modèle chargé sur la puce graphique qui n'a pas encore donné de réponse complète sur ce téléphone. */
     private var gpuUnproven: String? = null
+    /** L'encodeur d'images (Gemma 4) est chargé : seulement après une photo, il pèse plusieurs centaines de Mo. */
+    private var loadedVision = false
+    /** Fin du dernier tour (ms, horloge monotone) : un moteur au repos depuis peu reste pour la suite d'une tâche. */
+    @Volatile private var lastUseMs = 0L
 
     init {
         instance = this
+        // Android manque de mémoire, ou l'app passe en arrière-plan : le moteur au repos est fermé tout de suite.
+        context.applicationContext.registerComponentCallbacks(object : android.content.ComponentCallbacks2 {
+            @Suppress("DEPRECATION")
+            override fun onTrimMemory(level: Int) {
+                if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) releaseIfIdle(0)
+                else if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) releaseIfIdle(BACKGROUND_KEEP_MS)
+            }
+            override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {}
+            @Deprecated("Deprecated in Java") override fun onLowMemory() = releaseIfIdle(0)
+        })
         // La puce graphique était à l'essai (chargement ou première réponse) et l'app s'est arrêtée en
         // plantant : ce modèle restera sur le processeur sur ce téléphone. Arrêt normal : on réessaiera.
         val crashed = lastExitWasCrash(context)
@@ -223,37 +237,69 @@ class LocalProviderClient(private val context: Context, private val models: () -
         gpuPrefs.edit().putBoolean("ok:$id", true).remove("trying:$id").commit()
     }
 
-    /** Au repos depuis quelques minutes : le moteur est fermé (mémoire rendue, processeur au calme). */
+    /** Au repos depuis un moment : le moteur est fermé (mémoire rendue, processeur au calme). */
     private fun scheduleRelease() {
+        lastUseMs = android.os.SystemClock.uptimeMillis()
         releaseJob?.cancel()
         releaseJob = idle.launch {
             delay(tier.idleReleaseMs)
-            lock.withLock {
-                runCatching { taskConversation?.close() }; taskConversation = null; taskKey = null
-                runCatching { engine?.close() }; engine = null; loadedPath = null
-                // Fermé sans incident : l'essai de la puce graphique reprendra au prochain chargement.
-                gpuUnproven?.let { gpuPrefs.edit().remove("trying:$it").commit() }; gpuUnproven = null
-            }
+            lock.withLock { close() }
         }
+    }
+
+    /**
+     * Ferme le moteur s'il ne travaille pas et n'a pas servi depuis [keepMs] (une tâche à l'écran enchaîne ses tours
+     * en quelques secondes : elle garde son moteur). Appelé quand Android réclame de la mémoire ou que l'app passe derrière.
+     */
+    fun releaseIfIdle(keepMs: Long) {
+        if (engine == null) return
+        val since = android.os.SystemClock.uptimeMillis() - lastUseMs
+        releaseJob?.cancel()
+        releaseJob = idle.launch {
+            if (since < keepMs) delay(keepMs - since)
+            if (lock.isLocked) { scheduleRelease(); return@launch }
+            lock.withLock { close() }
+        }
+    }
+
+    private fun close() {
+        runCatching { taskConversation?.close() }; taskConversation = null; taskKey = null
+        runCatching { engine?.close() }; engine = null; loadedPath = null; loadedVision = false
+        // Fermé sans incident : l'essai de la puce graphique reprendra au prochain chargement.
+        gpuUnproven?.let { gpuPrefs.edit().remove("trying:$it").commit() }; gpuUnproven = null
     }
 
     override suspend fun models(provider: ApiProvider, key: String): List<String> =
         LocalModels.CATALOG.filter { models().isReady(it) }.map { it.id }
 
-    private fun engineFor(entry: LocalModel, path: String, fresh: Boolean = false): Engine {
-        engine?.takeIf { loadedPath == path && !(fresh && engineUsed) }?.let { return it }
+    /**
+     * Le moteur de [entry]. Mémoire : un contexte borné selon le téléphone (le contexte par défaut du fichier peut
+     * être bien plus long, et chaque jeton réservé coûte de la mémoire), et l'encodeur d'images seulement quand
+     * une photo arrive ([vision]). Un fichier qui refuse la borne se charge sans elle.
+     */
+    private fun engineFor(entry: LocalModel, path: String, fresh: Boolean = false, vision: Boolean = false): Engine {
+        engine?.takeIf { loadedPath == path && !(fresh && engineUsed) && (loadedVision || !vision) }?.let { return it }
         engineUsed = false
         runCatching { taskConversation?.close() }; taskConversation = null; taskKey = null
         runCatching { engine?.close() }
-        engine = null; loadedPath = null
+        engine = null; loadedPath = null; loadedVision = false
+        val withImages = vision && entry.vision
+        fun start(backend: Backend, visionBackend: Backend?): Engine {
+            val limit = if (entry.chatOnly) null else tier.contextTokens
+            return try {
+                Engine(EngineConfig(modelPath = path, backend = backend, cacheDir = context.cacheDir.path, visionBackend = visionBackend,
+                    maxNumImages = if (visionBackend != null) 1 else null, maxNumTokens = limit)).also { it.initialize() }
+            } catch (e: Throwable) {
+                if (limit == null) throw e
+                Engine(EngineConfig(modelPath = path, backend = backend, cacheDir = context.cacheDir.path, visionBackend = visionBackend,
+                    maxNumImages = if (visionBackend != null) 1 else null)).also { it.initialize() }
+            }
+        }
         // La puce graphique (OpenCL) d'abord : réponses bien plus rapides, moins de mémoire et de chaleur.
         // Refusée ou en échec sur ce téléphone : le processeur, et on ne la réessaie plus pour ce modèle.
         if (!gpuPrefs.getBoolean("off:" + entry.id, false)) {
             gpuPrefs.edit().putBoolean("trying:" + entry.id, true).commit()
-            val gpu = try {
-                Engine(EngineConfig(modelPath = path, backend = Backend.GPU(), cacheDir = context.cacheDir.path,
-                    visionBackend = if (entry.vision) Backend.GPU() else null, maxNumImages = if (entry.vision) 1 else null)).also { it.initialize() }
-            } catch (_: Throwable) {
+            val gpu = try { start(Backend.GPU(), if (withImages) Backend.GPU() else null) } catch (_: Throwable) {
                 gpuPrefs.edit().putBoolean("off:" + entry.id, true).remove("trying:" + entry.id).commit()
                 null
             }
@@ -262,15 +308,13 @@ class LocalProviderClient(private val context: Context, private val models: () -
                 // celle-ci renverrait aussi ce modèle sur le processeur).
                 if (gpuPrefs.getBoolean("ok:" + entry.id, false)) gpuPrefs.edit().remove("trying:" + entry.id).commit()
                 else gpuUnproven = entry.id
-                engine = gpu; loadedPath = path; return gpu
+                engine = gpu; loadedPath = path; loadedVision = withImages; return gpu
             }
         }
         // Fils de calcul selon le téléphone : les cœurs restants gardent l'interface fluide.
         val threads = tier.threads(Runtime.getRuntime().availableProcessors())
-        val cpu = Engine(EngineConfig(modelPath = path, backend = Backend.CPU(threads, null), cacheDir = context.cacheDir.path,
-            visionBackend = if (entry.vision) Backend.CPU(threads, null) else null, maxNumImages = if (entry.vision) 1 else null))
-        cpu.initialize()
-        engine = cpu; loadedPath = path
+        val cpu = start(Backend.CPU(threads, null), if (withImages) Backend.CPU(threads, null) else null)
+        engine = cpu; loadedPath = path; loadedVision = withImages
         return cpu
     }
 
@@ -279,7 +323,7 @@ class LocalProviderClient(private val context: Context, private val models: () -
      * aussitôt au lieu d'attendre le chargement. Pas sur les petits téléphones (mémoire gardée libre).
      */
     fun warmUp(modelId: String) {
-        if (tier == DeviceTier.Level.Low || !LocalModels.deviceSupported()) return
+        if (tier != DeviceTier.Level.High || !LocalModels.deviceSupported()) return
         val entry = LocalModels.byId(modelId)?.takeIf { runCatching { models().isReady(it) }.getOrDefault(false) } ?: return
         idle.launch {
             if (lock.isLocked) return@launch
@@ -322,7 +366,8 @@ class LocalProviderClient(private val context: Context, private val models: () -
         val conversation: com.google.ai.edge.litertlm.Conversation
         val message: Message
         val reuse = extra.isNotEmpty() && taskKey == key && taskConversation?.isAlive == true
-        val engine = try { engineFor(entry, models().fileOf(entry).path, fresh = entry.freshEngine && !reuse) }
+        val photoTurn = entry.vision && last.image != null
+        val engine = try { engineFor(entry, models().fileOf(entry).path, fresh = entry.freshEngine && !reuse, vision = photoTurn) }
             catch (_: Throwable) { throw ApiException(ApiFailure.ModelUnavailable) }
         if (reuse) {
             conversation = taskConversation!!
@@ -353,7 +398,8 @@ class LocalProviderClient(private val context: Context, private val models: () -
                     mode == DeviceGuard.Mode.Gentle -> 256
                     else -> tier.maxOutputTokens
                 },
-                enableSpeculativeDecoding = if (entry.speculative) true else null,
+                // Le brouillon du décodage spéculatif est un second modèle en mémoire : seulement sur les téléphones à 12 Go et plus.
+                enableSpeculativeDecoding = if (entry.speculative && tier.speculative) true else null,
                 chatTemplate = entry.chatTemplate,
             )
             // Fichier sans brouillon pour le décodage spéculatif (ancien téléchargement) : conversation normale.
@@ -424,6 +470,8 @@ class LocalProviderClient(private val context: Context, private val models: () -
         """.trimIndent()
         private const val QUICK_NOTE = "You are Claydot, a friendly companion. Reply in one to three short sentences, plainly."
         private const val GENTLE_PAUSE_MS = 2_500L
+        /** En arrière-plan, un moteur au repos est gardé ce temps-là (une tâche à l'écran continue), puis fermé. */
+        private const val BACKGROUND_KEEP_MS = 20_000L
         private const val OFFLINE_TOOLS_NOTE = "You run on the user's phone, offline. You can act on the phone with your tools " +
             "(apps, music, alarms, texting, the screen with the user's approval). Keep tool use to the few steps needed, then answer briefly."
         private const val OFFLINE_NOTE = "You run on the user's phone. Answer freely from what you know and from any information " +
@@ -513,8 +561,11 @@ class DeviceGuard(private val context: Context) {
  * réponses, le temps où le modèle reste chargé et le modèle conseillé s'y adaptent.
  */
 object DeviceTier {
-    enum class Level(val idleReleaseMs: Long, val maxOutputTokens: Int, private val maxThreads: Int) {
-        Low(2 * 60_000L, 384, 2), Mid(5 * 60_000L, 640, 4), High(10 * 60_000L, 1024, 6);
+    enum class Level(val idleReleaseMs: Long, val maxOutputTokens: Int, private val maxThreads: Int, val contextTokens: Int) {
+        Low(45_000L, 384, 2, 2_048), Mid(90_000L, 640, 4, 3_072), High(3 * 60_000L, 1024, 6, 4_096);
+
+        /** Décodage spéculatif (un brouillon en plus en mémoire) : seulement avec beaucoup de mémoire vive. */
+        val speculative: Boolean get() = this == High && bigRam
 
         /** Jamais tous les cœurs : il en reste pour l'interface. */
         fun threads(cores: Int) = minOf(maxThreads, cores - 2).coerceAtLeast(2)
@@ -527,9 +578,13 @@ object DeviceTier {
         return info.totalMem / 1_000_000_000.0
     }
 
+    /** 12 Go et plus (11 Go annoncés par Android). */
+    @Volatile internal var bigRam = false
+
     fun level(context: Context): Level {
         val low = context.getSystemService(android.app.ActivityManager::class.java)?.isLowRamDevice == true
         val ram = ramGb(context)
+        bigRam = ram >= 11.0
         return when { low || ram < 4.5 -> Level.Low; ram < 7.0 -> Level.Mid; else -> Level.High }
     }
 

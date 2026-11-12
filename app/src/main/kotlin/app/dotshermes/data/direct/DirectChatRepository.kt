@@ -1262,8 +1262,21 @@ private val LocalToolNames = setOf(
 internal fun localToolset(all: org.json.JSONArray): org.json.JSONArray = org.json.JSONArray().apply {
     for (i in 0 until all.length()) {
         val tool = all.optJSONObject(i) ?: continue
-        if (tool.optJSONObject("function")?.optString("name") in LocalToolNames) put(tool)
+        if (tool.optJSONObject("function")?.optString("name") in LocalToolNames) put(shortTool(tool))
     }
+}
+
+/** La définition d'un outil, descriptions raccourcies (première phrase, 140 caractères ; 60 par paramètre). */
+internal fun shortTool(tool: org.json.JSONObject): org.json.JSONObject {
+    val copy = org.json.JSONObject(tool.toString())
+    val fn = copy.optJSONObject("function") ?: return copy
+    fn.optString("description").takeIf { it.isNotEmpty() }?.let { d ->
+        fn.put("description", d.substringBefore(". ").removeSuffix(".").take(140))
+    }
+    fn.optJSONObject("parameters")?.optJSONObject("properties")?.let { props ->
+        props.keys().forEach { k -> props.optJSONObject(k)?.let { p -> p.optString("description").takeIf { it.length > 60 }?.let { p.put("description", it.take(60)) } } }
+    }
+    return copy
 }
 
 /** Libellé de l'en-tête pendant la transcription ; neutre, pour les deux langues. */
