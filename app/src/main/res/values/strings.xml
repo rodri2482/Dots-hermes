@@ -614,4 +614,12 @@ Paste a Groq API key to get started.</string>
     <string name="access_screen_detail">To tap and type for you. Turn on Claydot on the next screen.</string>
     <string name="access_allday_title">Listen all day</string>
     <string name="access_allday_detail">So your routine catches every message. Allow Claydot to run in the background.</string>
+    <string name="chats_search">Search all chats</string>
+    <string name="chats_search_none">Nothing found.</string>
+    <string name="memory_add">Add a memory</string>
+    <string name="memory_save">Save</string>
+    <string name="share_label">Ask Claydot</string>
+    <string name="widget_label">Ask Claydot</string>
+    <string name="widget_hint">Ask Claydot…</string>
+    <string name="widget_description">Open a chat with Claydot in one tap.</string>
 </resources>

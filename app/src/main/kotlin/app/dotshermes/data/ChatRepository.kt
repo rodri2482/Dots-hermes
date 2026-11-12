@@ -46,6 +46,8 @@ interface ChatRepository {
     fun newConversation() {}
     fun openConversation(id: String) {}
     fun deleteConversation(id: String) {}
+    /** Recherche dans toutes les conversations enregistrées sur le téléphone (comptes directs). */
+    suspend fun searchMessages(query: String): List<app.dotshermes.data.model.SearchHit> = emptyList()
     fun setShown(shown: Boolean) {}
     val profile: StateFlow<AgentProfile>
     val connection: StateFlow<ConnectionState>

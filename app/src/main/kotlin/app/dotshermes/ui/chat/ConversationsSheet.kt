@@ -1,5 +1,8 @@
 package app.dotshermes.ui.chat
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -59,9 +62,19 @@ fun ConversationsSheet(
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit,
+    onSearch: suspend (String) -> List<app.dotshermes.data.model.SearchHit> = { emptyList() },
+    onOpenHit: (app.dotshermes.data.model.SearchHit) -> Unit = {},
 ) {
     val palette = LocalDotPalette.current
     var deleting by remember { mutableStateOf<ConversationInfo?>(null) }
+    var query by remember { mutableStateOf("") }
+    var hits by remember { mutableStateOf<List<app.dotshermes.data.model.SearchHit>?>(null) }
+    // Recherche à la frappe, après une courte pause.
+    androidx.compose.runtime.LaunchedEffect(query) {
+        if (query.trim().length < 2) { hits = null; return@LaunchedEffect }
+        kotlinx.coroutines.delay(250)
+        hits = runCatching { onSearch(query) }.getOrDefault(emptyList())
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -71,6 +84,45 @@ fun ConversationsSheet(
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 28.dp)) {
             Text(stringResource(R.string.chats_title), style = MaterialTheme.typography.headlineSmall, color = Ink.Primary,
                 modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
+            // Champ de recherche : tous les messages de toutes les discussions, sur le téléphone.
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Ink.Fill).padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(androidx.compose.material.icons.Icons.Rounded.Search, null, tint = Ink.Secondary, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.weight(1f)) {
+                    if (query.isEmpty()) Text(stringResource(R.string.chats_search), style = MaterialTheme.typography.bodyLarge, color = Ink.Secondary)
+                    androidx.compose.foundation.text.BasicTextField(query, { query = it }, singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink.Primary),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(palette.base), modifier = Modifier.fillMaxWidth())
+                }
+                if (query.isNotEmpty()) Icon(androidx.compose.material.icons.Icons.Rounded.Close, null, tint = Ink.Secondary,
+                    modifier = Modifier.size(20.dp).clip(CircleShape).clickable { query = "" })
+            }
+            Spacer(Modifier.size(12.dp))
+            hits?.let { found ->
+                if (found.isEmpty()) Text(stringResource(R.string.chats_search_none), style = MaterialTheme.typography.bodyMedium, color = Ink.Secondary,
+                    modifier = Modifier.padding(start = 4.dp, top = 8.dp))
+                else GroupedCard {
+                    found.forEachIndexed { i, hit ->
+                        if (i > 0) Hairline()
+                        Column(Modifier.fillMaxWidth().clickable { onOpenHit(hit); onDismiss() }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(hit.conversationTitle.ifBlank { stringResource(R.string.chats_untitled) }, style = MaterialTheme.typography.labelLarge,
+                                    color = palette.deep, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                Text(formatDate(Instant.ofEpochMilli(hit.timeMs), "d MMM"), style = MaterialTheme.typography.labelSmall, color = Ink.Tertiary)
+                            }
+                            Text(androidx.compose.ui.text.buildAnnotatedString {
+                                append(hit.snippet)
+                                val end = (hit.matchStart + hit.matchLength).coerceAtMost(hit.snippet.length)
+                                if (hit.matchStart in 0 until end) addStyle(androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    background = palette.light), hit.matchStart, end)
+                            }, style = MaterialTheme.typography.bodyMedium, color = Ink.Primary, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp))
+                        }
+                    }
+                }
+                return@Column
+            }
             GroupedCard {
                 Row(Modifier.fillMaxWidth().clickable { onNew(); onDismiss() }.padding(horizontal = 16.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically) {

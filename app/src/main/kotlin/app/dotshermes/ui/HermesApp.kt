@@ -184,6 +184,7 @@ fun HermesApp(
                     connection = connection as? ConnectionState.Connected,
                     appearance = look.appearance,
                     onSend = viewModel::send,
+                    scrollTarget = viewModel.scrollTarget.collectAsStateWithLifecycle().value, onScrolled = viewModel::scrolled,
                     onSendReply = if (!gatewayFeatures) viewModel::sendReply else null,
                     onReact = viewModel::toggleReaction,
                     onApproval = viewModel::answerApproval,
@@ -306,6 +307,8 @@ fun HermesApp(
                 onNew = viewModel::newConversation,
                 onOpen = viewModel::openConversation,
                 onDelete = viewModel::deleteConversation,
+                onSearch = viewModel::searchMessages,
+                onOpenHit = viewModel::openSearchHit,
                 onDismiss = { chatsOpen = false },
             )
         }

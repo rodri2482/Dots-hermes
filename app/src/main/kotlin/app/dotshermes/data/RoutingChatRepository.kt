@@ -48,6 +48,7 @@ class RoutingChatRepository(
     override val conversations = follow(scope) { it.conversations }
     override fun newConversation() = active.value.newConversation()
     override fun openConversation(id: String) = active.value.openConversation(id)
+    override suspend fun searchMessages(query: String) = active.value.searchMessages(query)
     override fun deleteConversation(id: String) = active.value.deleteConversation(id)
     override val connection: StateFlow<ConnectionState> = follow(scope) { it.connection }
     override val messages: StateFlow<List<ChatMessage>> = follow(scope) { it.messages }

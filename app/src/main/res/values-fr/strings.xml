@@ -622,4 +622,12 @@ Colle une clé API Groq pour commencer.</string>
     <string name="access_screen_detail">Pour toucher et écrire à votre place. Activez Claydot à l\'écran suivant.</string>
     <string name="access_allday_title">Écouter toute la journée</string>
     <string name="access_allday_detail">Pour que votre routine voie chaque message. Laissez Claydot tourner en arrière-plan.</string>
+    <string name="chats_search">Chercher dans les discussions</string>
+    <string name="chats_search_none">Aucun résultat.</string>
+    <string name="memory_add">Ajouter un souvenir</string>
+    <string name="memory_save">Enregistrer</string>
+    <string name="share_label">Demander à Claydot</string>
+    <string name="widget_label">Demander à Claydot</string>
+    <string name="widget_hint">Demander à Claydot…</string>
+    <string name="widget_description">Ouvrez une discussion avec Claydot en un toucher.</string>
 </resources>

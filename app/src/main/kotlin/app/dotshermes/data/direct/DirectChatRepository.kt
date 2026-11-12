@@ -91,6 +91,20 @@ class DirectChatRepository(
     /** Oublie un fait (réglages). */
     fun forgetFact(fact: String) = scope.launch(Dispatchers.IO) { synchronized(lock) { storeFacts(loadedFacts() - fact) } }
 
+    private fun cleanFact(text: String) = text.trim().replace(Regex("\\s+"), " ").take(MAX_FACT_CHARS)
+
+    /** Ajouté à la main (réglages) : comme « remember », sans doublon. */
+    fun addFact(text: String) = scope.launch(Dispatchers.IO) {
+        val fact = cleanFact(text).ifEmpty { return@launch }
+        synchronized(lock) { val now = loadedFacts(); if (now.none { it.equals(fact, ignoreCase = true) }) storeFacts((now + fact).takeLast(MAX_FACTS)) }
+    }
+
+    /** Corrigé à la main : le fait garde sa place dans la liste ; vide = supprimé. */
+    fun editFact(old: String, text: String) = scope.launch(Dispatchers.IO) {
+        val fact = cleanFact(text)
+        synchronized(lock) { storeFacts(loadedFacts().mapNotNull { if (it == old) fact.ifEmpty { null } else it }.distinct()) }
+    }
+
     /** Outils « remember » / « forget » : le modèle note ce qui mérite d'être retenu d'une conversation à l'autre. */
     private val memoryTools = object : DirectTools {
         override fun definitions(): org.json.JSONArray = org.json.JSONArray()
@@ -590,6 +604,35 @@ class DirectChatRepository(
         }
     }
 
+    /**
+     * Recherche plein texte dans toutes les conversations du compte (déchiffrées une à une, sur le
+     * téléphone) : sans tenir compte des majuscules ni des accents, les plus récentes d'abord.
+     */
+    override suspend fun searchMessages(query: String): List<SearchHit> = withContext(Dispatchers.IO) {
+        val wanted = searchKey(query.trim())
+        if (wanted.length < 2) return@withContext emptyList()
+        val (ids, open, live, titles) = synchronized(lock) {
+            Quad((index.map { it.id } + accountId).distinct(), current, transcript.messages, index.associate { it.id to it.title })
+        }
+        val hits = ArrayList<SearchHit>()
+        for (id in ids) {
+            val messages = if (id == open) live else runCatching { storage.load(id).messages }.getOrDefault(emptyList())
+            for (m in messages) {
+                if (m.text.isBlank()) continue
+                val at = searchKey(m.text).indexOf(wanted)
+                if (at < 0 || at + wanted.length > m.text.length) continue
+                val from = (at - 40).coerceAtLeast(0)
+                val to = (at + wanted.length + 80).coerceAtMost(m.text.length)
+                val prefix = if (from > 0) "…" else ""
+                val snippet = prefix + m.text.substring(from, to).replace('\n', ' ') + if (to < m.text.length) "…" else ""
+                hits += SearchHit(id, titles[id].orEmpty(), m.id, snippet, prefix.length + at - from, wanted.length, m.timestampMs, m.role == "user")
+            }
+        }
+        hits.sortedByDescending { it.timeMs }.take(60)
+    }
+
+    private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+
     override fun openConversation(id: String) {
         stopTurn()
         synchronized(lock) {
@@ -861,6 +904,12 @@ internal fun localToolset(all: org.json.JSONArray): org.json.JSONArray = org.jso
 
 /** Libellé de l'en-tête pendant la transcription ; neutre, pour les deux langues. */
 private val VOICE_LABEL = ToolKeys.of("voice")
+
+/** Texte comparable pour la recherche : minuscules, sans accents (les positions restent celles du texte). */
+internal fun searchKey(text: String): String = text.lowercase().map { c ->
+    // « é » → « e » + accent : on garde la lettre de base, un caractère pour un caractère.
+    java.text.Normalizer.normalize(c.toString(), java.text.Normalizer.Form.NFD).first()
+}.joinToString("")
 
 /** Seuls les tours complets sont rejoués ; un prompt arrêté/interrompu ne repart pas implicitement. */
 internal fun completedContext(entries: List<DirectEntry>): List<ApiTurn> {

@@ -132,6 +132,18 @@ class HermesViewModel(
     val conversations = repository.conversations
     fun newConversation() { val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.newConversation() } }
     fun openConversation(id: String) { val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.openConversation(id) } }
+    /** Recherche dans toutes les discussions. */
+    suspend fun searchMessages(query: String) = repository.searchMessages(query)
+
+    /** Message à montrer après une recherche : la discussion s'ouvre, le fil défile jusqu'à lui. */
+    private val _scrollTarget = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val scrollTarget: StateFlow<String?> = _scrollTarget
+    fun openSearchHit(hit: app.dotshermes.data.model.SearchHit) {
+        val t = repository.currentTarget()
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.openConversation(hit.conversationId); _scrollTarget.value = hit.messageId }
+    }
+    fun scrolled() { _scrollTarget.value = null }
+
     fun deleteConversation(id: String) { val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.deleteConversation(id) } }
     fun clearConversation() {
         val target = repository.currentTarget()

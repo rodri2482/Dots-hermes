@@ -1,5 +1,6 @@
 package app.dotshermes.ui.chat
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
@@ -160,6 +161,9 @@ fun ChatScreen(
     connection: ConnectionState.Connected?,
     appearance: DotAppearance,
     onSend: (String) -> Unit,
+    /** Message trouvé par la recherche : le fil défile jusqu'à lui, une fois. */
+    scrollTarget: String? = null,
+    onScrolled: () -> Unit = {},
     /** Réponse à un message précis (glisser une bulle vers la gauche) ; null : geste désactivé. */
     onSendReply: ((text: String, quote: String) -> Unit)? = null,
     onReact: (messageId: String, emoji: String) -> Unit,
@@ -212,6 +216,11 @@ fun ChatScreen(
     var suggestionsOpen by rememberSaveable { mutableStateOf(false) }
     var roomSheetOpen by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    androidx.compose.runtime.LaunchedEffect(scrollTarget, state.rows) {
+        val id = scrollTarget ?: return@LaunchedEffect
+        val at = state.rows.indexOfFirst { (it as? ChatRow.Bubble)?.message?.id == id || (it as? ChatRow.Bubble)?.message?.remoteId == id }
+        if (at >= 0) { listState.animateScrollToItem(at); onScrolled() }
+    }
     val streamingReply = state.activity == AgentActivity.Typing
     val stopVisible = speaking || (!gatewayFeatures && state.activity != AgentActivity.Idle)
     // Place de la pastille « Arrêter » sous la dernière bulle, gagnée en douceur plutôt que d'un coup.
@@ -245,6 +254,15 @@ fun ChatScreen(
     // Message auquel on répond (glissé vers la gauche) : qui l'a écrit et son texte cité.
     var replyTo by remember { mutableStateOf<Pair<String, String>?>(null) }
     val focusComposer = remember { androidx.compose.ui.focus.FocusRequester() }
+    // Partage ou widget : le texte dans le champ, la photo en pièce jointe (si le modèle voit), le clavier ouvert.
+    val incoming by app.dotshermes.IncomingContent.pending.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(incoming) {
+        val got = incoming ?: return@LaunchedEffect
+        app.dotshermes.IncomingContent.pending.value = null
+        if (got.text.isNotBlank()) draft = got.text
+        got.image?.let { if (gatewayFeatures || imageInput) pendingAttachment = it }
+        if (got.focus) { kotlinx.coroutines.delay(300); runCatching { focusComposer.requestFocus() } }
+    }
     val youLabel = stringResource(R.string.reply_you)
 
     fun attach(uri: Uri) {

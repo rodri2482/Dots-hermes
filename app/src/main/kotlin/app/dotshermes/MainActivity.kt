@@ -34,6 +34,18 @@ class MainActivity : ComponentActivity() {
         } else {
             chat?.let { AppContainer.chatRepository.selectChat(it) }
         }
+        // Partage depuis une autre app (texte, lien, photo) ou widget : le champ de saisie le reçoit.
+        when {
+            intent?.action == Intent.ACTION_SEND -> {
+                val text = listOfNotNull(intent.getStringExtra(Intent.EXTRA_SUBJECT), intent.getStringExtra(Intent.EXTRA_TEXT))
+                    .filter { it.isNotBlank() }.distinct().joinToString("\n")
+                @Suppress("DEPRECATION")
+                val image = (if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java)
+                    else intent.getParcelableExtra(Intent.EXTRA_STREAM) as? android.net.Uri)?.takeIf { intent.type?.startsWith("image/") == true }
+                if (text.isNotBlank() || image != null) IncomingContent.pending.value = Incoming(text.take(4_000), image, focus = true)
+            }
+            intent?.getBooleanExtra(IncomingContent.EXTRA_ASK, false) == true -> IncomingContent.pending.value = Incoming(focus = true)
+        }
         // Notification « mise à jour disponible » : l'interface ouvre le dialogue.
         if (intent?.getBooleanExtra(UpdateNotifications.EXTRA_OPEN_UPDATE, false) == true) AppContainer.updater.requestPrompt()
     }

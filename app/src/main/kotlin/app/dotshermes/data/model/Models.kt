@@ -143,6 +143,10 @@ data class AgentProfile(val name: String, val tagline: String)
 /** Une conversation d'un compte direct, pour la liste « Discussions ». */
 data class ConversationInfo(val id: String, val title: String, val updatedMs: Long, val open: Boolean)
 
+/** Un message trouvé par la recherche : sa conversation, un extrait autour du mot cherché. */
+data class SearchHit(val conversationId: String, val conversationTitle: String, val messageId: String,
+    val snippet: String, val matchStart: Int, val matchLength: Int, val timeMs: Long, val fromUser: Boolean)
+
 /** Dernière image de l'écran du navigateur de l'agent. [live] : flux en cours (vue ouverte). */
 class ScreenState(
     val frame: ByteArray? = null,

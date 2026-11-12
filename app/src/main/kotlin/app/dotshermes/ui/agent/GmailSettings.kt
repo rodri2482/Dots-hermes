@@ -390,9 +390,15 @@ fun MemorySettings(repo: app.dotshermes.data.direct.DirectChatRepository) {
                 Text(stringResource(R.string.memory_empty), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp))
             }
+            // Un toucher sur un fait le rend modifiable ; la corbeille l'oublie ; « Ajouter » en écrit un nouveau.
+            var editing by remember { mutableStateOf<String?>(null) }
+            var draft by remember { mutableStateOf("") }
             facts.forEachIndexed { i, fact ->
                 if (i > 0) Hairline()
-                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                if (editing == fact) {
+                    MemoryField(draft, { draft = it }, onDone = { repo.editFact(fact, draft); editing = null }, onCancel = { editing = null })
+                } else androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clickable { editing = fact; draft = fact }
+                    .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text(fact, style = MaterialTheme.typography.bodyMedium, color = Ink.Primary, modifier = Modifier.weight(1f))
                     androidx.compose.foundation.layout.Box(Modifier.clickable { repo.forgetFact(fact) }.padding(10.dp)) {
@@ -401,7 +407,35 @@ fun MemorySettings(repo: app.dotshermes.data.direct.DirectChatRepository) {
                     }
                 }
             }
+            Hairline()
+            if (editing == NEW_FACT) {
+                MemoryField(draft, { draft = it }, onDone = { repo.addFact(draft); editing = null }, onCancel = { editing = null })
+            } else {
+                Text(stringResource(R.string.memory_add), style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
+                    modifier = Modifier.fillMaxWidth().clickable { editing = NEW_FACT; draft = "" }.padding(horizontal = 16.dp, vertical = 13.dp))
+            }
             } }
+        }
+    }
+}
+
+private const val NEW_FACT = " new"
+
+/** Le champ d'un fait en cours d'écriture : texte, « Enregistrer » et « Annuler ». */
+@Composable
+private fun MemoryField(value: String, onChange: (String) -> Unit, onDone: () -> Unit, onCancel: () -> Unit) {
+    val palette = LocalDotPalette.current
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        androidx.compose.foundation.text.BasicTextField(value, onChange,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Ink.Primary),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(palette.base),
+            modifier = Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).background(Ink.Fill).padding(10.dp))
+        androidx.compose.foundation.layout.Row(Modifier.padding(top = 8.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.memory_save), style = MaterialTheme.typography.labelLarge, color = palette.onBase,
+                modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).background(palette.base).clickable(enabled = value.isNotBlank(), onClick = onDone)
+                    .padding(horizontal = 14.dp, vertical = 7.dp))
+            Text(stringResource(android.R.string.cancel), style = MaterialTheme.typography.labelLarge, color = Ink.Secondary,
+                modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).clickable(onClick = onCancel).padding(horizontal = 14.dp, vertical = 7.dp))
         }
     }
 }
