@@ -79,7 +79,7 @@ fun ChatCardView(card: ChatCard, modifier: Modifier = Modifier) {
     fun send(reply: CardReply) { if (!sent) { sent = true; onReply(card, reply) } }
     val (iconKey, title) = ToolKeys.splitTitle(card.question)
 
-    Column(modifier.clip(CardShape).background(Ink.Raised).border(1.dp, Ink.Separator, CardShape).padding(16.dp)) {
+    Column(modifier.clip(CardShape).background(Ink.Fill).border(0.5.dp, Ink.Separator, CardShape).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp).background(if (card.open) palette.base else Ink.Tertiary, CircleShape))
             Spacer(Modifier.width(8.dp))
@@ -147,14 +147,14 @@ private fun QuestionBody(card: ChatCard, enabled: Boolean, onSend: (String) -> U
             card.options.forEach { option ->
                 val on = option in picked
                 val chip = Modifier.clip(CircleShape)
-                    .background(if (on) palette.base else palette.light)
-                    .border(1.dp, if (on) palette.base else Color.Transparent, CircleShape)
+                    .background(if (on) palette.light else Ink.Surface)
+                    .border(1.dp, if (on) palette.base else Ink.Separator, CircleShape)
                 val select = if (card.multi) chip.toggleable(on, enabled = enabled, role = Role.Checkbox) {
                     picked = if (on) picked - option else picked + option
                 } else chip.selectable(on, enabled = enabled, role = Role.RadioButton) { picked = if (on) emptyList() else listOf(option); typed = "" }
                 Row(select.heightIn(min = 44.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (on) { Icon(Icons.Rounded.Check, null, tint = palette.onBase, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)) }
-                    Text(option, style = MaterialTheme.typography.labelLarge, color = if (on) palette.onBase else palette.deep)
+                    if (on) { Icon(Icons.Rounded.Check, null, tint = palette.deep, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)) }
+                    Text(option, style = MaterialTheme.typography.labelLarge, color = if (on) palette.deep else Ink.Primary)
                 }
             }
         }
@@ -162,7 +162,7 @@ private fun QuestionBody(card: ChatCard, enabled: Boolean, onSend: (String) -> U
     }
     if (card.custom) {
         val hint = stringResource(R.string.card_custom_hint)
-        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Ink.Fill).padding(horizontal = 12.dp, vertical = 12.dp)
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Ink.Surface).border(1.dp, Ink.Separator, RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 12.dp)
             .semantics { contentDescription = hint }) {
             if (typed.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyMedium, color = Ink.Tertiary)
             BasicTextField(typed, { typed = it.take(ChatCard.MAX_ANSWER); if (!card.multi && it.isNotEmpty()) picked = emptyList() },
@@ -173,7 +173,7 @@ private fun QuestionBody(card: ChatCard, enabled: Boolean, onSend: (String) -> U
     }
     val answer = (picked + listOfNotNull(typed.trim().takeIf { it.isNotEmpty() })).joinToString(", ")
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        PillButton(stringResource(R.string.permission_not_now), onSkip, Modifier.weight(1f), container = Ink.Fill, content = Ink.Primary,
+        PillButton(stringResource(R.string.permission_not_now), onSkip, Modifier.weight(1f), container = Ink.Surface, content = Ink.Primary,
             enabled = enabled, height = 44.dp)
         PillButton(stringResource(R.string.card_send), { onSend(answer) }, Modifier.weight(1f), container = palette.base, content = palette.onBase,
             enabled = enabled && answer.isNotEmpty(), height = 44.dp)
@@ -185,8 +185,8 @@ private fun QuestionBody(card: ChatCard, enabled: Boolean, onSend: (String) -> U
 private fun TwoButtons(first: String, second: String, enabled: Boolean, onFirst: () -> Unit, onSecond: () -> Unit) {
     val palette = LocalDotPalette.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        PillButton(first, onFirst, Modifier.weight(1f), container = palette.light, content = palette.deep, enabled = enabled, height = 44.dp)
-        PillButton(second, onSecond, Modifier.weight(1f), container = palette.light, content = palette.deep, enabled = enabled, height = 44.dp)
+        PillButton(first, onFirst, Modifier.weight(1f), container = Ink.Surface, content = Ink.Primary, enabled = enabled, height = 44.dp)
+        PillButton(second, onSecond, Modifier.weight(1f), container = Ink.Surface, content = Ink.Primary, enabled = enabled, height = 44.dp)
     }
 }
 

@@ -533,4 +533,24 @@
     <string name="image_source">Abrir la fuente: %1$s</string>
     <string name="music_needs_screen">%1$s se abrió pero no empezó la canción. Con acceso a la pantalla, Claydot puede darle a reproducir por ti.</string>
     <string name="notif_card_title">Claydot necesita tu respuesta</string>
+    <string name="local_section_ready">En tu teléfono</string>
+    <string name="local_section_download">Para descargar</string>
+    <string name="local_section_online">Modelos en línea</string>
+    <string name="local_recommended_line">Recomendado para tu teléfono</string>
+    <string name="online_groq_note">Clave gratis · el más rápido · puede usar tu teléfono</string>
+    <string name="online_chatgpt_title">ChatGPT</string>
+    <string name="online_chatgpt_note">Clave API de OpenAI · solo chat</string>
+    <string name="online_claude_title">Claude</string>
+    <string name="online_claude_note">Clave API de Anthropic · solo chat</string>
+    <string name="local_note_gemma3">Diminuto y muy rápido, para charlar.</string>
+    <string name="local_note_qwen25">Equilibrado, muchos idiomas, usa herramientas.</string>
+    <string name="doing_agent">Hablando con otro agente…</string>
+    <string name="msg_edit">Editar mensaje</string>
+    <string name="msg_select">Seleccionar texto</string>
+    <string name="msg_editing">Editando mensaje</string>
+    <string name="msg_like">Buena respuesta</string>
+    <string name="msg_dislike">Mala respuesta</string>
+    <string name="local_note_gemma4_e4b">El más capaz, ve fotos. Para teléfonos de 8 GB o más.</string>
+    <string name="local_note_qwen4b">Razonamiento sólido, usa herramientas. Para teléfonos de 8 GB o más.</string>
+    <string name="local_note_smollm">El más pequeño y rápido, charla sencilla.</string>
 </resources>

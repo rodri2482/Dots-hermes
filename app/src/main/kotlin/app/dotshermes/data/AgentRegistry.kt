@@ -76,6 +76,40 @@ class AgentRegistry(
     private val repos = ConcurrentHashMap<String, ChatRepository>()
     private val appearances = ConcurrentHashMap<String, AppearanceStore>()
 
+    /**
+     * Les agents se connaissent : chacun lit ce que les autres ont retenu de l'utilisateur, cherche dans leurs
+     * discussions, et peut leur poser une question (la question et la réponse apparaissent dans le fil de l'autre).
+     */
+    private val peers = object : AgentPeers {
+        private fun directOthers(self: String) = store.agents.value.filter { it.id != self && it.provider != null }
+
+        override fun others(self: String) = directOthers(self).map { link ->
+            Triple(link.id, appearance(link.id).state.value.displayName.ifBlank { link.provider!!.title }.let { name ->
+                // Deux agents du même nom (« Claydot ») : le modèle les distingue.
+                if (directOthers(self).count { appearance(it.id).state.value.displayName == name } > 1 ||
+                    appearance(self).state.value.displayName == name) "$name (${link.model.substringAfterLast('/')})" else name
+            }, link.model.substringAfterLast('/'))
+        }
+
+        override fun facts(self: String) = directOthers(self).flatMap { runCatching { apiStorage.facts(it.id) }.getOrDefault(emptyList()) }
+
+        override suspend fun search(self: String, query: String): List<String> = directOthers(self).flatMap { link ->
+            val name = appearance(link.id).state.value.displayName
+            (repo(link.id) as? DirectChatRepository)?.let { other ->
+                runCatching { other.searchMessages(query) }.getOrDefault(emptyList()).take(4).map { hit ->
+                    "$name · " + (if (hit.fromUser) "user" else name) + " (" +
+                        java.time.Instant.ofEpochMilli(hit.timeMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate() + "): " + hit.snippet
+                }
+            }.orEmpty()
+        }
+
+        override suspend fun ask(self: String, peerId: String, message: String): String? {
+            val other = repo(peerId) as? DirectChatRepository ?: return null
+            val from = appearance(self).state.value.displayName
+            return other.runRoutine("(Message from $from, another of the user's Claydot agents) $message", timeoutMs = 3 * 60_000L)
+        }
+    }
+
     /** Connexion de repli quand aucun agent n'est appairé : jamais connectée, l'écran d'appairage s'affiche. */
     private val unpaired by lazy { create(UNPAIRED) }
 
@@ -165,7 +199,8 @@ class AgentRegistry(
             appearance(id).adoptServerName(COMPANION_NAME)
             return DirectChatRepository(id, link.provider, link.model, scope, apiStorage, providerClient,
                 persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools,
-                imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel).apply { setShown(id == _activeId.value) }
+                imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel,
+                peers = peers).apply { setShown(id == _activeId.value) }
         }
         // Pas encore de compte (premier lancement, ajout en cours) : l'écran de connexion s'affiche.
         return UnpairedChatRepository()
@@ -257,7 +292,8 @@ class AgentRegistry(
                 val knownCooldown = (repos[id] as? DirectChatRepository)?.cooldownFor(provider, model.trim(), key) ?: 0
                 val direct = DirectChatRepository(id, provider, model.trim(), scope, apiStorage, providerClient,
                     inheritedCooldownUntilMs = knownCooldown, persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools,
-                    imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel)
+                    imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel,
+                    peers = peers)
                 direct.restore()
                 currentCoroutineContext().ensureActive()
                 if (direct.connection.value !is ConnectionState.Connected) return@withLock false

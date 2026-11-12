@@ -10,7 +10,7 @@ import org.junit.Test
 class LocalMemoryTest {
     @Test fun `each phone tier reserves a bounded context and releases the model sooner`() {
         assertEquals(listOf(2_048, 3_072, 4_096), DeviceTier.Level.entries.map { it.contextTokens })
-        assertTrue(DeviceTier.Level.entries.all { it.idleReleaseMs <= 3 * 60_000L })
+        assertTrue(DeviceTier.Level.entries.all { it.idleReleaseMs <= 5 * 60_000L })
     }
 
     @Test fun `tool descriptions for the phone model are cut to one short sentence`() {

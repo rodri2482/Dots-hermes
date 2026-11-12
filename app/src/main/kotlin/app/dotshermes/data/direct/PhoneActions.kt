@@ -249,7 +249,7 @@ class PhoneActions(
             val target = pickPlayTarget(shot.elements, query, preferPlayButton = tappedRow) ?: return@repeat
             if (!driver.tap(target.id)) return@repeat
             tappedRow = tappedRow || !isPlayButton(target.text)
-            if (waitForMusic(audio, 2_500)) { backToClaydot(); return answer("playing", "Playback started in ${app.name} (Claydot tapped '${target.text.take(60)}').") }
+            if (waitForMusic(audio, 4_000)) { backToClaydot(); return answer("playing", "Playback started in ${app.name} (Claydot tapped '${target.text.take(60)}').") }
         }
         return answer("opened_not_playing", "${app.name} shows '$query' but playback did not start. Ask the user to tap the song.")
     }
@@ -435,13 +435,24 @@ class PhoneActions(
             val words = query.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 2 && it !in setOf("by", "the", "song", "music", "de", "la", "le") }
             val height = elements.maxOfOrNull { it.bounds.split(",").getOrNull(3)?.toIntOrNull() ?: 0 } ?: 0
             fun top(e: ScreenElement) = e.bounds.split(",").getOrNull(1)?.toIntOrNull() ?: 0
-            val usable = elements.filter { it.role != "edit" && !it.password && !it.text.startsWith("hint:") && top(it) > height * 0.12 }
-            val playButton = usable.firstOrNull { isPlayButton(it.text) }
-            val row = usable.map { e -> e to words.count { it in e.text.lowercase() } }
-                .filter { (e, score) -> score > 0 && !isPlayButton(e.text) }
-                .maxByOrNull { (_, score) -> score }?.first
+            // Jamais les boutons d'à côté d'un titre : « Plus d'options », cœur de la bibliothèque, partage, son coupé…
+            val usable = elements.filter { e ->
+                e.role != "edit" && !e.password && !e.text.startsWith("hint:") && top(e) > height * 0.12 &&
+                    NOT_PLAY_TARGETS.none { it in e.text.lowercase() }
+            }
+            // « Lecture » seulement dans le haut de l'écran : en bas, c'est le mini-lecteur (l'ancien titre) ou un aperçu vidéo.
+            val playButton = usable.firstOrNull { isPlayButton(it.text) && top(it) < height * 0.65 }
+            fun score(e: ScreenElement) = words.count { it in e.text.lowercase() }
+            val texts = usable.filter { !isPlayButton(it.text) }
+            // Une ligne de résultat : son titre, plus la ligne « Titre • Artiste » juste à côté.
+            val row = texts.filter { score(it) > 0 }.map { e ->
+                e to score(e) + (texts.filter { it !== e && kotlin.math.abs(top(it) - top(e)) <= height / 14 }.maxOfOrNull(::score) ?: 0)
+            }.maxByOrNull { (_, total) -> total }?.first
             return if (preferPlayButton) playButton ?: row else row ?: playButton
         }
+
+        private val NOT_PLAY_TARGETS = listOf("more options", "library", "added", "add ", "like", "share", "download", "unmute", "mute",
+            "hide", "remove", "cancel", "clear", "filter", "follow", "plus d'options", "bibliothèque", "partager", "télécharger")
 
         /** L'app nommée par l'utilisateur, sinon sa dernière préférence, sinon la première installée. */
         internal fun chooseMusicApp(installed: List<MusicApp>, requested: String, preferredPackage: String?): MusicApp? {

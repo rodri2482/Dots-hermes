@@ -581,4 +581,24 @@ Colle une clé API Groq pour commencer.</string>
     <string name="image_source">Ouvrir la source : %1$s</string>
     <string name="music_needs_screen">%1$s s’est ouvert sans lancer la chanson. Avec l’accès à l’écran, Claydot peut appuyer sur Lecture pour toi.</string>
     <string name="notif_card_title">Claydot attend ta réponse</string>
+    <string name="local_section_ready">Sur ton téléphone</string>
+    <string name="local_section_download">À télécharger</string>
+    <string name="local_section_online">Modèles en ligne</string>
+    <string name="local_recommended_line">Conseillé pour ton téléphone</string>
+    <string name="online_groq_note">Clé gratuite · le plus rapide · peut utiliser ton téléphone</string>
+    <string name="online_chatgpt_title">ChatGPT</string>
+    <string name="online_chatgpt_note">Clé API OpenAI · discussion seulement</string>
+    <string name="online_claude_title">Claude</string>
+    <string name="online_claude_note">Clé API Anthropic · discussion seulement</string>
+    <string name="local_note_gemma3">Tout petit et très rapide, pour discuter.</string>
+    <string name="local_note_qwen25">Équilibré, nombreuses langues, utilise les outils.</string>
+    <string name="doing_agent">Parle à un autre agent…</string>
+    <string name="msg_edit">Modifier le message</string>
+    <string name="msg_select">Sélectionner le texte</string>
+    <string name="msg_editing">Modification du message</string>
+    <string name="msg_like">Bonne réponse</string>
+    <string name="msg_dislike">Mauvaise réponse</string>
+    <string name="local_note_gemma4_e4b">Le plus capable, voit les photos. Téléphones de 8 Go et plus.</string>
+    <string name="local_note_qwen4b">Raisonnement solide, utilise les outils. Téléphones de 8 Go et plus.</string>
+    <string name="local_note_smollm">Le plus petit et le plus rapide, discussion simple.</string>
 </resources>

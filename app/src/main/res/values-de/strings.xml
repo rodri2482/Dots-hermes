@@ -521,4 +521,24 @@
     <string name="image_source">Quelle öffnen: %1$s</string>
     <string name="music_needs_screen">%1$s wurde geöffnet, hat den Song aber nicht gestartet. Mit Bildschirmzugriff kann Claydot für dich auf Play drücken.</string>
     <string name="notif_card_title">Claydot braucht deine Antwort</string>
+    <string name="local_section_ready">Auf deinem Handy</string>
+    <string name="local_section_download">Zum Herunterladen</string>
+    <string name="local_section_online">Online-Modelle</string>
+    <string name="local_recommended_line">Empfohlen für dein Handy</string>
+    <string name="online_groq_note">Kostenloser Schlüssel · am schnellsten · kann dein Handy bedienen</string>
+    <string name="online_chatgpt_title">ChatGPT</string>
+    <string name="online_chatgpt_note">OpenAI-API-Schlüssel · nur Chat</string>
+    <string name="online_claude_title">Claude</string>
+    <string name="online_claude_note">Anthropic-API-Schlüssel · nur Chat</string>
+    <string name="local_note_gemma3">Winzig und sehr schnell, zum Plaudern.</string>
+    <string name="local_note_qwen25">Ausgewogen, viele Sprachen, nutzt Werkzeuge.</string>
+    <string name="doing_agent">Spricht mit einem anderen Agenten…</string>
+    <string name="msg_edit">Nachricht bearbeiten</string>
+    <string name="msg_select">Text auswählen</string>
+    <string name="msg_editing">Nachricht wird bearbeitet</string>
+    <string name="msg_like">Gute Antwort</string>
+    <string name="msg_dislike">Schlechte Antwort</string>
+    <string name="local_note_gemma4_e4b">Am leistungsfähigsten, versteht Fotos. Für Handys ab 8 GB.</string>
+    <string name="local_note_qwen4b">Starkes Denken, nutzt Werkzeuge. Für Handys ab 8 GB.</string>
+    <string name="local_note_smollm">Am kleinsten und schnellsten, einfacher Chat.</string>
 </resources>

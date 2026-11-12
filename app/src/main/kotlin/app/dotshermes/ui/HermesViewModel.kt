@@ -309,6 +309,11 @@ class HermesViewModel(
         if (text.isNotBlank()) repository.send(text.trim())
     }
 
+    /** Message envoyé modifié (appui long → Modifier) : la réponse est régénérée. */
+    fun editMessage(messageId: String, text: String) {
+        if (text.isNotBlank()) { val target = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { target.editMessage(messageId, text.trim()) } }
+    }
+
     /** Réponse à un message précis (glisser vers la gauche). */
     fun sendReply(text: String, quote: String) {
         if (text.isNotBlank()) repository.sendReply(text.trim(), quote)

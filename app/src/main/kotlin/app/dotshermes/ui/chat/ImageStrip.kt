@@ -90,7 +90,7 @@ fun ImageStrip(images: List<ChatImage>, modifier: Modifier = Modifier) {
     var viewing by remember { mutableStateOf<ChatImage?>(null) }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         images.forEach { image ->
-            ImageTile(image, ratio = if (images.size == 1) 4f / 3f else 0.8f, modifier = Modifier.weight(1f)) { viewing = image }
+            ImageTile(image, ratio = if (images.size == 1) 16f / 10f else 0.85f, modifier = Modifier.weight(1f)) { viewing = image }
         }
     }
     viewing?.let { ImageViewer(it) { viewing = null } }
@@ -101,8 +101,8 @@ private fun ImageTile(image: ChatImage, ratio: Float, modifier: Modifier, onOpen
     val picture = rememberPicture(image.path, 720)
     val label = image.caption.ifBlank { stringResource(R.string.image_picture) }
     val openLabel = stringResource(R.string.image_open)
-    Column(modifier) {
-        Box(Modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(18.dp)).background(Ink.Fill)
+    Column(modifier.clip(RoundedCornerShape(18.dp)).background(Ink.Fill)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(ratio).background(Ink.Fill)
             .clickable(enabled = picture is Picture.Ready, role = Role.Image, onClickLabel = openLabel, onClick = onOpen)
             .semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
             when (picture) {
@@ -115,9 +115,11 @@ private fun ImageTile(image: ChatImage, ratio: Float, modifier: Modifier, onOpen
                 }
             }
         }
-        if (image.caption.isNotBlank()) Text(image.caption, style = MaterialTheme.typography.labelSmall, color = Ink.Secondary,
-            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp))
-        SourceLink(image.source, Modifier.padding(start = 4.dp))
+        Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp)) {
+            if (image.caption.isNotBlank()) Text(image.caption, style = MaterialTheme.typography.labelLarge, color = Ink.Primary,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
+            SourceLink(image.source)
+        }
     }
 }
 

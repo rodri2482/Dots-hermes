@@ -358,13 +358,15 @@ fun DotEditor(
             GroupedCard {
                 Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                     DotSpecies.entries.forEach { option ->
+                        val chosen = option == speciesValue
+                        val own = if (chosen) palette else DotPalettes.all.firstOrNull { it.id == option.signaturePalette } ?: palette
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(if (option == speciesValue) palette.light else Color.Transparent)
+                            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(if (chosen) selectedTint(palette) else Color.Transparent)
                                 .clickable { species = option.name }.padding(6.dp),
                         ) {
-                            ClayDot(palette, Modifier.size(58.dp), accessory = DotAccessory.WingedCap, species = option, showShadow = false)
-                            Text(stringResource(option.label), style = MaterialTheme.typography.labelSmall, color = Ink.Secondary)
+                            ClayDot(own, Modifier.size(58.dp), accessory = DotAccessory.WingedCap, species = option, showShadow = false)
+                            Text(stringResource(option.label), style = MaterialTheme.typography.labelSmall, color = if (chosen) Ink.Primary else Ink.Secondary)
                         }
                     }
                 }
@@ -444,6 +446,10 @@ private fun Segmented(labels: List<String>, selected: Int, onSelect: (Int) -> Un
         }
     }
 }
+
+/** Fond d'une mascotte choisie : pastel en clair, teinte profonde en sombre (le pastel y faisait une tache claire). */
+private fun selectedTint(palette: DotPalette): Color =
+    if (Ink.dark) androidx.compose.ui.graphics.lerp(Color(0xFF1C1C20), palette.base, 0.26f) else palette.light
 
 @Composable
 private fun Swatch(palette: DotPalette, selected: Boolean, onClick: () -> Unit) {

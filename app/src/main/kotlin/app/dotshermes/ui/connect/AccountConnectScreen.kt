@@ -58,7 +58,8 @@ fun AccountConnectScreen(
             currentModel = initialModel.takeIf { initialProvider == ApiProvider.Local.id },
             onUse = onDirect,
             onBack = if (editing) onCancelEdit else ({ mode = ApiProvider.Groq.id }),
-            onCancel = onCancelAdd.takeIf { adding })
+            onCancel = onCancelAdd.takeIf { adding } ?: onCancelEdit.takeIf { editing },
+            onOnline = { mode = it.id })
     } else key(provider, initialModel) {
         DirectConnectForm(provider, appearance, initialModel.takeIf { initialProvider == provider.id }.orEmpty(), onModels, onDirect,
             recoveryFailure.takeIf { initialProvider == provider.id },

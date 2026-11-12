@@ -573,4 +573,24 @@ Paste a Groq API key to get started.</string>
     <string name="image_source">Open the source: %1$s</string>
     <string name="music_needs_screen">%1$s opened but did not start the song. With screen access, Claydot can press play for you.</string>
     <string name="notif_card_title">Claydot needs your answer</string>
+    <string name="local_section_ready">On your phone</string>
+    <string name="local_section_download">Download</string>
+    <string name="local_section_online">Online models</string>
+    <string name="local_recommended_line">Recommended for your phone</string>
+    <string name="online_groq_note">Free key · fastest · can use your phone</string>
+    <string name="online_chatgpt_title">ChatGPT</string>
+    <string name="online_chatgpt_note">OpenAI API key · chat only</string>
+    <string name="online_claude_title">Claude</string>
+    <string name="online_claude_note">Anthropic API key · chat only</string>
+    <string name="local_note_gemma3">Tiny and very fast, for chatting.</string>
+    <string name="local_note_qwen25">Balanced, many languages, uses tools.</string>
+    <string name="doing_agent">Talking to another agent…</string>
+    <string name="msg_edit">Edit message</string>
+    <string name="msg_select">Select text</string>
+    <string name="msg_editing">Editing message</string>
+    <string name="msg_like">Good answer</string>
+    <string name="msg_dislike">Bad answer</string>
+    <string name="local_note_gemma4_e4b">Most capable, sees photos. For 8 GB+ phones.</string>
+    <string name="local_note_qwen4b">Strong reasoning, uses tools. For 8 GB+ phones.</string>
+    <string name="local_note_smollm">Smallest and fastest, simple chat.</string>
 </resources>

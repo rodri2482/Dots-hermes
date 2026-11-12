@@ -509,4 +509,24 @@
     <string name="image_source">打开来源：%1$s</string>
     <string name="music_needs_screen">%1$s 已打开，但没有开始播放。允许访问屏幕后，Claydot 可以替你点播放。</string>
     <string name="notif_card_title">Claydot 需要你的回答</string>
+    <string name="local_section_ready">已在手机上</string>
+    <string name="local_section_download">可下载</string>
+    <string name="local_section_online">在线模型</string>
+    <string name="local_recommended_line">推荐用于你的手机</string>
+    <string name="online_groq_note">免费密钥 · 最快 · 可操作你的手机</string>
+    <string name="online_chatgpt_title">ChatGPT</string>
+    <string name="online_chatgpt_note">OpenAI API 密钥 · 仅聊天</string>
+    <string name="online_claude_title">Claude</string>
+    <string name="online_claude_note">Anthropic API 密钥 · 仅聊天</string>
+    <string name="local_note_gemma3">很小很快，适合聊天。</string>
+    <string name="local_note_qwen25">均衡，多语言，可使用工具。</string>
+    <string name="doing_agent">正在与另一个助手对话…</string>
+    <string name="msg_edit">编辑消息</string>
+    <string name="msg_select">选择文本</string>
+    <string name="msg_editing">正在编辑消息</string>
+    <string name="msg_like">好回答</string>
+    <string name="msg_dislike">差回答</string>
+    <string name="local_note_gemma4_e4b">能力最强，能看图片。适合 8 GB 以上手机。</string>
+    <string name="local_note_qwen4b">推理能力强，可使用工具。适合 8 GB 以上手机。</string>
+    <string name="local_note_smollm">最小最快，简单聊天。</string>
 </resources>

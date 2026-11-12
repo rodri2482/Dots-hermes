@@ -8,10 +8,11 @@ import org.junit.Test
 class CompanionVoiceTest {
 
 
-    @Test fun `persona carries the name, the tone and the spoken hint`() {
+    @Test fun `persona carries the name, a tone that follows the user, and the spoken hint`() {
         val cheeky = personaPrompt(Personality.Cheeky, "Groq", spoken = true)
         assertTrue(cheeky.contains("You are Groq"))
-        assertTrue(cheeky.contains("cheeky"))
+        assertTrue(cheeky.contains("mirror their energy"))
+        assertFalse(cheeky.contains("Tone today"))
         assertTrue(cheeky.contains("read aloud"))
         assertFalse(personaPrompt(Personality.Calm, "Dot", spoken = false).contains("read aloud"))
     }

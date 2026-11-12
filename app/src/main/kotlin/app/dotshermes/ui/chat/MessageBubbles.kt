@@ -34,6 +34,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.rounded.ThumbUpOffAlt
+import androidx.compose.material.icons.rounded.ThumbDown
+import androidx.compose.material.icons.rounded.ThumbDownOffAlt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import app.dotshermes.ui.theme.tabular
@@ -97,6 +109,8 @@ fun MessageRow(
     reactionsEnabled: Boolean = true,
     /** Voix réglée (compte direct) : un lien « Écouter » lit cette réponse ; null = pas de lien. */
     onListen: (() -> Unit)? = null,
+    /** Message de l'utilisateur modifiable (menu de l'appui long) ; null = pas de « Modifier ». */
+    onEdit: (() -> Unit)? = null,
 ) {
     val message = row.message
     val fromUser = message.sender == Sender.User
@@ -106,7 +120,7 @@ fun MessageRow(
     ) {
         speakerLook?.let { SpeakerHeader(it) }
         when (val content = message.content) {
-            is MessageContent.Text -> TextBubble(message, content.text, fromUser, row.groupedWithPrev, row.groupedWithNext, onReact, reactionsEnabled)
+            is MessageContent.Text -> TextBubble(message, content.text, fromUser, row.groupedWithPrev, row.groupedWithNext, onReact, reactionsEnabled, onEdit)
             is MessageContent.Task -> TaskCard(content, Modifier.fillMaxWidth(0.86f))
             is MessageContent.Approval -> ApprovalCard(content, onApproval, Modifier.fillMaxWidth(0.86f))
             is MessageContent.Clarify -> ClarifyCard(content, onClarify, Modifier.fillMaxWidth(0.86f))
@@ -183,10 +197,12 @@ private fun TextBubble(
     groupedWithNext: Boolean,
     onReact: (String) -> Unit,
     reactionsEnabled: Boolean,
+    onEdit: (() -> Unit)? = null,
 ) {
     val palette = LocalDotPalette.current
     val haptics = LocalHapticFeedback.current
-    var pickerOpen by remember(reactionsEnabled) { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     val round = 20.dp
     val tight = 6.dp
@@ -205,13 +221,8 @@ private fun TextBubble(
     val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
     val bubbleMaxWidth = if (screenWidthDp < 600.dp) 296.dp else (screenWidthDp * 0.72f).coerceIn(296.dp, 720.dp)
 
-    // Séparation des gestes : l'appui long SUR le texte sélectionne (menu Copier),
-    // l'appui long HORS texte ouvre le picker de réactions. Il faut donc savoir où
-    // tombe le doigt : on relève la zone de texte et l'origine de la bulle en
-    // coordonnées racine, puis on compare au point touché.
-    var textBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
-    var bubbleOriginInRoot by remember { mutableStateOf(Offset.Zero) }
-
+    // Appui long n'importe où sur la bulle : le menu (réactions, Copier, Modifier, Sélectionner le texte),
+    // jamais une sélection de texte d'emblée. Double toucher : ❤️.
     Box {
         Box(
             modifier = Modifier
@@ -219,51 +230,20 @@ private fun TextBubble(
                 .widthIn(max = bubbleMaxWidth)
                 .clip(shape)
                 .background(if (fromUser) palette.base else Ink.AgentBubble)
-                .onGloballyPositioned { bubbleOriginInRoot = it.positionInRoot() }
-                // combinedClickable SANS onLongClick : c'était lui qui volait l'appui long
-                // au SelectionContainer (le picker d'émojis s'ouvrait au lieu du sélecteur).
-                .then(if (reactionsEnabled) Modifier.combinedClickable(
+                .combinedClickable(
                     onClick = {},
-                    onDoubleClick = { onReact("❤️") },
+                    onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true },
                 )
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val press = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                            try {
-                                awaitLongPressOrCancellation(down.id)
-                            } catch (e: PointerEventTimeoutCancellationException) {
-                                null
-                            }
-                        }
-                        if (press != null) {
-                            val rootPoint = bubbleOriginInRoot + press.position
-                            val onText = textBoundsInRoot?.contains(rootPoint) == true
-                            if (!onText) {
-                                // Hors du texte : c'est le geste « réactions ».
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                pickerOpen = true
-                                press.consume()
-                            }
-                            // Sur le texte : on ne consomme PAS, pour laisser
-                            // SelectionContainer détecter l'appui long et afficher le menu Copier.
-                        }
-                    }
-                } else Modifier)
                 .padding(horizontal = 14.dp, vertical = 9.dp),
         ) {
             val ink = if (fromUser) palette.onBase else Ink.Primary
             Column {
             message.quote?.let { QuoteBlock(it, fromUser, ink) }
             // L'utilisateur tape du texte simple ; l'agent répond en markdown complet.
-            SelectionContainer {
-                Box(Modifier.onGloballyPositioned { textBoundsInRoot = it.boundsInRoot() }) {
-                    if (fromUser) {
-                        Text(text, style = MaterialTheme.typography.bodyLarge, color = ink)
-                    } else {
-                        RichMarkdown(rememberRevealed(message, text), ink = ink, link = palette.deep)
-                    }
-                }
+            if (fromUser) {
+                Text(text, style = MaterialTheme.typography.bodyLarge, color = ink)
+            } else {
+                RichMarkdown(rememberRevealed(message, text), ink = ink, link = palette.deep)
             }
             }
         }
@@ -276,15 +256,15 @@ private fun TextBubble(
                     .offset(x = if (fromUser) (-8).dp else 8.dp),
             )
         }
-        if (pickerOpen && reactionsEnabled) {
-            ReactionPicker(
-                selected = message.reactions[Sender.User],
+        if (menuOpen) {
+            MessageMenu(
+                fromUser = fromUser,
+                feedback = message.reactions[Sender.User],
                 anchorEnd = fromUser,
-                onPick = { emoji ->
-                    pickerOpen = false
-                    onReact(emoji)
-                },
-                onDismiss = { pickerOpen = false },
+                onCopy = { menuOpen = false; clipboard.setText(androidx.compose.ui.text.AnnotatedString(text)) },
+                onEdit = onEdit?.let { edit -> { menuOpen = false; edit() } },
+                onFeedback = if (!fromUser && reactionsEnabled) ({ emoji -> menuOpen = false; onReact(emoji) }) else null,
+                onDismiss = { menuOpen = false },
             )
         }
     }
@@ -307,6 +287,59 @@ private fun ReactionBadge(emojis: List<String>, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         emojis.forEach { Text(it, fontSize = 15.sp) }
+    }
+}
+
+/**
+ * Le menu de l'appui long, en icônes : ses propres messages → Copier, Modifier ; une réponse de l'IA → Copier,
+ * J'aime, Je n'aime pas (le choix actuel est surligné). Chaque icône a sa description pour TalkBack.
+ */
+@Composable
+private fun MessageMenu(
+    fromUser: Boolean,
+    feedback: String?,
+    anchorEnd: Boolean,
+    onCopy: () -> Unit,
+    onEdit: (() -> Unit)?,
+    onFeedback: ((String) -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    val visible = remember { MutableTransitionState(false).apply { targetState = true } }
+    Popup(
+        alignment = if (anchorEnd) Alignment.TopEnd else Alignment.TopStart,
+        offset = IntOffset(0, with(LocalDensity.current) { (-56).dp.roundToPx() }),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        AnimatedVisibility(
+            visibleState = visible,
+            enter = scaleIn(initialScale = 0.85f, transformOrigin = TransformOrigin(if (anchorEnd) 1f else 0f, 1f)) + fadeIn(),
+        ) {
+            Row(
+                Modifier.padding(8.dp).shadow(12.dp, CircleShape).clip(CircleShape).background(Ink.Raised).padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MenuIcon(Icons.Rounded.ContentCopy, stringResource(R.string.code_copy), onClick = onCopy)
+                if (fromUser) onEdit?.let { MenuIcon(Icons.Rounded.Edit, stringResource(R.string.msg_edit), onClick = it) }
+                onFeedback?.let { give ->
+                    MenuIcon(if (feedback == "👍") Icons.Rounded.ThumbUp else Icons.Rounded.ThumbUpOffAlt, stringResource(R.string.msg_like),
+                        on = feedback == "👍") { give("👍") }
+                    MenuIcon(if (feedback == "👎") Icons.Rounded.ThumbDown else Icons.Rounded.ThumbDownOffAlt, stringResource(R.string.msg_dislike),
+                        on = feedback == "👎") { give("👎") }
+                }
+            }
+        }
+    }
+}
+
+/** Une icône du menu : cible de 48 dp, bleue quand elle est choisie. */
+@Composable
+private fun MenuIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean = false, onClick: () -> Unit) {
+    Box(
+        Modifier.size(48.dp).clip(CircleShape).clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.material3.Icon(icon, label, tint = if (on) LocalDotPalette.current.deep else Ink.Primary, modifier = Modifier.size(20.dp))
     }
 }
 

@@ -60,5 +60,13 @@ object Ink {
     val Danger get() = if (dark) Color(0xFFFF5A50) else Color(0xFFFF3B30)
 }
 
+/**
+ * Accent du fil de discussion : un bleu commun à toutes les mascottes (bulles de l'utilisateur, boutons, choix),
+ * plus clair en thème sombre pour rester lisible. La couleur choisie dans la fiche teinte la mascotte elle-même.
+ */
+fun chatAccent(dark: Boolean): DotPalette = if (dark)
+    DotPalette("accent", R.string.color_sky, Color(0xFF2F8CFF), Color(0xFF7DB6FF), Color(0xFF15263D), Color.White)
+else DotPalette("accent", R.string.color_sky, Color(0xFF1677F2), Color(0xFF0E62D0), Color(0xFFE7F0FE), Color.White)
+
 /** Préférence d'affichage, réglée dans la fiche du dot. */
 enum class ThemeMode(@StringRes val label: Int) { System(R.string.theme_auto), Light(R.string.theme_light), Dark(R.string.theme_dark) }

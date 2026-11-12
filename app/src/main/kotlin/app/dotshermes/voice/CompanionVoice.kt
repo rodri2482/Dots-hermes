@@ -37,12 +37,10 @@ and suggest a qualified person when it matters. Always reply in the language the
 fun personaPrompt(personality: Personality, name: String, spoken: Boolean): String = buildString {
     append(if (name.equals("Claydot", ignoreCase = true)) "You are Claydot." else "You are $name, a Claydot companion (the user named you $name).")
     append("\n\n").append(ClaydotCharacter).append("\n\n")
-    append(when (personality) {
-        Personality.Calm -> "Tone today: calm. Gentle, clear and reassuring; little humour, no emoji."
-        Personality.Playful -> "Tone today: playful. Upbeat and light-hearted, casual words, an emoji now and then."
-        Personality.Cheeky -> "Tone today: cheeky. Witty, you tease the user a little and use friendly nicknames, " +
-            "but you are never mean, and the attitude never changes the quality or truth of your answers."
-    })
+    // Plus de réglage de personnalité : le ton suit l'utilisateur, message après message.
+    append("Your tone follows the user: mirror their energy, formality, slang, message length and emoji use. " +
+        "If they joke, joke back; if they are stressed, sad or in a hurry, be calm, gentle and brief. " +
+        "The tone never changes the quality or truth of your answers.")
     if (spoken) append(" Your replies are read aloud: keep them short and speakable, without tables, code blocks, links or long lists unless asked.")
 }
 

@@ -166,6 +166,8 @@ fun ChatScreen(
     onScrolled: () -> Unit = {},
     /** Réponse à un message précis (glisser une bulle vers la gauche) ; null : geste désactivé. */
     onSendReply: ((text: String, quote: String) -> Unit)? = null,
+    /** Compte direct : modifier un message envoyé (appui long → Modifier) ; null = pas de « Modifier ». */
+    onEdit: ((messageId: String, text: String) -> Unit)? = null,
     onReact: (messageId: String, emoji: String) -> Unit,
     onApproval: (messageId: String, approved: Boolean) -> Unit,
     onClarify: (messageId: String, response: String) -> Unit,
@@ -253,6 +255,9 @@ fun ChatScreen(
     var pendingAttachment by remember { mutableStateOf<Uri?>(null) }
     // Message auquel on répond (glissé vers la gauche) : qui l'a écrit et son texte cité.
     var replyTo by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // Message en cours de modification : son identifiant et son texte d'origine.
+    var editing by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val editingLabel = stringResource(R.string.msg_editing)
     val focusComposer = remember { androidx.compose.ui.focus.FocusRequester() }
     // Partage ou widget : le texte dans le champ, la photo en pièce jointe (si le modèle voit), le clavier ouvert.
     val incoming by app.dotshermes.IncomingContent.pending.collectAsStateWithLifecycle()
@@ -280,9 +285,15 @@ fun ChatScreen(
             suggestionsOpen = false
             return
         }
+        val edited = editing
         val reply = replyTo
-        if (reply != null && onSendReply != null && text.isNotBlank()) onSendReply(text, reply.second) else onSend(text)
+        when {
+            edited != null && onEdit != null && text.isNotBlank() -> onEdit(edited.first, text)
+            reply != null && onSendReply != null && text.isNotBlank() -> onSendReply(text, reply.second)
+            else -> onSend(text)
+        }
         replyTo = null
+        editing = null
         draft = ""
         suggestionsOpen = false
     }
@@ -291,6 +302,8 @@ fun ChatScreen(
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerHeight = with(LocalDensity.current) { headerHeightPx.toDp() }
 
+    // Dans le fil, l'accent est le bleu commun ; la mascotte de l'en-tête garde sa couleur.
+    androidx.compose.runtime.CompositionLocalProvider(LocalDotPalette provides app.dotshermes.ui.theme.chatAccent(Ink.dark)) {
     Box(Modifier.fillMaxSize().background(Ink.Surface)
         .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.displayCutout.only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal))) {
         Box(Modifier.fillMaxWidth().height(320.dp).background(Brush.verticalGradient(listOf(palette.light, Ink.Surface))))
@@ -329,6 +342,11 @@ fun ChatScreen(
                                 onSeekVoice = { fraction -> voice.onSeek(row.message.id, fraction) },
                                 attachments = attachments,
                                 onTakeover = onTakeover,
+                                onEdit = onEdit?.takeIf { row.message.sender == app.dotshermes.data.model.Sender.User && state.activity == AgentActivity.Idle }
+                                    ?.let { { (row.message.content as? app.dotshermes.data.model.MessageContent.Text)?.text?.let { original ->
+                                        editing = row.message.id to original; replyTo = null; draft = original
+                                        runCatching { focusComposer.requestFocus() }
+                                    } } },
                                 onListen = onListen?.let { listen -> (row.message.content as? app.dotshermes.data.model.MessageContent.Text)?.let { { listen(it.text) } } },
                             ) }
                             is ChatRow.Tools -> ToolTrail(
@@ -342,6 +360,8 @@ fun ChatScreen(
                     }
                 }
             }
+            // L'en-tête garde la couleur de la mascotte (ligne d'état, menu des modèles) ; le fil, l'accent bleu.
+            androidx.compose.runtime.CompositionLocalProvider(LocalDotPalette provides palette) {
             ChatHeader(
                 state.agentName, state.activity, connection, appearance, onOpenAgent,
                 Modifier.onSizeChanged { headerHeightPx = it.height },
@@ -356,6 +376,7 @@ fun ChatScreen(
                 otherAgentsUnread = otherAgentsUnread,
                 modelMenu = modelMenu,
             )
+            }
             // « Arrêter » flotte au-dessus du champ, comme la pastille de navigation : le fil ne saute pas.
             androidx.compose.animation.AnimatedVisibility(stopVisible, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
                 enter = fadeIn() + scaleIn(initialScale = 0.85f), exit = fadeOut() + scaleOut(targetScale = 0.85f)) {
@@ -412,8 +433,8 @@ fun ChatScreen(
                 onAttach = ::attach,
                 attachment = pendingAttachment,
                 onRemoveAttachment = { pendingAttachment = null },
-                replyTo = replyTo,
-                onCancelReply = { replyTo = null },
+                replyTo = editing?.let { editingLabel to it.second } ?: replyTo,
+                onCancelReply = { if (editing != null) draft = ""; replyTo = null; editing = null },
                 focusRequester = focusComposer,
                 room = state.room,
                 canOpenRoom = state.roomCandidates.isNotEmpty(),
@@ -428,6 +449,7 @@ fun ChatScreen(
                 },
             )
         }
+    }
     }
     if (roomSheetOpen) {
         RoomSheet(
@@ -468,7 +490,8 @@ private fun ChatHeader(
     Column(
         modifier
             .fillMaxWidth()
-            // Pas de fond : l'en-tête flotte, les messages défilent dessous (seules les pastilles ont leur fond).
+            // Blanc franc sous la barre d'état, qui s'évanouit vers le bas : les messages passent dessous.
+            .background(Brush.verticalGradient(0f to Ink.Surface, 0.7f to Ink.Surface.copy(alpha = 0.92f), 1f to Ink.Surface.copy(alpha = 0f)))
             .statusBarsPadding()
             .padding(top = 4.dp, bottom = 18.dp),
     ) {
@@ -512,7 +535,7 @@ private fun ChatHeader(
             }
             AnimatedContent(
                 // En plein débat, l'en-tête annonce qui a la parole ; le dot de la conversation reste au centre.
-                targetState = speakingName?.let { stringResource(R.string.room_speaking, it) } ?: if (!gatewayFeatures && (activity == AgentActivity.Idle || activity == AgentActivity.Reacting)) "" else activity.statusLabel(),
+                targetState = speakingName?.let { stringResource(R.string.room_speaking, it) } ?: activity.statusLabel(),
                 transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
                 label = "status",
             ) { label ->

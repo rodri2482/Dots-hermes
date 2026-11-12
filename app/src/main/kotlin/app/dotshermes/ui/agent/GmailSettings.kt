@@ -238,49 +238,6 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
                     }
                 }
 
-                // Agent de téléphone AutoGLM (Open-AutoGLM) : hébergeur, clé ; Claydot lui confie les tâches d'écran longues.
-                val agent = app.dotshermes.AppContainer.autoGlm
-                val agentState by agent.settings.collectAsStateWithLifecycle()
-                var agentKey by remember { mutableStateOf("") }
-                val scope = androidx.compose.runtime.rememberCoroutineScope()
-                Hairline(startIndent = 60.dp)
-                CollapsedHeader(Icons.Rounded.SmartToy, stringResource(R.string.autoglm_title),
-                    if (agentState.keySaved) agentState.host.label else stringResource(R.string.setting_off), open == "autoglm", { toggle("autoglm") })
-                SettingDetail(open == "autoglm") {
-                    SettingHint(stringResource(R.string.autoglm_hint))
-                    androidx.compose.foundation.layout.Row(Modifier.padding(top = 8.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                        app.dotshermes.data.direct.AutoGlm.Host.entries.forEach { host ->
-                            val on = host == agentState.host
-                            Text(host.label, style = MaterialTheme.typography.labelLarge,
-                                color = if (on) LocalDotPalette.current.onBase else LocalDotPalette.current.deep,
-                                modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(if (on) LocalDotPalette.current.base else LocalDotPalette.current.light)
-                                    .clickable { agent.setHost(host) }.padding(horizontal = 14.dp, vertical = 7.dp))
-                        }
-                    }
-                    if (agentState.keySaved) {
-                        SettingAction(stringResource(R.string.autoglm_remove)) { scope.launch { agent.forgetKey() } }
-                    } else {
-                        app.dotshermes.ui.connect.FieldRow(stringResource(R.string.autoglm_key), agentKey, { agentKey = it }, enabled = true, secret = true,
-                            placeholder = agentState.host.label)
-                        if (agentKey.isNotBlank()) SettingAction(stringResource(R.string.autoglm_save)) { scope.launch { agent.saveKey(agentKey); agentKey = "" } }
-                        else SettingAction(stringResource(R.string.autoglm_get_key, agentState.host.label)) {
-                            launch(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(agentState.host.keysUrl)))
-                        }
-                    }
-                }
-
-                // Les accès donnés se retirent dans Android (fiche de l'app) ; Claydot les redemandera au besoin.
-                Hairline(startIndent = 60.dp)
-                CollapsedHeader(Icons.Rounded.Lock, stringResource(R.string.permissions_title), stringResource(R.string.permissions_summary),
-                    open == "perms", { toggle("perms") })
-                SettingDetail(open == "perms") {
-                    SettingHint(stringResource(R.string.permissions_hint))
-                    SettingAction(stringResource(R.string.open_android_settings)) {
-                        launch(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            android.net.Uri.parse("package:" + context.packageName)))
-                    }
-                }
             }
         }
     }

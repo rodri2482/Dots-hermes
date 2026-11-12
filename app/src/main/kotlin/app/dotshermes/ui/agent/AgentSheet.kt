@@ -108,14 +108,18 @@ fun AgentSettings(
                 // Compte direct : une seule carte, sans jargon (fournisseur et modèle, effacer le fil).
                 SectionLabel(stringResource(R.string.settings_account))
                 GroupedCard {
+                    // Modèle du téléphone : il se change depuis la pastille du fil ; la ligne n'ouvre plus la liste des modèles.
+                    // Compte avec clé (Groq, ChatGPT, Claude) : un toucher ouvre le formulaire de clé.
+                    val keyAccount = connected?.gatewayUrl != app.dotshermes.data.direct.ApiProvider.Local.title
                     Row(
-                        Modifier.fillMaxWidth().clickable(onClick = onEditDirect).padding(horizontal = 16.dp, vertical = 13.dp),
+                        Modifier.fillMaxWidth().then(if (keyAccount) Modifier.clickable(onClick = onEditDirect) else Modifier)
+                            .padding(horizontal = 16.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(connected?.gatewayUrl ?: "—", style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
                         Text(profile.tagline, style = MaterialTheme.typography.bodyMedium, color = Ink.Secondary, maxLines = 1,
                             overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                        Text("  ›", style = MaterialTheme.typography.bodyLarge, color = Ink.Tertiary)
+                        if (keyAccount) Text("  ›", style = MaterialTheme.typography.bodyLarge, color = Ink.Tertiary)
                     }
                     onOpenChats?.let {
                         Hairline()
@@ -193,17 +197,11 @@ fun AgentSettings(
                 }
             }
 
-            // Compte direct (Claydot) : personnalité, voix et outils, sous l'apparence comme dans la fiche d'origine.
-            if (!gatewayFeatures) {
-                companion?.let { CompanionSettings(it) }
-                // Les outils (Gmail) passent par les appels de fonction de Groq.
-                if (connected?.gatewayUrl in setOf(app.dotshermes.data.direct.ApiProvider.Groq.title, app.dotshermes.data.direct.ApiProvider.Local.title)) {
-                    GmailSettings(app.dotshermes.AppContainer.gmail)
-                    PhoneSettings(app.dotshermes.AppContainer.phoneActions)
-                    (app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value?.let { app.dotshermes.AppContainer.agents.repo(it) } as? app.dotshermes.data.direct.DirectChatRepository)
-                        ?.let { MemorySettings(it) }
-                    RoutinesSettings(app.dotshermes.AppContainer.routines, app.dotshermes.AppContainer.agents.activeId.collectAsStateWithLifecycle().value, onTemplate = onRoutineTemplate)
-                }
+            // Compte direct : Gmail et l'accès au téléphone. Le ton suit l'utilisateur ; mémoire, routines et accès
+            // se règlent dans la conversation (l'IA demande ce qu'il lui faut par une carte).
+            if (!gatewayFeatures && connected?.gatewayUrl in setOf(app.dotshermes.data.direct.ApiProvider.Groq.title, app.dotshermes.data.direct.ApiProvider.Local.title)) {
+                GmailSettings(app.dotshermes.AppContainer.gmail)
+                PhoneSettings(app.dotshermes.AppContainer.phoneActions)
             }
 
             SectionLabel(stringResource(R.string.settings_app))
@@ -323,7 +321,7 @@ private fun SpeciesOption(species: DotSpecies, appearance: DotAppearance, select
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         ClayDot(own, Modifier.size(76.dp), mood = if (selected) DotMood.Happy else DotMood.Idle,
-            accessory = appearance.accessory, showShadow = false, species = species)
+            accessory = if (selected) appearance.accessory else DotAccessory.WingedCap, showShadow = false, species = species)
         Text(stringResource(species.label), style = MaterialTheme.typography.labelMedium, color = if (selected) palette.deep else Ink.Secondary)
     }
 }

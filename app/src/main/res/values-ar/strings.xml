@@ -569,4 +569,24 @@
     <string name="image_source">فتح المصدر: %1$s</string>
     <string name="music_needs_screen">فُتح %1$s لكنه لم يشغّل الأغنية. مع الوصول إلى الشاشة، يمكن لـ Claydot الضغط على تشغيل نيابةً عنك.</string>
     <string name="notif_card_title">يحتاج Claydot إلى ردك</string>
+    <string name="local_section_ready">على هاتفك</string>
+    <string name="local_section_download">للتنزيل</string>
+    <string name="local_section_online">نماذج عبر الإنترنت</string>
+    <string name="local_recommended_line">موصى به لهاتفك</string>
+    <string name="online_groq_note">مفتاح مجاني · الأسرع · يمكنه استخدام هاتفك</string>
+    <string name="online_chatgpt_title">ChatGPT</string>
+    <string name="online_chatgpt_note">مفتاح API من OpenAI · محادثة فقط</string>
+    <string name="online_claude_title">Claude</string>
+    <string name="online_claude_note">مفتاح API من Anthropic · محادثة فقط</string>
+    <string name="local_note_gemma3">صغير جدًا وسريع جدًا، للدردشة.</string>
+    <string name="local_note_qwen25">متوازن، لغات كثيرة، يستخدم الأدوات.</string>
+    <string name="doing_agent">يتحدث مع وكيل آخر…</string>
+    <string name="msg_edit">تعديل الرسالة</string>
+    <string name="msg_select">تحديد النص</string>
+    <string name="msg_editing">جارٍ تعديل الرسالة</string>
+    <string name="msg_like">إجابة جيدة</string>
+    <string name="msg_dislike">إجابة سيئة</string>
+    <string name="local_note_gemma4_e4b">الأقدر، يفهم الصور. للهواتف بذاكرة 8 جيجابايت فأكثر.</string>
+    <string name="local_note_qwen4b">تفكير قوي، يستخدم الأدوات. للهواتف بذاكرة 8 جيجابايت فأكثر.</string>
+    <string name="local_note_smollm">الأصغر والأسرع، دردشة بسيطة.</string>
 </resources>

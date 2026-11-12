@@ -222,6 +222,7 @@ fun HermesApp(
                     onSend = viewModel::send,
                     scrollTarget = viewModel.scrollTarget.collectAsStateWithLifecycle().value, onScrolled = viewModel::scrolled,
                     onSendReply = if (!gatewayFeatures) viewModel::sendReply else null,
+                    onEdit = if (!gatewayFeatures) viewModel::editMessage else null,
                     onReact = viewModel::toggleReaction,
                     onApproval = viewModel::answerApproval,
                     onClarify = viewModel::answerClarify,
@@ -488,6 +489,9 @@ private fun SystemBarsFor(dark: Boolean) {
         val style = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
         else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
         activity.enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+        // Le fond de la fenêtre suit le thème choisi dans l'app (sombre même si le téléphone est en clair) :
+        // plus d'éclair blanc entre deux écrans ou à l'ouverture d'une feuille.
+        activity.window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(if (dark) 0xFF0E0E11.toInt() else AndroidColor.WHITE))
     }
 }
 

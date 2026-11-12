@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fond de l'app en thème sombre (Ink.Surface) : la fenêtre ne montre jamais de blanc entre deux écrans. -->
+    <color name="window_dark">#FF0E0E11</color>
+</resources>

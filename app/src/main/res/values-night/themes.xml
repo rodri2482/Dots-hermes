@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Thème sombre du téléphone : fond de fenêtre sombre, sans éclair blanc au lancement ni entre deux écrans. -->
+    <style name="Theme.DotsHermes" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_dark</item>
+    </style>
+</resources>

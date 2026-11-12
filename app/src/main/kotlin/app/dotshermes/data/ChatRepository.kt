@@ -93,6 +93,8 @@ interface ChatRepository {
     fun send(text: String)
     /** Réponse à un message précis (glisser vers la gauche) : [quote] est le texte cité. */
     fun sendReply(text: String, quote: String) = send(text)
+    /** Message envoyé modifié : lui et la suite du fil sont remplacés, puis le nouveau texte part (comptes directs). */
+    fun editMessage(messageId: String, text: String) = send(text)
     fun toggleReaction(messageId: String, emoji: String)
     fun answerApproval(messageId: String, approved: Boolean)
     fun answerClarify(messageId: String, response: String)

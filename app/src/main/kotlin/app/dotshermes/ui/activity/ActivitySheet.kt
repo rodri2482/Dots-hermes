@@ -151,20 +151,7 @@ fun ActivitySheet(
                 }
 
             }
-
-            SectionLabel(stringResource(R.string.activity_recent))
-            GroupedCard {
-                if (turns.isEmpty()) EmptyLine(stringResource(R.string.activity_nothing))
-                turns.forEachIndexed { i, turn ->
-                    if (i > 0) Hairline()
-                    TurnRow(turn, onHide = { onHideTurn(turn.id) })
-                }
-                if (turns.size > 1) {
-                    Hairline()
-                    Text(stringResource(R.string.activity_clear_recent), style = MaterialTheme.typography.bodyLarge, color = Ink.Danger,
-                        modifier = Modifier.fillMaxWidth().clickable(onClick = onClearRecent).padding(horizontal = 16.dp, vertical = 13.dp))
-                }
-            }
+            // Plus de liste « Récemment » : elle reprenait tous les messages de l'utilisateur.
         }
     }
 }

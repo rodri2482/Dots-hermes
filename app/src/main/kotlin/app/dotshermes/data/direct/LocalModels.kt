@@ -153,12 +153,30 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
                 "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
                 "gemma-4-E2B-it.litertlm", app.dotshermes.R.string.local_note_gemma4, "Google", minRamGb = 6, logo = app.dotshermes.R.drawable.logo_gemma,
                 vision = true, speculative = true),
+            // Gemma 4 E4B : le plus capable, pour les téléphones à 8 Go et plus (photos comprises).
+            LocalModel("gemma4-e4b", "Gemma 4 E4B", 3_659_530_240,
+                "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
+                "gemma-4-E4B-it.litertlm", app.dotshermes.R.string.local_note_gemma4_e4b, "Google", minRamGb = 8, logo = app.dotshermes.R.drawable.logo_gemma,
+                vision = true),
+            // Qwen 3.5 4B (int4 mixte) : raisonnement solide et outils, pour les téléphones à 8 Go et plus.
+            LocalModel("qwen3.5-4b", "Qwen 3.5 4B", 2_754_166_784,
+                "https://huggingface.co/litert-community/Qwen3.5-4B/resolve/main/Qwen3.5-4B_mixed_int4.litertlm",
+                "Qwen3.5-4B_mixed_int4.litertlm", app.dotshermes.R.string.local_note_qwen4b, "Alibaba Qwen", freshEngine = true, minRamGb = 8),
             LocalModel("qwen3.5-2b", "Qwen 3.5 2B", 2_119_744_416,
                 "https://huggingface.co/litert-community/Qwen3.5-2B/resolve/main/Qwen3.5-2B_int8.litertlm",
                 "Qwen3.5-2B_int8.litertlm", app.dotshermes.R.string.local_note_qwen, "Alibaba Qwen", freshEngine = true, minRamGb = 6),
             LocalModel("qwen3.5-0.8b", "Qwen 3.5 0.8B", 964_657_152,
                 "https://huggingface.co/litert-community/Qwen3.5-0.8B/resolve/main/Qwen3.5-0.8B_int8.litertlm",
                 "Qwen3.5-0.8B_int8.litertlm", app.dotshermes.R.string.local_note_qwen08, "Alibaba Qwen", freshEngine = true, minRamGb = 4),
+            // Gemma 3 1B : le plus léger des modèles de Google, très rapide, pour discuter.
+            LocalModel("gemma3-1b", "Gemma 3 1B", 584_417_280,
+                "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.litertlm",
+                "gemma3-1b-it-int4.litertlm", app.dotshermes.R.string.local_note_gemma3, "Google", chatOnly = true, minRamGb = 3,
+                logo = app.dotshermes.R.drawable.logo_gemma),
+            // Qwen 2.5 1.5B : bon équilibre, beaucoup de langues, appels d'outils.
+            LocalModel("qwen2.5-1.5b", "Qwen 2.5 1.5B", 1_597_922_856,
+                "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm",
+                "Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm", app.dotshermes.R.string.local_note_qwen25, "Alibaba Qwen", minRamGb = 4),
             LocalModel("lfm2.5-1.2b", "LFM 2.5 1.2B", 736_015_744,
                 "https://huggingface.co/litert-community/LFM2.5-1.2B-Instruct/resolve/main/LFM2.5-1.2B-Instruct_int4.litertlm",
                 "LFM2.5-1.2B-Instruct_int4.litertlm", app.dotshermes.R.string.local_note_lfm, "Liquid AI", minRamGb = 3, logo = app.dotshermes.R.drawable.logo_liquid),
@@ -167,6 +185,11 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
                 "https://huggingface.co/litert-community/Qwen3-0.6B-int4/resolve/main/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",
                 "qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm", app.dotshermes.R.string.local_note_qwen06, "Alibaba Qwen",
                 chatOnly = true, minRamGb = 2, chatTemplate = LocalProviderClient.QWEN3_NOTHINK_TEMPLATE),
+            // SmolLM2 360M : le plus petit et le plus rapide, pour discuter simplement.
+            LocalModel("smollm2-360m", "SmolLM2 360M", 373_719_040,
+                "https://huggingface.co/litert-community/SmolLM2-360M-Instruct/resolve/main/SmolLM2_360M_instruct.litertlm",
+                "SmolLM2_360M_instruct.litertlm", app.dotshermes.R.string.local_note_smollm, "Hugging Face", chatOnly = true, minRamGb = 2,
+                logo = app.dotshermes.R.drawable.logo_generic),
         )
 
         fun byId(id: String) = CATALOG.firstOrNull { it.id == id }
@@ -562,7 +585,7 @@ class DeviceGuard(private val context: Context) {
  */
 object DeviceTier {
     enum class Level(val idleReleaseMs: Long, val maxOutputTokens: Int, private val maxThreads: Int, val contextTokens: Int) {
-        Low(45_000L, 384, 2, 2_048), Mid(90_000L, 640, 4, 3_072), High(3 * 60_000L, 1024, 6, 4_096);
+        Low(60_000L, 384, 2, 2_048), Mid(150_000L, 640, 4, 3_072), High(5 * 60_000L, 1024, 6, 4_096);
 
         /** Décodage spéculatif (un brouillon en plus en mémoire) : seulement avec beaucoup de mémoire vive. */
         val speculative: Boolean get() = this == High && bigRam

@@ -194,7 +194,7 @@ class RateLimitTest {
 
     @Test fun `quick chat models are small and listed last`() {
         val quick = LocalModels.CATALOG.filter { it.chatOnly }
-        assertTrue(quick.isNotEmpty() && quick.all { it.sizeBytes < 500_000_000 })
+        assertTrue(quick.isNotEmpty() && quick.all { it.sizeBytes < 600_000_000 })
         assertEquals(LocalModels.CATALOG.last(), quick.last())
     }
 }

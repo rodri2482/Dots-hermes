@@ -141,6 +141,13 @@ class ImagesTest {
         assertEquals(null, pictureQuery("Post today's attendance in my WhatsApp group"))
     }
 
+    @Test fun `broken reaction tags from a small model never show`() {
+        assertEquals("Minecraft is a top pick.\n\nCheck the latest updates.",
+            withoutMarkdownImages("Minecraft is a top pick.\n[\uD83C\uDF89 That's a solid pick!]\n\nCheck the latest updates.\n[\uD83E\uDD14 Need help with anything else?]]"))
+        assertEquals("Hi there", withoutMarkdownImages("Hi [[react:\uD83D\uDE02]]there").replace("  ", " "))
+        assertEquals("See [the docs](https://x.org) for more", withoutMarkdownImages("See [the docs](https://x.org) for more"))
+    }
+
     @Test fun `markdown images written by the model never show`() {
         assertEquals("Hello\n\nthere", withoutMarkdownImages("Hello\n\n![x](https://made.up/x.png)\n\n\nthere"))
         assertEquals("No image here", withoutMarkdownImages("No image here"))
