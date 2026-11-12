@@ -346,8 +346,6 @@
     <string name="phone_section">الهاتف</string>
     <string name="phone_title">دع Claydot يستخدم هاتفك</string>
     <string name="phone_hint">الموسيقى والتطبيقات والمنبهات والرسائل. يسأل قبل أي أمر مهم.</string>
-    <string name="phone_confirm_title">يريد Claydot</string>
-    <string name="phone_do">نفّذ</string>
     <string name="chats_title">المحادثات</string>
     <string name="chats_new">محادثة جديدة</string>
     <string name="chats_untitled">محادثة جديدة</string>
@@ -395,7 +393,6 @@
     <string name="local_no_room">لا توجد مساحة كافية</string>
     <string name="local_progress">%1$s من %2$s</string>
     <string name="local_cancel">إلغاء</string>
-    <string name="local_use">استخدم هذا النموذج</string>
     <string name="local_in_use">قيد الاستخدام</string>
     <string name="local_failed">توقف التنزيل. حاول مرة أخرى.</string>
     <string name="local_loading">جارٍ تحميل النموذج… يستغرق بضع ثوانٍ في المرة الأولى.</string>
@@ -537,8 +534,6 @@
     <string name="permissions_title">الأذونات</string>
     <string name="permissions_summary">تُطلب عند الحاجة</string>
     <string name="permissions_hint">يطلبها Claydot في المحادثة عندما يحتاجها. أزل أيًا منها من إعدادات Android.</string>
-    <string name="permission_allow">سماح</string>
-    <string name="permission_restricted">إذا عرض Android «إعداد مقيّد»: معلومات التطبيق › ⋮ › السماح بالإعدادات المقيّدة.</string>
     <string name="access_contacts_title">جهات الاتصال والرسائل</string>
     <string name="access_contacts_detail">للعثور على جهات اتصالك وإرسال الرسائل التي توافق عليها.</string>
     <string name="access_notifications_title">قراءة إشعارات واتساب</string>
@@ -555,4 +550,17 @@
     <string name="widget_label">اسأل Claydot</string>
     <string name="widget_hint">اسأل Claydot…</string>
     <string name="widget_description">افتح محادثة مع Claydot بلمسة واحدة.</string>
+    <string name="card_access">مطلوب إذن</string>
+    <string name="card_handover">دورك على الشاشة</string>
+    <string name="card_custom_hint">اكتب إجابتك</string>
+    <string name="card_send">إرسال</string>
+    <string name="card_continue">متابعة</string>
+    <string name="card_waiting">بانتظار Android… عد إلى هنا عند الانتهاء.</string>
+    <string name="card_granted">تم منح الإذن</string>
+    <string name="card_not_granted">لم يُمنح</string>
+    <string name="card_declined">تم التخطي</string>
+    <string name="card_expired">لم تعد نشطة</string>
+    <string name="card_pick_several">اختر واحدًا أو أكثر</string>
+    <string name="card_open_app">فتح Claydot</string>
+    <string name="doing_ask">بانتظار إجابتك…</string>
 </resources>

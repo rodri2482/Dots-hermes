@@ -139,7 +139,7 @@ fun AddModelSheet(
 
 /** Une ligne compacte : logo, nom (et « Recommandé »), « taille · éditeur », une ligne de note ; le bouton à droite. */
 @Composable
-private fun SheetRow(
+internal fun SheetRow(
     @androidx.annotation.DrawableRes logo: Int, title: String, subtitle: String, note: String,
     recommended: Boolean = false, warning: String? = null,
     trailing: @Composable () -> Unit,
@@ -163,7 +163,7 @@ private fun SheetRow(
 }
 
 @Composable
-private fun SmallButton(text: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun SmallButton(text: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val palette = LocalDotPalette.current
     Text(text, style = MaterialTheme.typography.labelLarge, maxLines = 1,
         color = when { !enabled -> Ink.Tertiary; filled -> palette.onBase; else -> palette.deep },
@@ -172,6 +172,6 @@ private fun SmallButton(text: String, filled: Boolean, enabled: Boolean = true, 
 }
 
 @Composable
-private fun InUse() {
+internal fun InUse() {
     Icon(Icons.Rounded.Check, stringResource(R.string.local_in_use), tint = LocalDotPalette.current.deep, modifier = Modifier.padding(6.dp).size(20.dp))
 }

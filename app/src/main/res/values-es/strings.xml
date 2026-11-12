@@ -319,8 +319,6 @@
     <string name="phone_section">Teléfono</string>
     <string name="phone_title">Deja que Claydot use tu teléfono</string>
     <string name="phone_hint">Música, apps, alarmas y mensajes. Pregunta antes de hacer algo importante.</string>
-    <string name="phone_confirm_title">Claydot quiere</string>
-    <string name="phone_do">Hazlo</string>
     <string name="chats_title">Chats</string>
     <string name="chats_new">Nuevo chat</string>
     <string name="chats_untitled">Nuevo chat</string>
@@ -368,7 +366,6 @@
     <string name="local_no_room">No hay espacio suficiente</string>
     <string name="local_progress">%1$s de %2$s</string>
     <string name="local_cancel">Cancelar</string>
-    <string name="local_use">Usar este modelo</string>
     <string name="local_in_use">En uso</string>
     <string name="local_failed">La descarga se detuvo. Inténtalo de nuevo.</string>
     <string name="local_loading">Cargando el modelo… la primera vez tarda unos segundos.</string>
@@ -501,8 +498,6 @@
     <string name="permissions_title">Permisos</string>
     <string name="permissions_summary">Se piden cuando hacen falta</string>
     <string name="permissions_hint">Claydot los pide en el chat cuando los necesita. Quítalos cuando quieras en los ajustes de Android.</string>
-    <string name="permission_allow">Permitir</string>
-    <string name="permission_restricted">Si Android muestra “Ajuste restringido”: Información de la app › ⋮ › Permitir ajustes restringidos.</string>
     <string name="access_contacts_title">Contactos y mensajes</string>
     <string name="access_contacts_detail">Para encontrar a tus contactos y enviar los mensajes que apruebes.</string>
     <string name="access_notifications_title">Leer las notificaciones de WhatsApp</string>
@@ -519,4 +514,17 @@
     <string name="widget_label">Preguntar a Claydot</string>
     <string name="widget_hint">Pregunta a Claydot…</string>
     <string name="widget_description">Abre un chat con Claydot con un toque.</string>
+    <string name="card_access">Se necesita acceso</string>
+    <string name="card_handover">Tu turno en la pantalla</string>
+    <string name="card_custom_hint">Escribe tu respuesta</string>
+    <string name="card_send">Enviar</string>
+    <string name="card_continue">Continuar</string>
+    <string name="card_waiting">Esperando a Android… vuelve aquí cuando termines.</string>
+    <string name="card_granted">Acceso concedido</string>
+    <string name="card_not_granted">No concedido</string>
+    <string name="card_declined">Omitido</string>
+    <string name="card_expired">Ya no está activa</string>
+    <string name="card_pick_several">Elige una o varias</string>
+    <string name="card_open_app">Abrir Claydot</string>
+    <string name="doing_ask">Esperando tu respuesta…</string>
 </resources>

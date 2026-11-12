@@ -20,15 +20,22 @@ import app.dotshermes.R
 /**
  * Ce que l'utilisateur voit pendant que Claydot utilise l'écran : un curseur (rond orange) qui glisse
  * jusqu'à chaque endroit touché avec une onde au moment du toucher, et une pastille en haut
- * « Claydot utilise ton écran · Arrêter ». Deux fenêtres d'accessibilité : le curseur ne capte aucun
- * toucher (tout passe au travers), seule la pastille est touchable.
+ * « Claydot utilise ton écran · Arrêter ». Hors de l'app, la pastille s'agrandit : la dernière phrase de
+ * Claydot et sa question ouverte, avec ses réponses (on lit et on répond sans revenir dans Claydot).
+ * Deux fenêtres d'accessibilité : le curseur ne capte aucun toucher, seule la pastille est touchable.
  */
 internal class ScreenOverlay(private val context: Context, private val onStop: () -> Unit) {
     private val windows = context.getSystemService(WindowManager::class.java)
     private val cursor = CursorView(context)
     private var cursorShown = false
-    private var pill: View? = null
+    private var pill: LinearLayout? = null
     private var active = false
+    private var note: app.dotshermes.data.direct.LiveNote? = null
+    private var appShown = true
+    private var wide = false
+    /** Cette tâche a montré la pastille (écran piloté, question) : sa réponse finale peut s'y afficher. */
+    private var sawTask = false
+    private val clearDone = Runnable { if (note?.done == true) { note = null; refresh() } }
     private val hide = Runnable { if (!active) removeCursor() }
 
     private fun dp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, context.resources.displayMetrics)
@@ -58,17 +65,36 @@ internal class ScreenOverlay(private val context: Context, private val onStop: (
     /** Tâche en cours (pastille + curseur) ou finie. */
     fun setActive(on: Boolean) {
         active = on
-        if (on) {
-            addCursor()
-            if (pill == null) pill = buildPill().also { view ->
-                runCatching { windows.addView(view, params(true, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
-                    .apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; y = dp(44f).toInt() }) }
-            }
-        } else {
-            pill?.let { runCatching { windows.removeView(it) } }; pill = null
-            cursor.removeCallbacks(hide); cursor.postDelayed(hide, 1_500)
-        }
+        if (on) addCursor() else { cursor.removeCallbacks(hide); cursor.postDelayed(hide, 1_500) }
+        refresh()
     }
+
+    /** Ce que Claydot dit et demande ; [shown] : l'app est à l'écran (le fil montre déjà tout). */
+    fun setNote(value: app.dotshermes.data.direct.LiveNote?, shown: Boolean) {
+        if (value == null) sawTask = false
+        note = value; appShown = shown
+        cursor.removeCallbacks(clearDone)
+        if (value?.done == true) cursor.postDelayed(clearDone, DONE_SHOWN_MS)
+        refresh()
+    }
+
+    private fun refresh() {
+        val current = note
+        if (active || current?.card != null) sawTask = true
+        val expanded = !appShown && (current?.card != null || ((active || (sawTask && current?.done == true)) && !current?.text.isNullOrBlank()))
+        if (!active && !expanded) { pill?.let { runCatching { windows.removeView(it) } }; pill = null; return }
+        val view = pill ?: buildPill().also { v ->
+            pill = v
+            runCatching { windows.addView(v, panelParams(expanded)) }
+            wide = expanded
+        }
+        if (wide != expanded) { wide = expanded; runCatching { windows.updateViewLayout(view, panelParams(expanded)) } }
+        fill(view, if (expanded) current else null)
+    }
+
+    private fun panelParams(expanded: Boolean) = params(true,
+        if (expanded) context.resources.displayMetrics.widthPixels - dp(24f).toInt() else WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; y = dp(44f).toInt() }
 
     /** Le curseur glisse jusqu'à (x, y) puis une onde marque le toucher ; un appui long garde l'onde plus longtemps. */
     fun tapAt(x: Float, y: Float, long: Boolean) {
@@ -83,35 +109,115 @@ internal class ScreenOverlay(private val context: Context, private val onStop: (
         if (!active) { cursor.removeCallbacks(hide); cursor.postDelayed(hide, 2_500) }
     }
 
-    fun dispose() { active = false; pill?.let { runCatching { windows.removeView(it) } }; pill = null; removeCursor() }
+    fun dispose() { active = false; note = null; pill?.let { runCatching { windows.removeView(it) } }; pill = null; removeCursor() }
 
-    private fun buildPill(): View = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
+    private fun buildPill(): LinearLayout = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
         val padH = dp(14f).toInt(); val padV = dp(8f).toInt()
         setPadding(padH, padV, dp(6f).toInt(), padV)
-        background = GradientDrawable().apply { cornerRadius = dp(22f); setColor(Color.argb(235, 24, 24, 28)) }
+        background = GradientDrawable().apply { cornerRadius = dp(22f); setColor(Color.argb(240, 24, 24, 28)) }
         elevation = dp(6f)
-        addView(View(context).apply {
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(CURSOR_COLOR) }
-            layoutParams = LinearLayout.LayoutParams(dp(9f).toInt(), dp(9f).toInt()).apply { marginEnd = dp(8f).toInt() }
-        })
-        addView(TextView(context).apply {
-            text = context.getString(R.string.screen_overlay_working)
-            setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-        })
-        addView(TextView(context).apply {
-            text = context.getString(R.string.screen_overlay_stop)
-            setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            paint.isFakeBoldText = true
-            background = GradientDrawable().apply { cornerRadius = dp(16f); setColor(Color.argb(255, 214, 59, 47)) }
-            setPadding(dp(12f).toInt(), dp(5f).toInt(), dp(12f).toInt(), dp(5f).toInt())
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(10f).toInt() }
-            setOnClickListener { onStop() }
-        })
     }
 
-    companion object { val CURSOR_COLOR = Color.rgb(255, 138, 61) }
+    /** La ligne d'en-tête (point, texte, Arrêter), puis, hors de l'app, ce que Claydot dit et demande. */
+    private fun fill(panel: LinearLayout, shown: app.dotshermes.data.direct.LiveNote?) {
+        panel.removeAllViews()
+        panel.addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(View(context).apply {
+                background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(CURSOR_COLOR) }
+                layoutParams = LinearLayout.LayoutParams(dp(9f).toInt(), dp(9f).toInt()).apply { marginEnd = dp(8f).toInt() }
+            })
+            addView(TextView(context).apply {
+                text = context.getString(if (active) R.string.screen_overlay_working else R.string.app_name)
+                setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                layoutParams = LinearLayout.LayoutParams(if (shown != null) 0 else LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, if (shown != null) 1f else 0f)
+            })
+            if (active) addView(button(context.getString(R.string.screen_overlay_stop), Color.argb(255, 214, 59, 47)) { onStop() })
+            else if (shown?.done == true) addView(button(context.getString(R.string.action_close), Color.argb(90, 255, 255, 255)) { note = null; refresh() })
+        })
+        if (shown == null) return
+        if (shown.text.isNotBlank() && shown.card == null) panel.addView(TextView(context).apply {
+            text = shown.text.trim()
+            setTextColor(Color.argb(235, 255, 255, 255)); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            maxLines = 5; ellipsize = android.text.TextUtils.TruncateAt.START
+            setPadding(0, dp(8f).toInt(), dp(8f).toInt(), dp(4f).toInt())
+        })
+        val card = shown.card ?: run {
+            if (shown.done) panel.addView(answer(context.getString(R.string.card_open_app), filled = false) { openApp() })
+            return
+        }
+        panel.addView(TextView(context).apply {
+            text = app.dotshermes.data.direct.ToolKeys.splitTitle(card.question).second
+            setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); paint.isFakeBoldText = true
+            setPadding(0, dp(10f).toInt(), dp(8f).toInt(), dp(2f).toInt())
+        })
+        if (card.detail.isNotBlank()) panel.addView(TextView(context).apply {
+            text = card.detail; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
+            setTextColor(Color.argb(200, 255, 255, 255)); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(0, 0, dp(8f).toInt(), dp(4f).toInt())
+        })
+        val answers = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6f).toInt(), dp(8f).toInt(), 0) }
+        // Réponses d'une question (choix simple) et « Terminé » d'une main passée ; un accord ou un accès se décide dans l'app.
+        if (card.kind == app.dotshermes.data.model.CardKind.Question && !card.multi) card.options.forEach { option ->
+            answers.addView(answer(option) { reply(card.id, app.dotshermes.data.direct.CardReply.Answer(option)) })
+        }
+        if (card.kind == app.dotshermes.data.model.CardKind.Handover) {
+            answers.addView(answer(context.getString(R.string.takeover_done_answer)) {
+                reply(card.id, app.dotshermes.data.direct.CardReply.Answer(app.dotshermes.data.direct.ChatCards.DONE))
+            })
+        }
+        answers.addView(answer(context.getString(R.string.card_open_app), filled = false) { openApp() })
+        panel.addView(answers)
+    }
+
+    /** Un toucher juste après un geste de Claydot vient peut-être de Claydot lui-même : ignoré. */
+    private fun reply(id: String, value: app.dotshermes.data.direct.CardReply) {
+        if (android.os.SystemClock.uptimeMillis() - lastAutomatedTouch < AUTOMATED_GUARD_MS) return
+        app.dotshermes.data.direct.ChatCards.host?.reply(id, value)
+    }
+
+    private fun openApp() {
+        if (android.os.SystemClock.uptimeMillis() - lastAutomatedTouch < AUTOMATED_GUARD_MS) return
+        context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { intent ->
+            runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
+        }
+    }
+
+    private fun button(label: String, color: Int, onClick: () -> Unit) = TextView(context).apply {
+        text = label
+        setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+        paint.isFakeBoldText = true
+        background = GradientDrawable().apply { cornerRadius = dp(16f); setColor(color) }
+        setPadding(dp(12f).toInt(), dp(5f).toInt(), dp(12f).toInt(), dp(5f).toInt())
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(10f).toInt() }
+        setOnClickListener { onClick() }
+    }
+
+    private fun answer(label: String, filled: Boolean = true, onClick: () -> Unit) = TextView(context).apply {
+        text = label
+        gravity = Gravity.CENTER
+        minHeight = dp(44f).toInt()
+        setTextColor(if (filled) Color.rgb(24, 24, 28) else Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        paint.isFakeBoldText = true
+        background = GradientDrawable().apply {
+            cornerRadius = dp(22f)
+            if (filled) setColor(Color.WHITE) else { setColor(Color.TRANSPARENT); setStroke(dp(1f).toInt(), Color.argb(120, 255, 255, 255)) }
+        }
+        setPadding(dp(14f).toInt(), dp(8f).toInt(), dp(14f).toInt(), dp(8f).toInt())
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6f).toInt() }
+        setOnClickListener { onClick() }
+    }
+
+    companion object {
+        val CURSOR_COLOR = Color.rgb(255, 138, 61)
+        /** Dernier geste envoyé par Claydot (toucher, glisser) : ses propres gestes ne répondent jamais à une carte. */
+        @Volatile var lastAutomatedTouch = 0L
+        private const val AUTOMATED_GUARD_MS = 1_500L
+        private const val DONE_SHOWN_MS = 15_000L
+    }
 }
 
 /** Le curseur : un rond orange cerclé de blanc, qui se déplace et lance une onde à chaque toucher. */

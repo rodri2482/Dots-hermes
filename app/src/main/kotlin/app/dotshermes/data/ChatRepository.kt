@@ -131,6 +131,9 @@ interface ChatRepository {
     /** Rend la main à l'agent après une prise en main qu'il avait demandée. */
     fun finishTakeover(messageId: String) {}
 
+    /** Réponse à une carte du fil (question, accord, accès) ; sans effet sur une carte fermée. */
+    fun replyCard(cardId: String, reply: app.dotshermes.data.direct.CardReply) {}
+
     /** Interrompt le tour en cours (équivalent de /stop). */
     fun stopTurn() {}
 

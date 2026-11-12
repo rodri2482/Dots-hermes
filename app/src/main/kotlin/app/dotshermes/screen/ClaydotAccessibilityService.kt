@@ -102,8 +102,10 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
         return ScreenSnapshot(root.packageName?.toString().orEmpty(), elements)
     }
 
-    private fun gesture(path: Path, durationMs: Long): Boolean =
-        service?.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, durationMs)).build(), null, null) == true
+    private fun gesture(path: Path, durationMs: Long): Boolean {
+        ScreenOverlay.lastAutomatedTouch = android.os.SystemClock.uptimeMillis() + durationMs
+        return service?.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, durationMs)).build(), null, null) == true
+    }
 
     override fun tap(id: Int): Boolean {
         val node = nodes[id] ?: return false

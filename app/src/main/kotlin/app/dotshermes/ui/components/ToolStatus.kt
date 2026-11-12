@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Event
@@ -60,6 +61,7 @@ fun toolIcon(key: String): ImageVector? = when (ToolKeys.kind(key)) {
     "web" -> Icons.Rounded.Language
     "phone" -> Icons.Rounded.PhoneAndroid
     "mail" -> Icons.Rounded.Mail
+    "ask" -> Icons.Rounded.Forum
     else -> null
 }
 
@@ -83,6 +85,7 @@ fun toolText(key: String): String {
         "web" -> stringResource(R.string.doing_web)
         "phone" -> stringResource(R.string.doing_phone)
         "mail" -> stringResource(R.string.doing_mail)
+        "ask" -> stringResource(R.string.doing_ask)
         else -> stringResource(R.string.status_thinking)
     }
 }

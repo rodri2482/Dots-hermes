@@ -62,6 +62,49 @@ sealed interface MessageContent {
         val choices: List<String>,
         val answer: String? = null,
     ) : MessageContent
+
+    /** Carte interactive d'un compte direct (question à choix, accord, accès Android) ; voir [ChatCard]. */
+    data class Card(val card: ChatCard) : MessageContent
+}
+
+/** Ce qu'une carte demande. Le modèle ne choisit que parmi ces types : jamais un intent, une URL ou une permission libre. */
+enum class CardKind { Question, Confirm, Access, Handover }
+
+/** Pending : en attente. Waiting : l'utilisateur est parti donner l'accès (réglages, dialogue Android). */
+enum class CardStatus { Pending, Waiting, Answered, Declined, Expired }
+
+/**
+ * Une carte dans le fil, avec un identifiant stable. [access] : l'accès demandé (nom de [app.dotshermes.data.direct.PhoneAccess]
+ * ou « Gmail »). Une carte terminée ou expirée ne relance jamais rien.
+ */
+data class ChatCard(
+    val id: String,
+    val kind: CardKind,
+    val question: String,
+    val detail: String = "",
+    val options: List<String> = emptyList(),
+    val multi: Boolean = false,
+    val custom: Boolean = true,
+    val access: String? = null,
+    val status: CardStatus = CardStatus.Pending,
+    val answer: String? = null,
+) {
+    val open: Boolean get() = status == CardStatus.Pending || status == CardStatus.Waiting
+
+    /** Bornes : une carte reste courte, quel que soit ce que le modèle a écrit. */
+    fun bounded() = copy(
+        question = question.trim().take(MAX_QUESTION), detail = detail.trim().take(MAX_DETAIL),
+        options = options.map { it.trim().take(MAX_OPTION) }.filter { it.isNotEmpty() }.distinct().take(MAX_OPTIONS),
+        answer = answer?.take(MAX_ANSWER),
+    )
+
+    companion object {
+        const val MAX_QUESTION = 300
+        const val MAX_DETAIL = 500
+        const val MAX_OPTION = 80
+        const val MAX_OPTIONS = 6
+        const val MAX_ANSWER = 1_000
+    }
 }
 
 data class ChatMessage(

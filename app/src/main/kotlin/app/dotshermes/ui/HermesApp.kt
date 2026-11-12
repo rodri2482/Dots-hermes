@@ -140,6 +140,41 @@ fun HermesApp(
         ThemeMode.Dark -> true
     }
     SystemBarsFor(dark)
+    // Cartes du fil : « Continuer » sur une carte d'accès ouvre le vrai dialogue ou réglage Android (jamais
+    // d'accès donné par un bouton du fil) ; la tâche vérifie ensuite que l'accès est vraiment là.
+    var contactsCard by rememberSaveable { mutableStateOf<String?>(null) }
+    val askPermissions = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        val id = contactsCard ?: return@rememberLauncherForActivityResult
+        contactsCard = null
+        if (result.isNotEmpty() && result.values.all { it }) return@rememberLauncherForActivityResult
+        // Refus définitif (Android ne montre plus la demande) : la page de l'app dans les réglages ; sinon, la carte est refusée.
+        val activity = context as? android.app.Activity
+        val blocked = activity != null && app.dotshermes.data.direct.MessagingTools.PERMISSIONS.any {
+            androidx.core.content.ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                !activity.shouldShowRequestPermissionRationale(it)
+        }
+        if (blocked) runCatching {
+            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", context.packageName, null)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        } else viewModel.replyCard(id, app.dotshermes.data.direct.CardReply.Decline)
+    }
+    val cardReply: (app.dotshermes.data.model.ChatCard, app.dotshermes.data.direct.CardReply) -> Unit = { card, reply ->
+        viewModel.replyCard(card.id, reply)
+        if (reply == app.dotshermes.data.direct.CardReply.Continue && card.kind == app.dotshermes.data.model.CardKind.Access) {
+            val access = app.dotshermes.data.direct.PhoneAccess.entries.firstOrNull { it.name == card.access }
+            when {
+                card.access == app.dotshermes.data.direct.CardTools.GMAIL -> agentSheetOpen = true
+                access == app.dotshermes.data.direct.PhoneAccess.Contacts -> {
+                    contactsCard = card.id
+                    askPermissions.launch(app.dotshermes.data.direct.MessagingTools.PERMISSIONS)
+                }
+                access != null -> app.dotshermes.data.direct.PhoneActions.settingsIntent(context, access)?.let { intent ->
+                    runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }
+            }
+        }
+    }
     // La conversation affichée donne sa couleur à toute l'interface : on sait toujours à quel dot on parle.
     DotsTheme(look.appearance.palette, dark) {
         val root = when {
@@ -158,6 +193,7 @@ fun HermesApp(
         ) { shown ->
             androidx.compose.runtime.CompositionLocalProvider(
                 app.dotshermes.ui.dot.LocalMascotTransition provides app.dotshermes.ui.dot.MascotTransition(sharedScope, this),
+                app.dotshermes.ui.chat.LocalCardReply provides cardReply,
             ) {
             if (shown == RootScreen.Chat) {
                 key(activeAgent, activeChat) {
@@ -266,23 +302,6 @@ fun HermesApp(
                 } },
             )
         }
-        val phoneAction by AppContainer.phoneActions.pending.collectAsStateWithLifecycle()
-        // Accès Android demandé par Claydot : « Autoriser » ouvre la demande (contacts, SMS) ou le réglage voulu.
-        val askPermissions = androidx.activity.compose.rememberLauncherForActivityResult(
-            androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { }
-        phoneAction?.let { action ->
-            app.dotshermes.ui.components.PermissionSheet(action.title, action.detail, appearance, access = action.access != null,
-                onAllow = {
-                    action.access?.let { access ->
-                        if (access == app.dotshermes.data.direct.PhoneAccess.Contacts) askPermissions.launch(app.dotshermes.data.direct.MessagingTools.PERMISSIONS)
-                        else app.dotshermes.data.direct.PhoneActions.settingsIntent(context, access)?.let { intent ->
-                            runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                        }
-                    }
-                    action.confirm()
-                },
-                onDeny = action::cancel)
-        }
         if (clearingChat) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { clearingChat = false },
@@ -358,12 +377,12 @@ fun HermesApp(
                     editPreview = null
                 },
                 strip = {
-                    // Les sous-dots demandent le gateway : pas de bande en démo.
+                    // Sous-dots (expérimental) : aussi pour les comptes Groq et le modèle du téléphone.
                     DotsCarousel(
                         main = appearance, dots = dots, activeChat = activeChat, creating = creatingDot,
                         preview = editPreview.takeIf { creatingDot || look.subDot != null },
                         activities = chatActivity, unread = unread,
-                        showSubDots = gatewayFeatures,
+                        showSubDots = true,
                         onSelect = { chat ->
                             creatingDot = false
                             editPreview = null

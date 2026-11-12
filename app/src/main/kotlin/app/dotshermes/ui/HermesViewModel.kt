@@ -407,6 +407,8 @@ class HermesViewModel(
 
     fun answerClarify(messageId: String, response: String) = repository.answerClarify(messageId, response)
 
+    fun replyCard(cardId: String, reply: app.dotshermes.data.direct.CardReply) = repository.replyCard(cardId, reply)
+
     /** Réglages du dot principal de l'agent affiché : chaque agent a son nom, sa mascotte, sa couleur. */
     private val activeStore get() = agents.appearance(agents.activeId.value ?: AgentStore.PRIMARY_ID)
 

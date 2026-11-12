@@ -13,6 +13,8 @@ import app.dotshermes.voice.VoiceRecorder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.sample
+import kotlinx.coroutines.launch
 
 /** Injection manuelle : une connexion par agent appairé (gateway Hermes ou compte API direct). */
 object AppContainer {
@@ -21,9 +23,22 @@ object AppContainer {
 
     /** Une activité est visible (tenu à jour par [HermesApplication]). */
     @Volatile var inForeground = false
+        set(value) { field = value; foreground.value = value }
+    private val foreground = kotlinx.coroutines.flow.MutableStateFlow(false)
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        // Pastille de l'écran : hors de l'app, ce que Claydot dit et demande, au plus quatre fois par seconde.
+        appScope.launch {
+            @OptIn(kotlinx.coroutines.FlowPreview::class)
+            kotlinx.coroutines.flow.combine(app.dotshermes.data.direct.ChatCards.live, foreground) { note, shown -> note to shown }
+                .sample(250)
+                .collect { (note, shown) ->
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        app.dotshermes.screen.ClaydotAccessibilityService.instance?.overlay?.setNote(note, shown)
+                    }
+                }
+        }
     }
 
     /**
@@ -35,10 +50,12 @@ object AppContainer {
             persona = { name -> companion.persona(name) },
             directTools = { app.dotshermes.data.direct.CombinedTools(listOf(app.dotshermes.data.direct.GmailTools(gmail), phoneActions,
                 app.dotshermes.data.direct.RoutineTools(appContext, routines, accountId = { agents.activeId.value }, confirm = phoneActions::ask,
-                    access = phoneActions::requestAccess), screen,
+                    access = { phoneActions.requestAccess(it) }), screen,
                 app.dotshermes.data.direct.MessagingTools(appContext, enabled = { phoneActions.enabled.value }, confirm = phoneActions::ask, screen = { screenDriver },
-                    access = phoneActions::requestAccess),
-                app.dotshermes.data.direct.WebTools())) })
+                    access = { phoneActions.requestAccess(it) }),
+                app.dotshermes.data.direct.WebTools(),
+                // Cartes du fil : questions à choix, accès demandés au moment voulu, main passée à l'utilisateur.
+                app.dotshermes.data.direct.CardTools(requestAccess = phoneActions::requestAccess, gmailConnected = { gmail.connected.value }))) })
     }
 
     val chatRepository: RoutingChatRepository by lazy {

@@ -20,6 +20,11 @@ data class DirectEntry(
     val model: String? = null,
     /** Message auquel l'utilisateur répond (glisser vers la gauche) : son texte, court. */
     val quote: String? = null,
+    /** Carte interactive (question, accord, accès) posée par Claydot pendant une tâche. */
+    val card: app.dotshermes.data.model.ChatCard? = null,
+    /** Salon de groupe : le sous-dot qui a dit ce message, et son nom à ce moment-là. */
+    val speaker: String? = null,
+    val speakerName: String? = null,
 ) {
     init {
         require(role == "user" || role == "assistant")
@@ -38,6 +43,8 @@ data class DirectTranscript(
     val conversations: List<ConversationMeta> = emptyList(),
     /** Conversation ouverte ; null = la conversation principale. */
     val activeConversation: String? = null,
+    /** Sous-dots du compte (seulement dans l'enregistrement principal) ; chacun a sa conversation. */
+    val dots: List<app.dotshermes.data.model.SubDot> = emptyList(),
 )
 
 /** Une conversation d'un compte direct : son dossier chiffré, son titre (premier message), sa date. */
@@ -90,7 +97,10 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                     row.optString("reaction").takeIf { it in Reactions },
                     row.optString("image").takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,64}\\.jpg")) },
                     row.optString("model").takeIf { it.isNotBlank() && it.length <= 120 },
-                    row.optString("quote").takeIf { it.isNotBlank() }?.take(200))
+                    row.optString("quote").takeIf { it.isNotBlank() }?.take(200),
+                    row.optJSONObject("card")?.let(::cardOf),
+                    row.optString("speaker").takeIf { it.matches(DOT_ID) },
+                    row.optString("speaker_name").takeIf { it.isNotBlank() }?.take(40))
             }
             val retry = if (root.isNull("retry_user_id")) null else root.getString("retry_user_id")
             val failure = if (root.isNull("failure")) null else ApiFailure.valueOf(root.getString("failure"))
@@ -104,7 +114,9 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
             }.orEmpty()
             DirectTranscript(entries, retry, failure, limits, root.optLong("cooldown_until_ms", 0),
                 if (root.isNull("quota_scope")) null else root.getString("quota_scope"),
-                chats, root.optString("active_conversation").takeIf { it.isNotEmpty() }).also(::validate)
+                chats, root.optString("active_conversation").takeIf { it.isNotEmpty() },
+                root.optJSONArray("dots")?.let { rows -> (0 until minOf(rows.length(), 40)).mapNotNull { rows.optJSONObject(it)?.let(::dotOf) } }.orEmpty(),
+            ).also(::validate)
         } catch (e: ApiException) { throw e }
         catch (_: Exception) { throw ApiException(ApiFailure.Storage) }
         finally { bytes.fill(0) }
@@ -117,7 +129,7 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                 put(JSONObject().put("id", row.id).put("role", row.role).put("text", row.text)
                     .put("timestamp_ms", row.timestampMs).put("state", row.state.name)
                     .put("reply_to", row.replyTo ?: JSONObject.NULL)
-                    .apply { row.durationMs?.let { put("duration_ms", it) }; row.tokens?.let { put("tokens", it) }; row.reaction?.let { put("reaction", it) }; row.image?.let { put("image", it) }; row.model?.let { put("model", it) }; row.quote?.let { put("quote", it) } })
+                    .apply { row.durationMs?.let { put("duration_ms", it) }; row.tokens?.let { put("tokens", it) }; row.reaction?.let { put("reaction", it) }; row.image?.let { put("image", it) }; row.model?.let { put("model", it) }; row.quote?.let { put("quote", it) }; row.card?.let { put("card", cardJson(it)) }; row.speaker?.let { put("speaker", it) }; row.speakerName?.let { put("speaker_name", it) } })
             }
         }
         val limits = transcript.limits?.let { row ->
@@ -139,6 +151,7 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                     transcript.conversations.forEach { put(JSONObject().put("id", it.id).put("title", it.title).put("updated", it.updatedMs)) }
                 })
                 transcript.activeConversation?.let { put("active_conversation", it) }
+                if (transcript.dots.isNotEmpty()) put("dots", JSONArray().apply { transcript.dots.forEach { put(dotJson(it)) } })
             }
             .toString().toByteArray(Charsets.UTF_8)
         try { records.write(accountId, AccountRecord.History, bytes) }
@@ -179,3 +192,44 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
         if (entries.any { it.replyTo != null && it.replyTo !in users }) throw ApiException(ApiFailure.Storage)
     }
 }
+
+/** Une carte enregistrée ; une carte encore ouverte au démarrage est expirée (rien ne se relance tout seul). */
+internal fun cardOf(row: JSONObject): app.dotshermes.data.model.ChatCard? = try {
+    val status = app.dotshermes.data.model.CardStatus.valueOf(row.getString("status"))
+    val options = row.optJSONArray("options")?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty()
+    val id = row.getString("id")
+    if (!id.matches(Regex("[A-Za-z0-9_-]{1,64}"))) null
+    else app.dotshermes.data.model.ChatCard(
+        id = id,
+        kind = app.dotshermes.data.model.CardKind.valueOf(row.getString("kind")),
+        question = row.getString("question"), detail = row.optString("detail"), options = options,
+        multi = row.optBoolean("multi"), custom = row.optBoolean("custom", true),
+        access = row.optString("access").takeIf { it.isNotBlank() },
+        status = if (status == app.dotshermes.data.model.CardStatus.Pending || status == app.dotshermes.data.model.CardStatus.Waiting)
+            app.dotshermes.data.model.CardStatus.Expired else status,
+        answer = if (row.isNull("answer")) null else row.optString("answer"),
+    ).bounded()
+} catch (_: Exception) { null }
+
+internal fun cardJson(card: app.dotshermes.data.model.ChatCard): JSONObject = JSONObject().put("id", card.id).put("kind", card.kind.name)
+    .put("question", card.question).put("detail", card.detail).put("options", JSONArray(card.options))
+    .put("multi", card.multi).put("custom", card.custom).put("access", card.access ?: "").put("status", card.status.name)
+    .put("answer", card.answer ?: JSONObject.NULL)
+
+/** Identifiant d'un sous-dot : court, sans caractère spécial (il entre dans le nom du dossier chiffré). */
+internal val DOT_ID = Regex("[a-f0-9]{10}")
+
+internal fun dotJson(dot: app.dotshermes.data.model.SubDot): JSONObject = JSONObject().put("id", dot.id).put("name", dot.name)
+    .put("kind", dot.kind.wire).put("mission", dot.mission).put("species", dot.species).put("palette", dot.palette)
+    .put("accessory", dot.accessory).put("created", dot.createdAt.toEpochMilli()).put("last", dot.lastActivityAt?.toEpochMilli() ?: JSONObject.NULL)
+
+internal fun dotOf(row: JSONObject): app.dotshermes.data.model.SubDot? = try {
+    val id = row.getString("id")
+    if (!id.matches(DOT_ID)) null else app.dotshermes.data.model.SubDot(
+        id = id, name = row.getString("name").take(40),
+        kind = app.dotshermes.data.model.DotKind.entries.firstOrNull { it.wire == row.optString("kind") } ?: app.dotshermes.data.model.DotKind.Permanent,
+        mission = row.optString("mission").take(600), species = row.optString("species").take(40), palette = row.optString("palette").take(40),
+        accessory = row.optString("accessory").take(40), createdAt = java.time.Instant.ofEpochMilli(row.optLong("created")),
+        lastActivityAt = if (row.isNull("last")) null else java.time.Instant.ofEpochMilli(row.optLong("last")),
+    )
+} catch (_: Exception) { null }

@@ -33,12 +33,6 @@ import java.time.format.FormatStyle
  */
 enum class PhoneAccess(val icon: String) { Contacts("sms"), Notifications("message"), Screen("screen"), AllDay("routine") }
 
-/** Une action proposée par Claydot, en attente de l'accord de l'utilisateur ([access] : une demande d'accès). */
-class PendingPhoneAction(val title: String, val detail: String, internal val answer: CompletableDeferred<Boolean>,
-    val access: PhoneAccess? = null) {
-    fun confirm() { answer.complete(true) }
-    fun cancel() { answer.complete(false) }
-}
 
 /**
  * Actions sur le téléphone que Claydot peut proposer : réveil, minuteur, ouvrir une app, événement
@@ -53,9 +47,6 @@ class PhoneActions(
     private val prefs = context.getSharedPreferences("phone-actions", Context.MODE_PRIVATE)
     private val _enabled = MutableStateFlow(prefs.getBoolean("enabled", true))
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
-    private val _pending = MutableStateFlow<PendingPhoneAction?>(null)
-    /** L'action à confirmer maintenant (la fenêtre de l'app l'affiche) ; null = rien en attente. */
-    val pending: StateFlow<PendingPhoneAction?> = _pending.asStateFlow()
 
     fun setEnabled(on: Boolean) { prefs.edit { putBoolean("enabled", on) }; _enabled.value = on }
 
@@ -83,15 +74,17 @@ class PhoneActions(
             props("action" to JSONObject().put("type", "string")
                 .put("enum", JSONArray(listOf("pause", "play", "next", "previous", "volume_up", "volume_down")))), "action"))
 
-    /** Fenêtre « Claydot veut… » : true si l'utilisateur appuie sur « Faire » (2 min, sinon refus). */
+    /**
+     * Carte « Claydot veut… » dans le fil (Accepter / Refuser, aussi visibles l'un que l'autre) : true seulement si
+     * l'utilisateur accepte. Pas de conversation en cours pour poser la carte : refus.
+     */
     suspend fun ask(title: String, detail: String): Boolean {
         // Routine en cours, dont l'utilisateur a approuvé ce genre d'action à sa création.
         ToolKeys.splitTitle(title).first?.let(ToolKeys::kind)?.let { kind -> if (kind in autoApprove) return true }
-        val action = PendingPhoneAction(title, detail, CompletableDeferred())
-        _pending.value = action
-        return try { withTimeoutOrNull(120_000) { action.answer.await() } ?: false } finally {
-            if (_pending.value === action) _pending.value = null
-        }
+        val host = ChatCards.host ?: return false
+        val card = app.dotshermes.data.model.ChatCard(ChatCards.newId(), app.dotshermes.data.model.CardKind.Confirm, title, detail, custom = false).bounded()
+        val reply = host.ask(card, ChatCards.QUESTION_TIMEOUT_MS)
+        return reply?.status == app.dotshermes.data.model.CardStatus.Answered && reply.answer == ChatCards.APPROVE
     }
 
     /** L'accès est-il déjà donné ? */
@@ -105,10 +98,11 @@ class PhoneActions(
     }
 
     /**
-     * Demande [access] dans la fenêtre « Claydot veut… » ; « Autoriser » ouvre la demande ou le réglage
-     * Android (l'écran de l'app s'en charge). On attend le retour de l'utilisateur, deux minutes au plus.
+     * Demande [access] par une carte dans le fil : « Continuer » ouvre le dialogue ou le réglage Android (l'écran
+     * de l'app s'en charge) ; aucun bouton du fil ne donne l'accès lui-même. La tâche reprend seulement quand
+     * l'accès est vraiment donné (vérifié), sinon elle continue en le sachant refusé.
      */
-    suspend fun requestAccess(access: PhoneAccess): Boolean {
+    suspend fun requestAccess(access: PhoneAccess, reason: String = ""): Boolean {
         if (hasAccess(access)) return true
         val (title, detail) = when (access) {
             PhoneAccess.Contacts -> app.dotshermes.R.string.access_contacts_title to app.dotshermes.R.string.access_contacts_detail
@@ -116,14 +110,11 @@ class PhoneActions(
             PhoneAccess.Screen -> app.dotshermes.R.string.access_screen_title to app.dotshermes.R.string.access_screen_detail
             PhoneAccess.AllDay -> app.dotshermes.R.string.access_allday_title to app.dotshermes.R.string.access_allday_detail
         }
-        val action = PendingPhoneAction(ToolKeys.title(access.icon, context.getString(title)), context.getString(detail), CompletableDeferred(), access)
-        _pending.value = action
-        val allowed = try { withTimeoutOrNull(120_000) { action.answer.await() } ?: false } finally {
-            if (_pending.value === action) _pending.value = null
-        }
-        if (!allowed) return false
-        if (access == PhoneAccess.AllDay) { AlwaysOnService.set(context, true); return true }
-        return withTimeoutOrNull(120_000) { while (!hasAccess(access)) kotlinx.coroutines.delay(700); true } ?: false
+        val text = context.getString(detail).let { base -> reason.trim().take(200).takeIf { it.isNotEmpty() }?.let { "$it\n$base" } ?: base }
+        val card = app.dotshermes.data.model.ChatCard(ChatCards.newId(), app.dotshermes.data.model.CardKind.Access,
+            ToolKeys.title(access.icon, context.getString(title)), text, access = access.name, custom = false).bounded()
+        // Écoute toute la journée : le service de Claydot lui-même, que l'utilisateur vient d'accepter.
+        return ChatCards.askAccess(card, onContinue = { if (access == PhoneAccess.AllDay) AlwaysOnService.set(context, true) }) { hasAccess(access) }
     }
 
     override fun label(call: ApiToolCall) = when (call.name) {
@@ -496,6 +487,11 @@ class CombinedTools(private val parts: List<DirectTools>) : DirectTools {
 
     override fun label(call: ApiToolCall) = owner(call)?.label(call) ?: "…"
     override fun finished() = parts.forEach { it.finished() }
-    override suspend fun run(call: ApiToolCall): String =
-        owner(call)?.run(call) ?: JSONObject().put("error", "unknown tool").toString()
+    override suspend fun run(call: ApiToolCall): String {
+        // Noms appris ailleurs (Llama : « brave_search ») : la recherche web de Claydot répond.
+        val named = if (call.name in SearchAliases) call.copy(name = "search_web") else call
+        return owner(named)?.run(named) ?: JSONObject().put("error", "unknown tool").toString()
+    }
+
+    private companion object { val SearchAliases = setOf("brave_search", "web_search", "google_search", "search", "internet_search") }
 }

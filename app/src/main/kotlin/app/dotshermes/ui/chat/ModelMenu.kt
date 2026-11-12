@@ -87,8 +87,8 @@ fun shortModelName(active: ActiveModel): String =
 /**
  * À la place de la pastille « En ligne » : le modèle actuel. Au toucher, une carte au milieu, sous
  * l'en-tête, sur toute la largeur : une ligne par modèle (logo de l'éditeur, nom, « taille · éditeur »),
- * « Recommandé » sur le meilleur pour ce téléphone, une coche sur celui qui répond, un bouton de
- * téléchargement sur ceux qui manquent, et « Ajouter un modèle » en bas.
+ * « Recommandé » sur le meilleur pour ce téléphone, une coche sur celui qui répond. Seuls les modèles
+ * prêts y figurent ; « Ajouter un modèle », en bas, ouvre la liste complète pour en télécharger.
  */
 @Composable
 fun ModelMenu(
@@ -159,25 +159,13 @@ fun ModelMenu(
                             if (chosen) Icon(Icons.Rounded.Check, null, tint = palette.deep, modifier = Modifier.size(20.dp))
                         }
                     }
-                    LocalModels.CATALOG.forEach { model ->
-                        val state = localStates[model.id] ?: LocalModelState.Missing
+                    // Seulement les modèles déjà téléchargés : le téléchargement se fait dans « Ajouter un modèle ».
+                    LocalModels.CATALOG.filter { localStates[it.id] == LocalModelState.Ready }.forEach { model ->
                         val chosen = local && active.model == model.id
-                        // Trop gros pour la mémoire de ce téléphone : pas de téléchargement (il le ralentirait).
-                        val fits = remember(model.id) { DeviceTier.fits(context, model) }
                         ModelRow(model.logo, model.name, "${gigabytes(model.sizeBytes)} · ${model.maker}",
                             recommended = model.id == recommended,
-                            onClick = {
-                                when (state) {
-                                    LocalModelState.Ready -> { open = false; if (!chosen) onPickLocal(model.id) }
-                                    LocalModelState.Missing, is LocalModelState.Failed -> if (fits) onDownload(model)
-                                    is LocalModelState.Downloading -> onCancelDownload(model)
-                                }
-                            }) {
-                            when (state) {
-                                LocalModelState.Ready -> if (chosen) Icon(Icons.Rounded.Check, null, tint = palette.deep, modifier = Modifier.size(20.dp))
-                                LocalModelState.Missing, is LocalModelState.Failed -> DownloadButton(enabled = fits) { onDownload(model) }
-                                is LocalModelState.Downloading -> DownloadProgress(state.fraction) { onCancelDownload(model) }
-                            }
+                            onClick = { open = false; if (!chosen) onPickLocal(model.id) }) {
+                            if (chosen) Icon(Icons.Rounded.Check, null, tint = palette.deep, modifier = Modifier.size(20.dp))
                         }
                     }
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Ink.Separator)

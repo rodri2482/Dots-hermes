@@ -113,6 +113,7 @@ fun MessageRow(
             is MessageContent.Voice -> VoiceBubble(message.id, content, fromUser, playback, onToggleVoice, onSeekVoice)
             is MessageContent.File -> attachments?.let { FileBubble(message.id, content, fromUser, it) }
             is MessageContent.Takeover -> TakeoverCard(content, onTakeover, Modifier.fillMaxWidth(0.86f))
+            is MessageContent.Card -> ChatCardView(content.card, Modifier.fillMaxWidth(0.86f))
         }
         if (!fromUser && (message.footer != null)) {
             Row(Modifier.padding(top = 4.dp, start = 6.dp), verticalAlignment = Alignment.CenterVertically) {

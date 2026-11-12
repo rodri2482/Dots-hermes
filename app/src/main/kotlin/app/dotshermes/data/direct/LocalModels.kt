@@ -330,7 +330,8 @@ class LocalProviderClient(private val context: Context, private val models: () -
             val names = extra.lastOrNull { it.optString("role") == "assistant" }?.optJSONArray("tool_calls")
             message = Message.tool(Contents.of(results.mapIndexed { i, r ->
                 val name = names?.optJSONObject(i)?.optJSONObject("function")?.optString("name").orEmpty()
-                Content.ToolResponse(name, parseJson(r.optString("content")))
+                // Petit contexte : un long résultat (page web…) ferait déborder la conversation.
+                Content.ToolResponse(name, parseJson(r.optString("content").take(LOCAL_RESULT_CHARS)))
             }))
         } else {
             runCatching { taskConversation?.close() }; taskConversation = null
@@ -380,6 +381,12 @@ class LocalProviderClient(private val context: Context, private val models: () -
             runCatching { conversation.cancelProcess() }; runCatching { conversation.close() }
             taskConversation = null; taskKey = null
             throw e
+        } catch (e: Exception) {
+            // Contexte plein, appel d'outil illisible… : erreur propre, la conversation repart à zéro
+            // et le dépôt tente une réponse sans outils.
+            runCatching { conversation.close() }
+            taskConversation = null; taskKey = null
+            throw ApiException(if (e is ApiException) e.failure else ApiFailure.ContextLimit)
         }
         gpuProven(entry.id)
         if (calls.isEmpty()) { runCatching { conversation.close() }; taskConversation = null; taskKey = null }
@@ -419,8 +426,9 @@ class LocalProviderClient(private val context: Context, private val models: () -
         private const val GENTLE_PAUSE_MS = 2_500L
         private const val OFFLINE_TOOLS_NOTE = "You run on the user's phone, offline. You can act on the phone with your tools " +
             "(apps, music, alarms, texting, the screen with the user's approval). Keep tool use to the few steps needed, then answer briefly."
-        private const val OFFLINE_NOTE = "You run fully offline on the user's phone: you cannot browse the web, see the screen, send messages " +
-            "or use apps. If asked, say so kindly and suggest a Groq account in Claydot's settings for those."
+        private const val OFFLINE_NOTE = "You run on the user's phone. Answer freely from what you know and from any information " +
+            "included in the message; if something may have changed since you were trained, say so in a few words."
+        private const val LOCAL_RESULT_CHARS = 1_500
     }
 }
 

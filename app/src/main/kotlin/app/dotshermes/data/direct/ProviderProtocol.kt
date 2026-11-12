@@ -98,11 +98,16 @@ internal object ProviderProtocol {
             if (type == "error" || type == "response.failed" || frame.has("error")) {
                 val error = frame.optJSONObject("error") ?: frame.optJSONObject("response")?.optJSONObject("error") ?: frame
                 val code = error.optString("code").ifEmpty { error.optString("type") }
-                throw ApiException(when (code) {
-                    "rate_limit_error", "rate_limit_exceeded" -> ApiFailure.RateLimited
-                    "insufficient_quota", "credit_balance_too_low" -> ApiFailure.Quota
-                    "authentication_error", "invalid_api_key" -> ApiFailure.InvalidKey
-                    "overloaded_error", "server_error" -> ApiFailure.Unavailable
+                // Groq signale dans le flux (statut 200) un appel d'outil mal écrit ou vers un outil inconnu
+                // (« tool_use_failed », Llama qui appelle « brave_search ») : c'est une requête à refaire, pas une réponse illisible.
+                val kind = error.optString("type")
+                throw ApiException(when {
+                    code == "rate_limit_error" || code == "rate_limit_exceeded" -> ApiFailure.RateLimited
+                    code == "insufficient_quota" || code == "credit_balance_too_low" -> ApiFailure.Quota
+                    code == "authentication_error" || code == "invalid_api_key" -> ApiFailure.InvalidKey
+                    code == "overloaded_error" || code == "server_error" -> ApiFailure.Unavailable
+                    code == "context_length_exceeded" -> ApiFailure.ContextLimit
+                    code == "tool_use_failed" || code == "invalid_request_error" || kind == "invalid_request_error" -> ApiFailure.InvalidRequest
                     else -> ApiFailure.InvalidResponse
                 })
             }
@@ -134,12 +139,8 @@ internal object ProviderProtocol {
                         }
                     }
                 }
-                when (choice?.optString("finish_reason")) {
-                    "length" -> limited = true
-                    "stop", "tool_calls" -> Unit
-                    null, "", "null" -> Unit
-                    else -> throw ApiException(ApiFailure.InvalidResponse)
-                }
+                // « stop », « tool_calls », « function_call »… : seule une réponse coupée par la limite compte ici.
+                if (choice?.optString("finish_reason") == "length") limited = true
             } else {
                 when (type) {
                     "content_block_start" -> frame.optJSONObject("content_block")?.let {

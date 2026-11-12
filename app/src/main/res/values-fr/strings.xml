@@ -365,8 +365,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="phone_section">Téléphone</string>
     <string name="phone_title">Laisser Claydot utiliser ton téléphone</string>
     <string name="phone_hint">Musique, apps, alarmes et SMS. Demande avant toute action importante.</string>
-    <string name="phone_confirm_title">Claydot veut</string>
-    <string name="phone_do">Faire</string>
     <string name="chats_title">Discussions</string>
     <string name="chats_new">Nouvelle discussion</string>
     <string name="chats_untitled">Nouvelle discussion</string>
@@ -414,7 +412,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="local_no_room">Pas assez d\'espace libre</string>
     <string name="local_progress">%1$s sur %2$s</string>
     <string name="local_cancel">Annuler</string>
-    <string name="local_use">Utiliser ce modèle</string>
     <string name="local_in_use">Utilisé</string>
     <string name="local_failed">Le téléchargement s\'est arrêté. Réessaie.</string>
     <string name="local_loading">Chargement du modèle… la première fois prend quelques secondes.</string>
@@ -549,8 +546,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="permissions_title">Autorisations</string>
     <string name="permissions_summary">Demandées au besoin</string>
     <string name="permissions_hint">Claydot les demande dans la conversation quand il en a besoin. Retirez-les dans les réglages Android.</string>
-    <string name="permission_allow">Autoriser</string>
-    <string name="permission_restricted">Si Android affiche « Paramètre restreint » : Infos sur l\'appli › ⋮ › Autoriser les paramètres restreints.</string>
     <string name="access_contacts_title">Contacts et SMS</string>
     <string name="access_contacts_detail">Pour trouver vos contacts et envoyer les messages que vous validez.</string>
     <string name="access_notifications_title">Lire les notifications WhatsApp</string>
@@ -567,4 +562,17 @@ Colle une clé API Groq pour commencer.</string>
     <string name="widget_label">Demander à Claydot</string>
     <string name="widget_hint">Demander à Claydot…</string>
     <string name="widget_description">Ouvrez une discussion avec Claydot en un toucher.</string>
+    <string name="card_access">Accès nécessaire</string>
+    <string name="card_handover">À vous sur l\'écran</string>
+    <string name="card_custom_hint">Écrivez votre réponse</string>
+    <string name="card_send">Envoyer</string>
+    <string name="card_continue">Continuer</string>
+    <string name="card_waiting">En attente d\'Android… revenez ici une fois fait.</string>
+    <string name="card_granted">Accès donné</string>
+    <string name="card_not_granted">Non donné</string>
+    <string name="card_declined">Passé</string>
+    <string name="card_expired">Plus active</string>
+    <string name="card_pick_several">Choisissez-en un ou plusieurs</string>
+    <string name="card_open_app">Ouvrir Claydot</string>
+    <string name="doing_ask">Attend votre réponse…</string>
 </resources>

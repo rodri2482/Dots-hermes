@@ -92,6 +92,7 @@ class RoutingChatRepository(
     override fun cronAction(id: String, action: CronAction) = active.value.cronAction(id, action)
     override fun stopTurn() = active.value.stopTurn()
     override fun finishTakeover(messageId: String) = active.value.finishTakeover(messageId)
+    override fun replyCard(cardId: String, reply: app.dotshermes.data.direct.CardReply) = active.value.replyCard(cardId, reply)
 
     // Présence et jeton push concernent tous les agents, pas seulement celui affiché.
     override fun setForeground(foreground: Boolean) = agents.setForeground(foreground)

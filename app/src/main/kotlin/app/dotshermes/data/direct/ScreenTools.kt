@@ -180,9 +180,26 @@ class ScreenTools(
             else -> "unknown tool"
         }
         if (done != null) return err(done)
-        delay(settleMs)
+        settle(before, if (call.name == "launch_app" || call.name == "open_link") settleMs * 3 else settleMs)
         // L'écran qui suit, tout de suite : un aller-retour de moins avec le modèle.
         return describe()
+    }
+
+    /**
+     * Attend que l'écran ait changé puis se soit posé (deux lectures identiques), au plus [maxMs] : le plus souvent
+     * 250 à 400 ms au lieu d'une attente fixe ; un écran qui ne bouge pas laisse attendre jusqu'au bout.
+     */
+    private suspend fun settle(before: ScreenSnapshot?, maxMs: Long) {
+        if (maxMs <= 0) return
+        delay(minOf(SETTLE_FIRST_MS, maxMs))
+        var waited = SETTLE_FIRST_MS
+        var last: ScreenSnapshot? = null
+        while (waited < maxMs) {
+            val now = driver.snapshot()
+            if (now != null && now != before && now == last) return
+            last = now
+            delay(SETTLE_POLL_MS); waited += SETTLE_POLL_MS
+        }
     }
 
     private fun blockedReason(pkg: String): String? = when {
@@ -215,6 +232,8 @@ class ScreenTools(
 
     companion object {
         const val MAX_ELEMENTS = 60
+        private const val SETTLE_FIRST_MS = 150L
+        private const val SETTLE_POLL_MS = 110L
         const val SCREENSHOT_KEY = "screenshot_jpeg"
         /** Capture numérotée destinée au modèle (et non à l'utilisateur) : retirée du résultat, jointe en image. */
         const val VISION_KEY = "vision_jpeg"

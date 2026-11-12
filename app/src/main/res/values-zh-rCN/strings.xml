@@ -301,8 +301,6 @@
     <string name="phone_section">手机</string>
     <string name="phone_title">让 Claydot 使用你的手机</string>
     <string name="phone_hint">音乐、应用、闹钟和消息。重要操作前会先询问。</string>
-    <string name="phone_confirm_title">Claydot 想要</string>
-    <string name="phone_do">执行</string>
     <string name="chats_title">对话</string>
     <string name="chats_new">新对话</string>
     <string name="chats_untitled">新对话</string>
@@ -350,7 +348,6 @@
     <string name="local_no_room">空间不足</string>
     <string name="local_progress">%1$s / %2$s</string>
     <string name="local_cancel">取消</string>
-    <string name="local_use">使用此模型</string>
     <string name="local_in_use">使用中</string>
     <string name="local_failed">下载已中断。请重试。</string>
     <string name="local_loading">正在加载模型… 第一次需要几秒钟。</string>
@@ -477,8 +474,6 @@
     <string name="permissions_title">权限</string>
     <string name="permissions_summary">需要时再请求</string>
     <string name="permissions_hint">Claydot 需要时会在对话中询问。可在 Android 设置中撤销任意一项。</string>
-    <string name="permission_allow">允许</string>
-    <string name="permission_restricted">如果 Android 显示“受限设置”：应用信息 › ⋮ › 允许受限设置。</string>
     <string name="access_contacts_title">联系人和消息</string>
     <string name="access_contacts_detail">用于查找联系人并发送你批准的消息。</string>
     <string name="access_notifications_title">读取 WhatsApp 通知</string>
@@ -495,4 +490,17 @@
     <string name="widget_label">问 Claydot</string>
     <string name="widget_hint">问 Claydot…</string>
     <string name="widget_description">轻点一下即可打开与 Claydot 的对话。</string>
+    <string name="card_access">需要权限</string>
+    <string name="card_handover">轮到你操作屏幕</string>
+    <string name="card_custom_hint">输入你自己的回答</string>
+    <string name="card_send">发送</string>
+    <string name="card_continue">继续</string>
+    <string name="card_waiting">正在等待 Android… 完成后回到这里。</string>
+    <string name="card_granted">已授予权限</string>
+    <string name="card_not_granted">未授予</string>
+    <string name="card_declined">已跳过</string>
+    <string name="card_expired">已失效</string>
+    <string name="card_pick_several">可选一个或多个</string>
+    <string name="card_open_app">打开 Claydot</string>
+    <string name="doing_ask">正在等你回答…</string>
 </resources>

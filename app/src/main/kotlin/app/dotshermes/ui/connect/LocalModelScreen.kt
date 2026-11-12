@@ -3,11 +3,8 @@ package app.dotshermes.ui.connect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,14 +26,20 @@ import app.dotshermes.data.direct.ApiProvider
 import app.dotshermes.data.direct.LocalModel
 import app.dotshermes.data.direct.LocalModelState
 import app.dotshermes.data.direct.LocalModels
+import app.dotshermes.data.direct.DeviceTier
+import app.dotshermes.ui.chat.DownloadButton
+import app.dotshermes.ui.chat.DownloadProgress
+import app.dotshermes.ui.chat.InUse
+import app.dotshermes.ui.chat.SheetRow
+import app.dotshermes.ui.chat.SmallButton
+import app.dotshermes.ui.chat.gigabytes
+import androidx.compose.ui.platform.LocalContext
 import app.dotshermes.ui.DotAppearance
 import app.dotshermes.ui.components.GroupedCard
 import app.dotshermes.ui.components.Hairline
-import app.dotshermes.ui.components.PillButton
 import app.dotshermes.ui.dot.DotMood
 import app.dotshermes.ui.theme.Ink
 import app.dotshermes.ui.theme.LocalDotPalette
-import app.dotshermes.ui.theme.tabular
 import kotlinx.coroutines.launch
 
 /**
@@ -57,6 +60,8 @@ internal fun LocalModelScreen(
     var failure by remember { mutableStateOf<ApiFailure?>(null) }
     val scope = rememberCoroutineScope()
     val palette = LocalDotPalette.current
+    val context = LocalContext.current
+    val recommended = remember { DeviceTier.recommended(context)?.id }
     LaunchedEffect(Unit) { models.watch() }
 
     ConnectLayout(appearance, DotMood.Idle, stringResource(R.string.local_title), stringResource(R.string.local_tagline)) { _ ->
@@ -66,9 +71,10 @@ internal fun LocalModelScreen(
         }
         GroupedCard {
             LocalModels.CATALOG.forEachIndexed { i, model ->
-                if (i > 0) Hairline()
+                if (i > 0) Hairline(startIndent = 62.dp)
                 ModelRow(model, states[model.id] ?: LocalModelState.Missing, current = model.id == currentModel,
                     enoughRoom = models.hasRoom(model), busy = working != null,
+                    recommended = model.id == recommended, fits = remember(model.id) { DeviceTier.fits(context, model) },
                     onDownload = { models.download(model) }, onCancel = { models.cancel(model) },
                     onUse = {
                         scope.launch {
@@ -95,41 +101,27 @@ internal fun LocalModelScreen(
     }
 }
 
+/** Une ligne compacte, comme la feuille « Modèles » : logo, nom, taille, une ligne de note ; l'action à droite. */
 @Composable
 private fun ModelRow(
-    model: LocalModel, state: LocalModelState, current: Boolean, enoughRoom: Boolean, busy: Boolean,
+    model: LocalModel, state: LocalModelState, current: Boolean, enoughRoom: Boolean, busy: Boolean, recommended: Boolean, fits: Boolean,
     onDownload: () -> Unit, onCancel: () -> Unit, onUse: () -> Unit,
 ) {
-    val palette = LocalDotPalette.current
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(model.name, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                Text("${gigabytes(model.sizeBytes)} · ${stringResource(model.note)}", style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
-            }
-        }
-        Spacer(Modifier.height(10.dp))
+    val warning = when {
+        !fits -> stringResource(R.string.models_needs_memory)
+        state is LocalModelState.Failed -> stringResource(R.string.local_failed)
+        state !is LocalModelState.Ready && !enoughRoom -> stringResource(R.string.local_no_room)
+        else -> null
+    }
+    val subtitle = if (state is LocalModelState.Downloading)
+        stringResource(R.string.local_progress, gigabytes((model.sizeBytes * state.fraction).toLong()), gigabytes(model.sizeBytes))
+        else "${gigabytes(model.sizeBytes)} · ${model.maker}"
+    SheetRow(logo = model.logo, title = model.name, subtitle = subtitle, note = stringResource(model.note),
+        recommended = recommended && fits, warning = warning) {
         when (state) {
-            LocalModelState.Missing, is LocalModelState.Failed -> {
-                if (state is LocalModelState.Failed) Text(stringResource(R.string.local_failed), style = MaterialTheme.typography.bodySmall,
-                    color = Ink.Danger, modifier = Modifier.padding(bottom = 6.dp))
-                PillButton(stringResource(if (enoughRoom) R.string.local_download else R.string.local_no_room), onDownload,
-                    modifier = Modifier.fillMaxWidth(), container = palette.light, content = palette.deep, height = 44.dp,
-                    enabled = enoughRoom && !busy)
-            }
-            is LocalModelState.Downloading -> {
-                LinearProgressIndicator(progress = { state.fraction }, color = palette.base, trackColor = Ink.Fill,
-                    modifier = Modifier.fillMaxWidth().height(6.dp))
-                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.local_progress, gigabytes((model.sizeBytes * state.fraction).toLong()), gigabytes(model.sizeBytes)),
-                        style = MaterialTheme.typography.bodySmall.tabular(), color = Ink.Secondary, modifier = Modifier.weight(1f))
-                    TextLink(stringResource(R.string.local_cancel), enabled = true, color = Ink.Secondary, onClick = onCancel)
-                }
-            }
-            LocalModelState.Ready -> PillButton(stringResource(if (current) R.string.local_in_use else R.string.local_use), onUse,
-                modifier = Modifier.fillMaxWidth(), container = palette.base, content = palette.onBase, height = 44.dp, enabled = !busy && !current)
+            LocalModelState.Ready -> if (current) InUse() else SmallButton(stringResource(R.string.models_use), filled = true, enabled = !busy, onClick = onUse)
+            LocalModelState.Missing, is LocalModelState.Failed -> DownloadButton(enabled = enoughRoom && fits && !busy, onClick = onDownload)
+            is LocalModelState.Downloading -> DownloadProgress(state.fraction, onCancel)
         }
     }
 }
-
-private fun gigabytes(bytes: Long) = String.format(java.util.Locale.ROOT, "%.1f GB", bytes / 1_000_000_000.0)
