@@ -31,6 +31,19 @@ interface ScreenDriver {
     fun showActive(on: Boolean) {}
     /** Capture de l'écran en JPEG (Android 11+), ou null. */
     suspend fun screenshot(): ByteArray? = null
+    /**
+     * Capture annotée (méthode « set-of-mark » de DroidRun) : chaque élément de la lecture courante est
+     * encadré et numéroté sur l'image, pour un modèle qui voit. Null si indisponible.
+     */
+    suspend fun markedScreenshot(): ByteArray? = null
+    /** Taille réelle de l'écran en pixels (largeur, hauteur). */
+    fun screenSize(): Pair<Int, Int>? = null
+    /** Toucher (ou appui long) à un point de l'écran, en pixels. */
+    fun tapAt(x: Float, y: Float, long: Boolean = false): Boolean = false
+    /** Glisser d'un point à un autre, en pixels. */
+    fun swipeBetween(x1: Float, y1: Float, x2: Float, y2: Float): Boolean = false
+    /** Écrire dans le champ qui a le focus (clavier ouvert). */
+    fun typeFocused(text: String): Boolean = false
 }
 
 /**
@@ -54,6 +67,8 @@ class ScreenTools(
     private val clockMs: () -> Long = System::currentTimeMillis,
     private val settleMs: Long = 800,
     private val grantMs: Long = 5 * 60_000,
+    /** Agent de téléphone AutoGLM, si l'utilisateur a donné sa clé (sinon l'outil n'est pas proposé). */
+    private val autoGlm: () -> AutoGlm? = { null },
 ) : DirectTools {
     @Volatile private var grantedUntil = 0L
 
@@ -85,6 +100,15 @@ class ScreenTools(
         .put(fn("press_key", "Press a system key.", JSONObject().put("key", JSONObject().put("type", "string")
             .put("enum", JSONArray().put("back").put("home").put("recents").put("notifications").put("enter"))), "key"))
         .put(fn("launch_app", "Open an installed app by its name.", JSONObject().put("name", str("App name as on the home screen")), "name"))
+        .put(fn("look_at_screen", "See the phone screen as an image, with every element boxed and numbered like in read_screen. " +
+            "Use it when the element list is not enough (pictures, icons without labels, maps, games, videos). Allowed any time.", JSONObject()))
+        .put(fn("tap_point", "Tap a point of the screen that is not in the element list, seen with look_at_screen. " +
+            "x and y go from 0 (left/top) to 1000 (right/bottom).", JSONObject().put("x", int("0 to 1000 from the left")).put("y", int("0 to 1000 from the top")), "x", "y"))
+        .apply {
+            if (autoGlm()?.configured() == true) put(fn("phone_agent", "Hand a whole multi-step phone task to AutoGLM, a vision model trained to operate " +
+                "Android apps by looking at the screen (good for apps with unlabelled buttons). It reports when it is done or needs the user. " +
+                "Needs start_screen_control first.", JSONObject().put("task", str("The task, in one clear sentence")), "task"))
+        }
 
     override fun label(call: ApiToolCall) = ToolKeys.of("screen")
 
@@ -100,6 +124,12 @@ class ScreenTools(
         }
         // Voir l'écran est permis dès que le service est activé ; agir demande l'accord de la tâche.
         if (call.name == "read_screen") return describe()
+        // Capture numérotée (DroidRun) : l'image est retirée par la conversation et montrée au modèle qui voit.
+        if (call.name == "look_at_screen") {
+            val jpeg = driver.markedScreenshot() ?: return describe()
+            return JSONObject(describe()).put("image", "attached below; boxes are numbered like the elements")
+                .put(VISION_KEY, java.util.Base64.getEncoder().encodeToString(jpeg)).toString()
+        }
         if (call.name == "take_screenshot") {
             val jpeg = driver.screenshot() ?: return err("screenshot not available (Android 11 or later is needed)")
             // La clé « screenshot_jpeg » est retirée par la conversation : l'image s'affiche, le modèle n'en reçoit qu'une mention.
@@ -108,6 +138,11 @@ class ScreenTools(
         }
         if (!active()) return err("no permission: call start_screen_control first")
         if (call.name == "wait") { delay(args.optInt("seconds", 2).coerceIn(1, 5) * 1_000L); return describe() }
+        if (call.name == "phone_agent") {
+            val agent = autoGlm()?.takeIf { it.configured() } ?: return err("AutoGLM is not set up: the user adds a key in Settings › Phone")
+            val task = args.optString("task").trim().take(500).ifEmpty { return err("task is required") }
+            return agent.run(task, driver, blocked = ::blockedReason, allowed = ::active).toString()
+        }
         val before = driver.snapshot()
         val blocked = before?.packageName?.let { blockedReason(it) }
         val done = when (call.name) {
@@ -133,6 +168,12 @@ class ScreenTools(
                 if (key == "enter" && blocked != null) blocked else if (driver.press(key)) null else "unknown key or nothing to submit"
             }
             "launch_app" -> driver.launch(args.optString("name").trim()).let { if (it == null) "no app with that name" else null }
+            "tap_point" -> blocked ?: run {
+                val (w, h) = driver.screenSize() ?: return err("screen size unknown")
+                val x = args.optInt("x", -1); val y = args.optInt("y", -1)
+                if (x !in 0..1000 || y !in 0..1000) "x and y must be between 0 and 1000"
+                else if (driver.tapAt(x / 1000f * w, y / 1000f * h)) null else "could not tap there"
+            }
             else -> "unknown tool"
         }
         if (done != null) return err(done)
@@ -172,6 +213,8 @@ class ScreenTools(
     companion object {
         const val MAX_ELEMENTS = 60
         const val SCREENSHOT_KEY = "screenshot_jpeg"
+        /** Capture numérotée destinée au modèle (et non à l'utilisateur) : retirée du résultat, jointe en image. */
+        const val VISION_KEY = "vision_jpeg"
         val BLOCKED_PACKAGES = listOf(
             "com.android.settings", "com.android.packageinstaller", "com.google.android.packageinstaller",
             "com.android.permissioncontroller", "com.google.android.permissioncontroller",

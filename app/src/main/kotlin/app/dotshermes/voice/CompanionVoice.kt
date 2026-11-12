@@ -109,6 +109,8 @@ class CompanionVoice(
     client: OkHttpClient = OkHttpClient(),
     /** La mascotte affichée : sa voix est celle utilisée quand « Voix de la mascotte » est choisie. */
     private val species: () -> app.dotshermes.ui.dot.DotSpecies = { app.dotshermes.ui.dot.DotSpecies.Galet },
+    /** Voix naturelle hors ligne (sherpa-onnx), si elle est téléchargée. */
+    private val offline: () -> OfflineSpeech? = { null },
 ) {
     private val device by lazy { DeviceVoice(context) }
     private val prefs = context.getSharedPreferences("companion", Context.MODE_PRIVATE)
@@ -180,10 +182,15 @@ class CompanionVoice(
         val spoken = speakable(text)
         if (spoken.isBlank()) return
         stop()
-        // Sans clé Fish Audio : la voix du téléphone, réglée pour la mascotte (gratuite, hors ligne).
+        // Sans clé Fish Audio : la voix naturelle hors ligne de la mascotte si elle est téléchargée,
+        // sinon la voix du téléphone réglée pour elle (gratuites, hors ligne).
         if (!settings.fishKeySaved) {
             _status.value = SpeechStatus(speaking = true)
-            device.speak(spoken, mascotVoice(species())) { if (_status.value.speaking) _status.value = SpeechStatus() }
+            val voice = mascotVoice(species())
+            val done = { if (_status.value.speaking) _status.value = SpeechStatus() }
+            val natural = offline()?.takeIf { it.ready(OfflineSpeech.Pack.Voice) }
+            if (natural != null) natural.speak(spoken, voice.offlineSpeaker, voice.offlineSpeed, done)
+            else device.speak(spoken, voice, done)
             return
         }
         val voiceId = fishVoice(settings)
@@ -206,7 +213,7 @@ class CompanionVoice(
 
     fun stop() {
         job?.cancel(); job = null
-        if (_status.value.speaking) runCatching { device.stop() }
+        if (_status.value.speaking) { runCatching { device.stop() }; runCatching { offline()?.stopSpeaking() } }
         player?.run { try { stop() } catch (_: IllegalStateException) {}; release() }
         player = null
         if (_status.value.speaking) _status.value = SpeechStatus()

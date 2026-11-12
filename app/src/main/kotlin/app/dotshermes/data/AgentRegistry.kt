@@ -165,7 +165,8 @@ class AgentRegistry(
             appearance(id).adoptServerName(COMPANION_NAME)
             return DirectChatRepository(id, link.provider, link.model, scope, apiStorage, providerClient,
                 persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools,
-                imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel).apply { setShown(id == _activeId.value) }
+                imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel,
+                    offlineTranscribe = { app.dotshermes.AppContainer.speech.transcribe(it) }).apply { setShown(id == _activeId.value) }
         }
         // Pas encore de compte (premier lancement, ajout en cours) : l'écran de connexion s'affiche.
         return UnpairedChatRepository()
@@ -257,7 +258,8 @@ class AgentRegistry(
                 val knownCooldown = (repos[id] as? DirectChatRepository)?.cooldownFor(provider, model.trim(), key) ?: 0
                 val direct = DirectChatRepository(id, provider, model.trim(), scope, apiStorage, providerClient,
                     inheritedCooldownUntilMs = knownCooldown, persona = { persona(appearance(id).state.value.displayName) }, toolbox = directTools,
-                    imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel)
+                    imageDir = File(context.filesDir, "direct-images/$id"), encodeImage = { downscaleJpeg(it) }, localFallback = ::readyLocalModel,
+                    offlineTranscribe = { app.dotshermes.AppContainer.speech.transcribe(it) })
                 direct.restore()
                 currentCoroutineContext().ensureActive()
                 if (direct.connection.value !is ConnectionState.Connected) return@withLock false

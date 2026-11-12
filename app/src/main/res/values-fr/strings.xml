@@ -627,4 +627,16 @@ Colle une clé API Groq pour commencer.</string>
     <string name="open_android_settings">Ouvrir les réglages Android</string>
     <string name="keep_listening_action">Autoriser dans les réglages Android</string>
     <string name="companion_voice_mascot">Voix de la mascotte</string>
+    <string name="speech_error_missing">Pour envoyer des vocaux sans Internet, téléchargez la dictée hors ligne dans Réglages › Voix.</string>
+    <string name="speech_voice_title">Voix naturelle hors ligne</string>
+    <string name="speech_voice_hint">Lit les réponses avec la voix de votre mascotte, sans clé ni Internet.</string>
+    <string name="speech_typing_title">Dictée hors ligne</string>
+    <string name="speech_typing_hint">Vos vocaux sont écrits sur le téléphone : ni clé, ni quota.</string>
+    <string name="speech_delete">Supprimer</string>
+    <string name="autoglm_title">Agent téléphone (AutoGLM)</string>
+    <string name="autoglm_hint">AutoGLM est un modèle de vision entraîné à utiliser les apps Android en regardant l\'écran. Avec une clé Z.ai ou Novita AI, Claydot lui confie les longues tâches d\'écran. Les captures sont envoyées à ce service.</string>
+    <string name="autoglm_key">Clé API</string>
+    <string name="autoglm_save">Enregistrer la clé</string>
+    <string name="autoglm_remove">Retirer la clé</string>
+    <string name="autoglm_get_key">Obtenir une clé %1$s</string>
 </resources>

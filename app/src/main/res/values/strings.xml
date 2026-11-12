@@ -619,4 +619,16 @@ Paste a Groq API key to get started.</string>
     <string name="open_android_settings">Open Android settings</string>
     <string name="keep_listening_action">Allow in Android settings</string>
     <string name="companion_voice_mascot">Mascot voice</string>
+    <string name="speech_error_missing">To send voice notes offline, download Offline voice typing in Settings › Voice.</string>
+    <string name="speech_voice_title">Natural offline voice</string>
+    <string name="speech_voice_hint">Reads replies aloud in your mascot\'s own voice, without a key or internet.</string>
+    <string name="speech_typing_title">Offline voice typing</string>
+    <string name="speech_typing_hint">Voice notes are written out on your phone: no key, no quota.</string>
+    <string name="speech_delete">Delete</string>
+    <string name="autoglm_title">Phone agent (AutoGLM)</string>
+    <string name="autoglm_hint">AutoGLM is a vision model trained to use Android apps by looking at the screen. With a key from Z.ai or Novita AI, Claydot hands it long screen tasks. Screenshots go to that service.</string>
+    <string name="autoglm_key">API key</string>
+    <string name="autoglm_save">Save key</string>
+    <string name="autoglm_remove">Remove key</string>
+    <string name="autoglm_get_key">Get a %1$s key</string>
 </resources>

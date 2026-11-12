@@ -41,3 +41,6 @@
 # Modèle hors ligne : LiteRT-LM appelle ses classes depuis le code natif (JNI) et par réflexion.
 -keep class com.google.ai.edge.litertlm.** { *; }
 -dontwarn com.google.ai.edge.litertlm.**
+
+# sherpa-onnx : le code natif lit les champs de ces classes par leur nom (JNI).
+-keep class com.k2fsa.sherpa.onnx.** { *; }

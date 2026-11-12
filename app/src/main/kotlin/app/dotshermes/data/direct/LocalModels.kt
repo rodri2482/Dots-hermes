@@ -38,7 +38,13 @@ data class LocalModel(val id: String, val name: String, val sizeBytes: Long, val
     /** Mémoire vive conseillée (Go annoncés par le fabricant) pour qu'il tourne sans ralentir le téléphone. */
     val minRamGb: Int = 0,
     /** Logo de l'éditeur (Google, Qwen, Liquid AI…), montré dans la liste des modèles. */
-    @param:androidx.annotation.DrawableRes val logo: Int = app.dotshermes.R.drawable.logo_qwen)
+    @param:androidx.annotation.DrawableRes val logo: Int = app.dotshermes.R.drawable.logo_qwen,
+    /** Comprend les photos hors ligne (encodeur d'images inclus dans le fichier, comme dans AI Edge Gallery). */
+    val vision: Boolean = false,
+    /** Décodage spéculatif (Gemma 4 : un petit modèle propose, le grand vérifie ; réponses jusqu'à ~2× plus rapides). */
+    val speculative: Boolean = false,
+    /** Modèle de conversation Jinja à la place de celui du fichier (corrige un modèle mal lu par le moteur). */
+    val chatTemplate: String? = null)
 
 /** État du téléchargement d'un modèle. */
 sealed interface LocalModelState {
@@ -145,7 +151,8 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
             // Gemma 4 E2B : le plus rapide sur la puce graphique (premier mot en ~0,3 s), appels d'outils natifs.
             LocalModel("gemma4-e2b", "Gemma 4 E2B", 2_588_147_712,
                 "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
-                "gemma-4-E2B-it.litertlm", app.dotshermes.R.string.local_note_gemma4, "Google", minRamGb = 6, logo = app.dotshermes.R.drawable.logo_gemma),
+                "gemma-4-E2B-it.litertlm", app.dotshermes.R.string.local_note_gemma4, "Google", minRamGb = 6, logo = app.dotshermes.R.drawable.logo_gemma,
+                vision = true, speculative = true),
             LocalModel("qwen3.5-2b", "Qwen 3.5 2B", 2_119_744_416,
                 "https://huggingface.co/litert-community/Qwen3.5-2B/resolve/main/Qwen3.5-2B_int8.litertlm",
                 "Qwen3.5-2B_int8.litertlm", app.dotshermes.R.string.local_note_qwen, "Alibaba Qwen", freshEngine = true, minRamGb = 6),
@@ -159,7 +166,7 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
             LocalModel("qwen3-0.6b", "Qwen3 0.6B", 347_251_840,
                 "https://huggingface.co/litert-community/Qwen3-0.6B-int4/resolve/main/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",
                 "qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm", app.dotshermes.R.string.local_note_qwen06, "Alibaba Qwen",
-                chatOnly = true, minRamGb = 2),
+                chatOnly = true, minRamGb = 2, chatTemplate = LocalProviderClient.QWEN3_NOTHINK_TEMPLATE),
         )
 
         fun byId(id: String) = CATALOG.firstOrNull { it.id == id }
@@ -244,7 +251,8 @@ class LocalProviderClient(private val context: Context, private val models: () -
         if (!gpuPrefs.getBoolean("off:" + entry.id, false)) {
             gpuPrefs.edit().putBoolean("trying:" + entry.id, true).commit()
             val gpu = try {
-                Engine(EngineConfig(modelPath = path, backend = Backend.GPU(), cacheDir = context.cacheDir.path)).also { it.initialize() }
+                Engine(EngineConfig(modelPath = path, backend = Backend.GPU(), cacheDir = context.cacheDir.path,
+                    visionBackend = if (entry.vision) Backend.GPU() else null, maxNumImages = if (entry.vision) 1 else null)).also { it.initialize() }
             } catch (_: Throwable) {
                 gpuPrefs.edit().putBoolean("off:" + entry.id, true).remove("trying:" + entry.id).commit()
                 null
@@ -259,7 +267,8 @@ class LocalProviderClient(private val context: Context, private val models: () -
         }
         // Fils de calcul selon le téléphone : les cœurs restants gardent l'interface fluide.
         val threads = tier.threads(Runtime.getRuntime().availableProcessors())
-        val cpu = Engine(EngineConfig(modelPath = path, backend = Backend.CPU(threads, null), cacheDir = context.cacheDir.path))
+        val cpu = Engine(EngineConfig(modelPath = path, backend = Backend.CPU(threads, null), cacheDir = context.cacheDir.path,
+            visionBackend = if (entry.vision) Backend.CPU(threads, null) else null, maxNumImages = if (entry.vision) 1 else null))
         cpu.initialize()
         engine = cpu; loadedPath = path
         return cpu
@@ -343,10 +352,18 @@ class LocalProviderClient(private val context: Context, private val models: () -
                     mode == DeviceGuard.Mode.Gentle -> 256
                     else -> tier.maxOutputTokens
                 },
+                enableSpeculativeDecoding = if (entry.speculative) true else null,
+                chatTemplate = entry.chatTemplate,
             )
-            conversation = engine.createConversation(config)
+            // Fichier sans brouillon pour le décodage spéculatif (ancien téléchargement) : conversation normale.
+            conversation = try { engine.createConversation(config) }
+                catch (e: Exception) { if (entry.speculative) engine.createConversation(config.copy(enableSpeculativeDecoding = null)) else throw e }
             engineUsed = true
-            message = Message.user(last.text)
+            // Photo jointe et modèle qui voit (Gemma 4) : l'image part avec le texte, sans Internet.
+            val photo = last.image?.takeIf { entry.vision }?.substringAfter("base64,", "")?.takeIf { it.isNotEmpty() }
+                ?.let { runCatching { java.util.Base64.getDecoder().decode(it) }.getOrNull() }
+            message = if (photo != null) Message.user(Contents.of(Content.ImageBytes(photo), Content.Text(last.text)))
+                else Message.user(last.text)
         }
         val thinking = ThinkFilter()
         val calls = ArrayList<ApiToolCall>()
@@ -380,6 +397,24 @@ class LocalProviderClient(private val context: Context, private val models: () -
         /** Le client du téléphone (un seul dans l'app) : pour précharger le modèle choisi. */
         @Volatile var instance: LocalProviderClient? = null
             private set
+        /**
+         * Qwen3 0.6B (sans réflexion) : depuis LiteRT-LM 0.18, le contenu d'un message arrive en liste de parties
+         * typées et le modèle du fichier ne lit qu'une chaîne (question vide, réponse hors sujet). Celui-ci lit
+         * les deux formes, puis ouvre la réponse par un bloc de réflexion vide.
+         */
+        internal val QWEN3_NOTHINK_TEMPLATE = """
+            {%- for message in messages -%}
+            <|im_start|>{{ message.role }}
+            {% if message.content is string %}{{ message.content }}{% else %}{% for part in message.content %}{% if part.type == 'text' %}{{ part.text }}{% endif %}{% endfor %}{% endif %}<|im_end|>
+            {% endfor -%}
+            {%- if add_generation_prompt -%}
+            <|im_start|>assistant
+            <think>
+
+            </think>
+
+            {% endif -%}
+        """.trimIndent()
         private const val QUICK_NOTE = "You are Claydot, a friendly companion. Reply in one to three short sentences, plainly."
         private const val GENTLE_PAUSE_MS = 2_500L
         private const val OFFLINE_TOOLS_NOTE = "You run on the user's phone, offline. You can act on the phone with your tools " +

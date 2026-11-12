@@ -186,7 +186,65 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
         return try { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); label } catch (_: Exception) { null }
     }
 
-    override suspend fun screenshot(): ByteArray? {
+    override suspend fun screenshot(): ByteArray? = capture()?.let(::jpeg)
+
+    /** Réduite (1280 px au plus) et en JPEG : légère dans la conversation. */
+    private fun jpeg(bitmap: android.graphics.Bitmap): ByteArray {
+        val scale = 1280f / maxOf(bitmap.width, bitmap.height)
+        val small = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true) else bitmap
+        return java.io.ByteArrayOutputStream().use { out -> small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, out); out.toByteArray() }
+    }
+
+    override suspend fun markedScreenshot(): ByteArray? {
+        val shot = snapshot() ?: return null
+        val bitmap = capture()?.copy(android.graphics.Bitmap.Config.ARGB_8888, true) ?: return null
+        val canvas = android.graphics.Canvas(bitmap)
+        val density = context.resources.displayMetrics.density
+        val box = android.graphics.Paint().apply { style = android.graphics.Paint.Style.STROKE; strokeWidth = 2.5f * density; isAntiAlias = true }
+        val tag = android.graphics.Paint().apply { style = android.graphics.Paint.Style.FILL }
+        val label = android.graphics.Paint().apply { color = android.graphics.Color.WHITE; textSize = 12f * density; isFakeBoldText = true; isAntiAlias = true }
+        val palette = intArrayOf(0xFFE53935.toInt(), 0xFF1E88E5.toInt(), 0xFF43A047.toInt(), 0xFFFB8C00.toInt(), 0xFF8E24AA.toInt(), 0xFF00897B.toInt())
+        for (e in shot.elements) {
+            val p = e.bounds.split(',').mapNotNull { it.toIntOrNull() }
+            if (p.size != 4 || p[2] <= p[0] || p[3] <= p[1]) continue
+            val color = palette[e.id % palette.size]
+            box.color = color; tag.color = color
+            canvas.drawRect(p[0].toFloat(), p[1].toFloat(), p[2].toFloat(), p[3].toFloat(), box)
+            val text = e.id.toString()
+            val w = label.measureText(text) + 6 * density
+            val h = label.textSize + 4 * density
+            canvas.drawRect(p[0].toFloat(), p[1].toFloat(), p[0] + w, p[1] + h, tag)
+            canvas.drawText(text, p[0] + 3 * density, p[1] + label.textSize, label)
+        }
+        return jpeg(bitmap)
+    }
+
+    override fun screenSize(): Pair<Int, Int> {
+        val wm = context.getSystemService(android.view.WindowManager::class.java)
+        return if (android.os.Build.VERSION.SDK_INT >= 30) wm.maximumWindowMetrics.bounds.let { it.width() to it.height() }
+            else context.resources.displayMetrics.let { it.widthPixels to it.heightPixels }
+    }
+
+    override fun tapAt(x: Float, y: Float, long: Boolean): Boolean {
+        showTap(Rect(x.toInt() - 1, y.toInt() - 1, x.toInt() + 1, y.toInt() + 1), long)
+        return gesture(Path().apply { moveTo(x, y) }, if (long) 700 else 60)
+    }
+
+    override fun swipeBetween(x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
+        main.post { service?.overlay?.swipe(x1, y1, x2, y2) }
+        return gesture(Path().apply { moveTo(x1, y1); lineTo(x2, y2) }, 350)
+    }
+
+    override fun typeFocused(text: String): Boolean {
+        val field = service?.rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable && !it.isPassword }
+            ?: nodes.values.firstOrNull { it.isEditable && !it.isPassword } ?: return false
+        showTap(Rect().also(field::getBoundsInScreen))
+        val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
+        return field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+    }
+
+    /** Capture de l'écran entier (Android 11+), en image modifiable ; null si refusée. */
+    private suspend fun capture(): android.graphics.Bitmap? {
         val s = service ?: return null
         if (android.os.Build.VERSION.SDK_INT < 30) return null
         val bitmap = kotlinx.coroutines.suspendCancellableCoroutine<android.graphics.Bitmap?> { cont ->
@@ -200,11 +258,8 @@ class AccessibilityScreenDriver(private val context: Context, private val phone:
                 }
                 override fun onFailure(errorCode: Int) { cont.resumeWith(Result.success(null)) }
             })
-        } ?: return null
-        // Réduite (1280 px au plus) et en JPEG : légère dans la conversation.
-        val scale = 1280f / maxOf(bitmap.width, bitmap.height)
-        val small = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true) else bitmap
-        return java.io.ByteArrayOutputStream().use { out -> small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, out); out.toByteArray() }
+        }
+        return bitmap
     }
 
     override fun openUrl(url: String): Boolean = try {

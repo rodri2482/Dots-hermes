@@ -63,7 +63,9 @@ import app.dotshermes.ui.components.SectionLabel
 import app.dotshermes.ui.theme.Ink
 import app.dotshermes.ui.theme.LocalDotPalette
 
-internal fun gigabytes(bytes: Long) = String.format(java.util.Locale.ROOT, "%.1f GB", bytes / 1_000_000_000.0)
+/** « 2.6 GB », ou en Mo sous le gigaoctet (« 347 MB ») : jamais « 0.0 GB ». */
+internal fun gigabytes(bytes: Long) = if (bytes >= 950_000_000) String.format(java.util.Locale.ROOT, "%.1f GB", bytes / 1_000_000_000.0)
+    else String.format(java.util.Locale.ROOT, "%d MB", (bytes + 500_000) / 1_000_000)
 
 /**
  * « Ajouter un modèle » : une feuille simple au lieu de l'écran « Nouvel agent ». Les modèles du téléphone

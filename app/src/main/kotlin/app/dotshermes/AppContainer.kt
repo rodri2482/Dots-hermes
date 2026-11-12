@@ -50,9 +50,11 @@ object AppContainer {
     val screen: app.dotshermes.data.direct.ScreenTools by lazy {
         app.dotshermes.data.direct.ScreenTools(screenDriver,
             enabled = { phoneActions.enabled.value }, confirm = phoneActions::ask, ownPackage = appContext.packageName,
-            consent = { appContext.getString(app.dotshermes.R.string.screen_consent) })
+            consent = { appContext.getString(app.dotshermes.R.string.screen_consent) }, autoGlm = { autoGlm })
             .also { tools -> app.dotshermes.screen.ClaydotAccessibilityService.onStopRequested = { tools.revoke(); chatRepository.stopTurn() } }
     }
+    /** Agent de téléphone AutoGLM (Open-AutoGLM), avec la clé Z.ai ou Novita de l'utilisateur. */
+    val autoGlm: app.dotshermes.data.direct.AutoGlm by lazy { app.dotshermes.data.direct.AutoGlm(appContext, app.dotshermes.data.direct.androidApiVault(appContext)) }
     /** Modèles hors ligne téléchargés sur le téléphone (compte « Sur ce téléphone »). */
     val localModels: app.dotshermes.data.direct.LocalModels by lazy { app.dotshermes.data.direct.LocalModels(appContext, appScope) }
     val phoneActions: app.dotshermes.data.direct.PhoneActions by lazy { app.dotshermes.data.direct.PhoneActions(appContext) { screenDriver } }
@@ -61,8 +63,10 @@ object AppContainer {
     val routines: app.dotshermes.data.direct.RoutineStore by lazy { app.dotshermes.data.direct.RoutineStore(appContext) }
     /** Gmail en lecture seule pour les comptes Groq (outils de recherche et de lecture). */
     val gmail: app.dotshermes.data.gmail.GmailAccess by lazy { app.dotshermes.data.gmail.GmailAccess(appContext) }
+    /** Voix et dictée hors ligne (sherpa-onnx), téléchargées depuis les réglages. */
+    val speech: app.dotshermes.voice.OfflineSpeech by lazy { app.dotshermes.voice.OfflineSpeech(appContext, appScope) }
     val companion: CompanionVoice by lazy { CompanionVoice(appContext, appScope, app.dotshermes.data.direct.androidApiVault(appContext),
-        species = { agents.activeAppearance.value.species }) }
+        species = { agents.activeAppearance.value.species }, offline = { speech }) }
     val attachments: Attachments by lazy { Attachments(appContext) }
     val updater: AppUpdater by lazy { AppUpdater(appContext) }
 }

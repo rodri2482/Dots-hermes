@@ -28,6 +28,9 @@ class ScreenToolsTest {
         override fun openUrl(url: String) = true.also { actions += "open $url" }
         var shown = mutableListOf<Boolean>()
         override fun showActive(on: Boolean) { shown += on }
+        override suspend fun markedScreenshot() = byteArrayOf(1, 2, 3)
+        override fun screenSize() = 1000 to 2000
+        override fun tapAt(x: Float, y: Float, long: Boolean) = true.also { actions += "tapAt ${x.toInt()},${y.toInt()}" }
     }
 
     private var now = 1_000L
@@ -110,5 +113,31 @@ class ScreenToolsTest {
         assertEquals(listOf("hold 1", "swipe left", "open https://maps.google.com/?q=Lagos"), screen.actions)
         t.finished()
         assertEquals(listOf(true, false), screen.shown)
+    }
+
+    @Test fun `look_at_screen attaches a numbered screenshot for the model, without permission`() = runBlocking {
+        val screen = FakeScreen()
+        val result = JSONObject(tools(screen).run(call("look_at_screen")))
+        assertTrue(result.has("elements"))
+        assertEquals(java.util.Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3)), result.getString(ScreenTools.VISION_KEY))
+        assertTrue(screen.actions.isEmpty())
+    }
+
+    @Test fun `tap_point taps a share of the screen, after approval only`() = runBlocking {
+        val screen = FakeScreen()
+        val t = tools(screen)
+        assertTrue(t.run(call("tap_point", """{"x":500,"y":250}""")).contains("start_screen_control"))
+        t.run(call("start_screen_control", """{"goal":"Open the photo"}"""))
+        t.run(call("tap_point", """{"x":500,"y":250}"""))
+        assertTrue(t.run(call("tap_point", """{"x":1500,"y":250}""")).contains("error"))
+        assertEquals(listOf("tapAt 500,500"), screen.actions)
+    }
+
+    @Test fun `AutoGLM answers are read like Open-AutoGLM does`() {
+        assertEquals("""do(action="Tap", element=[500,120])""",
+            AutoGlm.actionOf("""<think>The search box is at the top.</think>
+<answer>do(action="Tap", element=[500,120])</answer>"""))
+        assertEquals("""finish(message="Done")""", AutoGlm.actionOf("""I am done. finish(message="Done")"""))
+        assertTrue(AutoGlm.systemPrompt().contains("""do(action="Tap", element=[x,y])"""))
     }
 }

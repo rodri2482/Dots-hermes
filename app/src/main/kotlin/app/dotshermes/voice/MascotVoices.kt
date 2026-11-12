@@ -15,12 +15,14 @@ import java.util.Locale
  * - Nuage (bleu ciel, antenne) : doux et rêveur → « Selene », voix calme et apaisante.
  * - Pavé (raisin, pousse) : posé et solide → « Slax », voix claire, nette et mesurée.
  */
-data class MascotVoice(val fishId: String, val fishName: String, val pitch: Float, val rate: Float)
+data class MascotVoice(val fishId: String, val fishName: String, val pitch: Float, val rate: Float,
+    /** Voix naturelle hors ligne (KittenTTS, 8 voix : pair = homme, impair = femme) et sa vitesse. */
+    val offlineSpeaker: Int, val offlineSpeed: Float)
 
 fun mascotVoice(species: DotSpecies): MascotVoice = when (species) {
-    DotSpecies.Galet -> MascotVoice("711cf3ed00ab441a8f54a45058047b7a", "Verity", pitch = 1.22f, rate = 1.08f)
-    DotSpecies.Nuage -> MascotVoice("b347db033a6549378b48d00acb0d06cd", "Selene", pitch = 1.1f, rate = 0.92f)
-    DotSpecies.Pave -> MascotVoice("c5f56a6cc2ec4fa8920cb4c5889a3fb7", "Slax", pitch = 0.82f, rate = 0.96f)
+    DotSpecies.Galet -> MascotVoice("711cf3ed00ab441a8f54a45058047b7a", "Verity", pitch = 1.22f, rate = 1.08f, offlineSpeaker = 6, offlineSpeed = 1.08f)
+    DotSpecies.Nuage -> MascotVoice("b347db033a6549378b48d00acb0d06cd", "Selene", pitch = 1.1f, rate = 0.92f, offlineSpeaker = 3, offlineSpeed = 0.95f)
+    DotSpecies.Pave -> MascotVoice("c5f56a6cc2ec4fa8920cb4c5889a3fb7", "Slax", pitch = 0.82f, rate = 0.96f, offlineSpeaker = 4, offlineSpeed = 0.95f)
 }
 
 /** Choix « voix de la mascotte » : la voix suit la mascotte choisie (réglage par défaut). */

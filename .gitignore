@@ -46,3 +46,6 @@ docs/notes-developpement.md
 .env.*
 *service-account*.json
 fcm-*.json
+
+# Bibliothèques téléchargées au build (sherpa-onnx), vérifiées par empreinte
+app/libs-download/
