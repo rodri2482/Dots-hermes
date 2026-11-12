@@ -34,8 +34,10 @@ object AppContainer {
         AgentRegistry(appContext, appScope, AgentStore(appContext),
             persona = { name -> companion.persona(name) },
             directTools = { app.dotshermes.data.direct.CombinedTools(listOf(app.dotshermes.data.direct.GmailTools(gmail), phoneActions,
-                app.dotshermes.data.direct.RoutineTools(appContext, routines, accountId = { agents.activeId.value }, confirm = phoneActions::ask), screen,
-                app.dotshermes.data.direct.MessagingTools(appContext, enabled = { phoneActions.enabled.value }, confirm = phoneActions::ask, screen = { screenDriver }),
+                app.dotshermes.data.direct.RoutineTools(appContext, routines, accountId = { agents.activeId.value }, confirm = phoneActions::ask,
+                    access = phoneActions::requestAccess), screen,
+                app.dotshermes.data.direct.MessagingTools(appContext, enabled = { phoneActions.enabled.value }, confirm = phoneActions::ask, screen = { screenDriver },
+                    access = phoneActions::requestAccess),
                 app.dotshermes.data.direct.WebTools())) })
     }
 
@@ -50,7 +52,8 @@ object AppContainer {
     val screen: app.dotshermes.data.direct.ScreenTools by lazy {
         app.dotshermes.data.direct.ScreenTools(screenDriver,
             enabled = { phoneActions.enabled.value }, confirm = phoneActions::ask, ownPackage = appContext.packageName,
-            consent = { appContext.getString(app.dotshermes.R.string.screen_consent) }, autoGlm = { autoGlm })
+            consent = { appContext.getString(app.dotshermes.R.string.screen_consent) }, autoGlm = { autoGlm },
+            access = { phoneActions.requestAccess(app.dotshermes.data.direct.PhoneAccess.Screen) })
             .also { tools -> app.dotshermes.screen.ClaydotAccessibilityService.onStopRequested = { tools.revoke(); chatRepository.stopTurn() } }
     }
     /** Agent de téléphone AutoGLM (Open-AutoGLM), avec la clé Z.ai ou Novita de l'utilisateur. */

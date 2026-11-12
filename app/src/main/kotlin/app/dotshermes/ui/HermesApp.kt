@@ -266,8 +266,21 @@ fun HermesApp(
             )
         }
         val phoneAction by AppContainer.phoneActions.pending.collectAsStateWithLifecycle()
+        // Accès Android demandé par Claydot : « Autoriser » ouvre la demande (contacts, SMS) ou le réglage voulu.
+        val askPermissions = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { }
         phoneAction?.let { action ->
-            app.dotshermes.ui.components.PermissionSheet(action.title, action.detail, appearance, onAllow = action::confirm, onDeny = action::cancel)
+            app.dotshermes.ui.components.PermissionSheet(action.title, action.detail, appearance, access = action.access != null,
+                onAllow = {
+                    action.access?.let { access ->
+                        if (access == app.dotshermes.data.direct.PhoneAccess.Contacts) askPermissions.launch(app.dotshermes.data.direct.MessagingTools.PERMISSIONS)
+                        else app.dotshermes.data.direct.PhoneActions.settingsIntent(context, access)?.let { intent ->
+                            runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        }
+                    }
+                    action.confirm()
+                },
+                onDeny = action::cancel)
         }
         if (clearingChat) {
             androidx.compose.material3.AlertDialog(

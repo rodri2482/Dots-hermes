@@ -26,7 +26,10 @@ class MessagingTools(
     private val enabled: () -> Boolean,
     private val confirm: suspend (title: String, detail: String) -> Boolean,
     private val screen: () -> ScreenDriver?,
+    /** Demande un accès Android au moment voulu (fenêtre « Claydot veut… »). */
+    private val access: suspend (PhoneAccess) -> Boolean = { false },
 ) : DirectTools {
+    private suspend fun contactsAllowed() = MessagingTools.PERMISSIONS.all(::granted) || access(PhoneAccess.Contacts)
     private fun granted(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
     override fun definitions(): JSONArray? = if (!enabled()) null else JSONArray()
@@ -52,12 +55,12 @@ class MessagingTools(
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }
         return when (call.name) {
             "find_contact" -> {
-                if (!granted(Manifest.permission.READ_CONTACTS)) return needs("contacts")
+                if (!contactsAllowed()) return needs()
                 val found = withContext(Dispatchers.IO) { contacts(args.optString("name").trim()) }
                 JSONObject().put("contacts", JSONArray().apply { found.forEach { (n, p) -> put(JSONObject().put("name", n).put("phone", p)) } }).toString()
             }
             "send_sms" -> {
-                if (!granted(Manifest.permission.SEND_SMS)) return needs("sms")
+                if (!contactsAllowed()) return needs()
                 val (name, number) = resolve(args.optString("to")) ?: return err("no contact or number found for '${args.optString("to")}'")
                 val text = args.optString("text").trim().take(1_000).ifEmpty { return err("text is required") }
                 if (!confirm(ToolKeys.title("sms", "SMS → $name"), text)) return declined()
@@ -75,6 +78,7 @@ class MessagingTools(
                 val pkg = listOf("com.whatsapp", "com.whatsapp.w4b").firstOrNull { context.packageManager.getLaunchIntentForPackage(it) != null }
                     ?: return err("WhatsApp is not installed")
                 // Un contact sans numéro dans le téléphone se cherche quand même dans WhatsApp, à l'écran.
+                if (to.count { it.isDigit() } < 6) contactsAllowed()
                 val (name, number) = resolve(to) ?: (to to "")
                 if (name.isEmpty()) return err("who should get the message?")
                 if (number.isEmpty() && screen()?.connected() != true) return err("no number found for '$to' and screen control is off")
@@ -88,7 +92,8 @@ class MessagingTools(
     }
 
     private suspend fun chatTool(name: String, args: JSONObject): String {
-        if (!ChatLog.accessGranted(context)) return err("ask the user to tap 'Read WhatsApp notifications' in Claydot settings > Phone first")
+        if (!ChatLog.accessGranted(context) && !access(PhoneAccess.Notifications))
+            return err("the user did not allow reading WhatsApp notifications; Claydot needs it to read and answer chats")
         val wanted = args.optString("chat").trim().ifEmpty { return err("chat is required") }
         val chat = ChatLog.findChat(context, wanted)
         val hours = args.optInt("hours", 0)
@@ -221,7 +226,7 @@ class MessagingTools(
             .sortedBy { (n, _) -> when { n.equals(name, true) -> 0; n.startsWith(name, true) -> 1; else -> 2 } }
     }
 
-    private fun needs(what: String) = err("permission missing: ask the user to tap 'Allow contacts and texting' in Claydot settings > Phone ($what)")
+    private fun needs() = err("the user did not allow contacts and texting; say they can allow it next time you text someone")
     private fun declined() = JSONObject().put("status", "cancelled").put("detail", "The user declined. Do not retry unless they ask again.").toString()
     private fun err(message: String) = JSONObject().put("error", message).toString()
     private fun str(d: String) = JSONObject().put("type", "string").put("description", d)

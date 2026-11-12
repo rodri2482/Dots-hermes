@@ -69,6 +69,8 @@ class ScreenTools(
     private val grantMs: Long = 5 * 60_000,
     /** Agent de téléphone AutoGLM, si l'utilisateur a donné sa clé (sinon l'outil n'est pas proposé). */
     private val autoGlm: () -> AutoGlm? = { null },
+    /** Demande d'activer le contrôle de l'écran (réglages d'accessibilité) au moment voulu. */
+    private val access: suspend () -> Boolean = { false },
 ) : DirectTools {
     @Volatile private var grantedUntil = 0L
 
@@ -80,7 +82,7 @@ class ScreenTools(
 
     override fun finished() = revoke()
 
-    override fun definitions(): JSONArray? = if (!enabled() || !driver.connected()) null else JSONArray()
+    override fun definitions(): JSONArray? = if (!enabled()) null else JSONArray()
         .put(fn("start_screen_control", "Ask the user for permission to operate their phone screen for one task " +
             "(read the screen, tap, type, scroll, open apps). Call this once before any other screen tool, while the user is in the chat. " +
             "Permission lasts a few minutes.", JSONObject().put("goal", str("What you will do, in one short sentence the user will read")), "goal"))
@@ -114,7 +116,8 @@ class ScreenTools(
 
     override suspend fun run(call: ApiToolCall): String {
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }
-        if (!driver.connected()) return err("screen control is off: the user must turn on Claydot in Android's accessibility settings")
+        // Service éteint : Claydot demande à l'activer (fenêtre puis réglages d'accessibilité), puis continue.
+        if (!driver.connected() && !access()) return err("screen control is off and the user did not turn it on")
         if (call.name == "start_screen_control") {
             val goal = args.optString("goal").trim().take(200).ifEmpty { return err("goal is required") }
             if (!confirm(ToolKeys.title("screen", goal), consent())) return JSONObject().put("status", "declined").toString()

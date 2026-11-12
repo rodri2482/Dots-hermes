@@ -374,7 +374,7 @@ Paste a Groq API key to get started.</string>
     <string name="conn_online">Online</string>
     <string name="phone_section">Phone</string>
     <string name="phone_title">Let Claydot use your phone</string>
-    <string name="phone_hint">Music, apps, phone status, alarms, timers and calendar events. Music and opening apps happen straight away; anything else asks you first.</string>
+    <string name="phone_hint">Music, apps, alarms and texts. Asks before anything important.</string>
     <string name="phone_confirm_title">Claydot wants to</string>
     <string name="phone_do">Do it</string>
     <string name="chats_title">Chats</string>
@@ -388,11 +388,6 @@ Paste a Groq API key to get started.</string>
     <string name="memory_section">Memory</string>
     <string name="memory_empty">Nothing yet. Tell Claydot “remember that…” and it will know it in every chat.</string>
     <string name="memory_forget">Forget</string>
-    <string name="screen_title">Let Claydot use your screen</string>
-    <string name="screen_hint">Claydot can read the screen and tap, type and scroll in other apps for a task you ask for. Turn on “Claydot” in Android’s accessibility settings.</string>
-    <string name="screen_on_hint">On. Claydot asks before each task and never touches passwords, settings or app installs.</string>
-    <string name="screen_turn_on">Turn on in Android settings</string>
-    <string name="screen_turn_off">Turn off in Android settings</string>
     <string name="screen_consent">For the next 5 minutes Claydot will read your screen and tap, type and scroll to do this. It never touches passwords, settings or app installs. It stops when the reply ends, or when you tap Stop in Claydot.</string>
     <string name="a11y_summary">Lets Claydot do tasks on your screen when you ask</string>
     <string name="a11y_description">Claydot reads the screen and taps, types and scrolls only during a task you approved in the chat, for 5 minutes at most. It does nothing on its own, keeps nothing, and never touches password fields, Android settings or app installs.</string>
@@ -408,10 +403,6 @@ Paste a Groq API key to get started.</string>
     <string name="permission_hint">Nothing happens unless you tap %1$s.</string>
     <string name="composer_caption">Add a message…</string>
     <string name="attach_remove">Remove attachment</string>
-    <string name="texting_title">Texting (SMS and WhatsApp)</string>
-    <string name="texting_hint">Claydot finds people in your contacts and texts them for you. You see and approve every message before it goes.</string>
-    <string name="texting_on">On. You approve every message before it is sent.</string>
-    <string name="texting_allow">Allow contacts and texting</string>
     <string name="doing_memory">Remembering…</string>
     <string name="doing_wait">Waiting %1$d s…</string>
     <string name="doing_voice">Listening to your voice note…</string>
@@ -452,15 +443,8 @@ Paste a Groq API key to get started.</string>
     <string name="routine_channel">Routines running</string>
     <string name="routine_running">Claydot is running a routine</string>
     <string name="routines_exact">Allow exact timing for routines</string>
-    <string name="chatwatch_title">Read WhatsApp notifications</string>
-    <string name="chatwatch_hint">For routines like a daily attendance in a group: Claydot reads WhatsApp messages from notifications and can reply even with the phone locked. Tap to allow Claydot.</string>
-    <string name="chatwatch_on">On. Only WhatsApp messages are kept, on this phone, for 3 days.</string>
     <string name="routines_run_now">Run now</string>
-    <string name="keep_listening_title">Keep listening in the background</string>
-    <string name="keep_listening_hint">Tap so Android never puts Claydot to sleep: WhatsApp listening and routines keep working all day. On Samsung, also check Battery > Never sleeping apps.</string>
-    <string name="keep_listening_on">On. Claydot keeps listening to WhatsApp on its own, even after a restart.</string>
     <string name="always_on_title">Always on (24/7)</string>
-    <string name="always_on_hint">Keeps Claydot awake with a small notification so it hears every WhatsApp message, day and night. Starts again after a restart.</string>
     <string name="always_on_channel">Always on</string>
     <string name="always_on_notification">Claydot is listening</string>
     <string name="always_on_guide">Stop %1$s from closing Claydot</string>
@@ -601,12 +585,9 @@ Paste a Groq API key to get started.</string>
     </plurals>
     <string name="setting_on">On</string>
     <string name="setting_off">Off</string>
-    <string name="setting_allowed">Allowed</string>
-    <string name="setting_not_allowed">Not allowed yet</string>
     <string name="open_android_settings">Open Android settings</string>
-    <string name="keep_listening_action">Allow in Android settings</string>
     <string name="autoglm_title">Phone agent (AutoGLM)</string>
-    <string name="autoglm_hint">AutoGLM is a vision model trained to use Android apps by looking at the screen. With a key from Z.ai or Novita AI, Claydot hands it long screen tasks. Screenshots go to that service.</string>
+    <string name="autoglm_hint">Hands long screen tasks to AutoGLM. Needs a Z.ai or Novita key.</string>
     <string name="autoglm_key">API key</string>
     <string name="autoglm_save">Save key</string>
     <string name="autoglm_remove">Remove key</string>
@@ -619,4 +600,18 @@ Paste a Groq API key to get started.</string>
     <string name="gmail_password_create">Create an app password on Google</string>
     <string name="gmail_error_password">Google refused this address or app password. Check both, and that 2-Step Verification is on.</string>
     <string name="gmail_connected_as">Connected as %1$s, read-only.</string>
+    <string name="always_on_short">Keeps Claydot listening for your routines.</string>
+    <string name="permissions_title">Permissions</string>
+    <string name="permissions_summary">Asked when needed</string>
+    <string name="permissions_hint">Claydot asks in the chat when it needs one. Remove any in Android settings.</string>
+    <string name="permission_allow">Allow</string>
+    <string name="permission_restricted">If Android shows “Restricted setting”: App info › ⋮ › Allow restricted settings.</string>
+    <string name="access_contacts_title">Contacts and texting</string>
+    <string name="access_contacts_detail">To find people and send the texts you approve.</string>
+    <string name="access_notifications_title">Read WhatsApp notifications</string>
+    <string name="access_notifications_detail">To read and answer your chats. Turn on Claydot on the next screen.</string>
+    <string name="access_screen_title">Use your screen</string>
+    <string name="access_screen_detail">To tap and type for you. Turn on Claydot on the next screen.</string>
+    <string name="access_allday_title">Listen all day</string>
+    <string name="access_allday_detail">So your routine catches every message. Allow Claydot to run in the background.</string>
 </resources>

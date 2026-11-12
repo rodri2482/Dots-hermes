@@ -234,6 +234,7 @@ class RoutineTools(
     private val store: RoutineStore,
     private val accountId: () -> String?,
     private val confirm: suspend (title: String, detail: String) -> Boolean,
+    private val access: suspend (PhoneAccess) -> Boolean = { false },
 ) : DirectTools {
     override fun definitions(): JSONArray? = if (accountId() == null) null else JSONArray()
         .put(fn("create_routine", "Create a recurring routine that runs a task on a schedule and notifies the user with the result " +
@@ -263,6 +264,9 @@ class RoutineTools(
             "create_routine" -> {
                 val prompt = args.optString("prompt").trim().take(600).ifEmpty { return err("prompt is required") }
                 val trigger = args.optString("trigger").trim().lowercase().ifEmpty { Routine.TIME }
+                // Une routine WhatsApp lit les notifications : on demande l'accès maintenant, s'il manque.
+                val aboutChats = trigger == Routine.MESSAGE || listOf("whatsapp", "group", "attendance", "groupe", "appel").any { it in prompt.lowercase() }
+                if (aboutChats && !ChatLog.accessGranted(context)) access(PhoneAccess.Notifications)
                 val check = RoutineCheck.check(trigger, args.optString("time"), args.optString("days"), args.optInt("every_minutes", 0),
                     args.optString("chat"), prompt, args.optString("allow"), chatsKnown = { ChatLog.findChat(context, it) },
                     notificationsAllowed = ChatLog.accessGranted(context))
@@ -273,6 +277,8 @@ class RoutineTools(
                 val may = if (routine.allowed.isEmpty()) "" else "\nAllowed without asking: " + routine.allowed.sorted().joinToString(", ")
                 if (!confirm(ToolKeys.title("routine", routine.name), "${routine.scheduleLabel()}\n${routine.prompt}$may")) return JSONObject().put("status", "cancelled").toString()
                 store.add(routine)
+                // Routine qui réagit aux messages : Claydot doit rester à l'écoute toute la journée.
+                if (trigger == Routine.MESSAGE) access(PhoneAccess.AllDay)
                 JSONObject().put("status", "created").put("id", routine.id).put("schedule", routine.scheduleLabel()).toString()
             }
             "list_routines" -> JSONObject().put("routines", JSONArray().apply {
@@ -412,8 +418,8 @@ object RoutineCheck {
         val whatsapp = trigger == Routine.MESSAGE || listOf("whatsapp", "group", "attendance", "groupe", "appel").any { it in text }
         if (whatsapp) allowed = allowed + "whatsapp"
         if (listOf("sms", "text message").any { it in text }) allowed = allowed + "sms"
-        if (whatsapp && !notificationsAllowed) return Result("WhatsApp routines need notification access: ask the user to tap " +
-            "'Read WhatsApp notifications' in Claydot settings > Phone, then try again")
+        if (whatsapp && !notificationsAllowed) return Result("WhatsApp routines need notification access and the user did not allow it; " +
+            "ask again only if they want this routine")
         return when (trigger) {
             Routine.EVERY -> if (everyMinutes < Routine.MIN_EVERY) Result("every_minutes must be at least ${Routine.MIN_EVERY}")
                 else Result(everyMinutes = everyMinutes.coerceAtMost(24 * 60), allowed = allowed)

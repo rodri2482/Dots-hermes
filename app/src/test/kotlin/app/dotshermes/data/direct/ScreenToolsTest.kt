@@ -40,9 +40,18 @@ class ScreenToolsTest {
 
     private fun call(name: String, args: String = "{}") = ApiToolCall("c", name, args)
 
-    @Test fun `no tools while the accessibility service is off`() {
+    @Test fun `screen control off - Claydot asks to turn it on, and stops if the user says no`() = runBlocking {
         val screen = FakeScreen().apply { on = false }
-        assertNull(tools(screen).definitions())
+        var asked = 0
+        val refused = ScreenTools(screen, enabled = { true }, confirm = { _, _ -> true }, ownPackage = "app.claydot",
+            clockMs = { now }, settleMs = 0, access = { asked++; false })
+        assertTrue(refused.definitions() != null)
+        assertTrue(refused.run(call("read_screen")).contains("did not turn it on"))
+        assertEquals(1, asked)
+        // Accordé : le service s'allume et l'outil continue.
+        val allowed = ScreenTools(screen, enabled = { true }, confirm = { _, _ -> true }, ownPackage = "app.claydot",
+            clockMs = { now }, settleMs = 0, access = { screen.on = true; true })
+        assertTrue(JSONObject(allowed.run(call("read_screen"))).has("elements"))
     }
 
     @Test fun `nothing happens before the user approves the task`() = runBlocking {

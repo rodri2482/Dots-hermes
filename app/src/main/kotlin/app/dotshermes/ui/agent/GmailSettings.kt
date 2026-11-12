@@ -1,5 +1,6 @@
 package app.dotshermes.ui.agent
 
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.TouchApp
@@ -194,8 +195,9 @@ fun GmailSettings(gmail: GmailAccess) {
 }
 
 /**
- * Actions sur le téléphone : une ligne par réglage (icône, nom, état en un mot). Un toucher l'ouvre :
- * l'explication et le bouton qui va avec (autoriser, réglages Android…). Une seule ouverte à la fois.
+ * Téléphone : l'interrupteur général, l'agent AutoGLM et un lien vers les autorisations Android. Les accès
+ * (contacts et SMS, notifications WhatsApp, écran, écoute toute la journée) ne se règlent plus ici :
+ * Claydot les demande dans la conversation, au moment où il en a besoin.
  */
 @Composable
 fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
@@ -203,9 +205,6 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     fun toggle(key: String) { open = if (open == key) null else key }
-    // Retour des réglages d'Android : les états (accès aux notifications, batterie, écran…) sont relus.
-    var resumed by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { resumed++; onPauseOrDispose { } }
     val switchColors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,
         checkedThumbColor = androidx.compose.ui.graphics.Color.White)
     fun launch(intent: android.content.Intent) {
@@ -220,74 +219,22 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
             }
             SettingDetail(open == "phone") { SettingHint(stringResource(R.string.phone_hint)) }
             if (enabled) {
-                fun textingAllowed() = app.dotshermes.data.direct.MessagingTools.PERMISSIONS.all {
-                    androidx.core.content.ContextCompat.checkSelfPermission(context, it) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                }
-                var texting by remember { mutableStateOf(textingAllowed()) }
-                androidx.compose.runtime.LaunchedEffect(resumed) { texting = textingAllowed() }
-                val ask = androidx.activity.compose.rememberLauncherForActivityResult(
-                    androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { texting = textingAllowed() }
-                Hairline(startIndent = 60.dp)
-                CollapsedHeader(Icons.Rounded.Sms, stringResource(R.string.texting_title),
-                    stringResource(if (texting) R.string.setting_allowed else R.string.setting_not_allowed), open == "texting", { toggle("texting") })
-                SettingDetail(open == "texting") {
-                    SettingHint(stringResource(if (texting) R.string.texting_on else R.string.texting_hint))
-                    if (!texting) SettingAction(stringResource(R.string.texting_allow)) { ask.launch(app.dotshermes.data.direct.MessagingTools.PERMISSIONS) }
-                }
-
-                // Notifications WhatsApp : pour faire l'appel d'un groupe et répondre téléphone verrouillé.
-                val watching = remember(enabled, resumed) { app.dotshermes.data.direct.ChatLog.accessGranted(context) }
-                Hairline(startIndent = 60.dp)
-                CollapsedHeader(Icons.Rounded.Notifications, stringResource(R.string.chatwatch_title),
-                    stringResource(if (watching) R.string.setting_on else R.string.setting_off), open == "watch", { toggle("watch") })
-                SettingDetail(open == "watch") {
-                    SettingHint(stringResource(if (watching) R.string.chatwatch_on else R.string.chatwatch_hint))
-                    SettingAction(stringResource(R.string.open_android_settings)) {
-                        launch(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                    }
-                }
-
-                if (watching) {
-                    // Ne jamais mettre Claydot en veille : l'écoute de WhatsApp et les routines tiennent toute la journée.
-                    val awake = remember(enabled, resumed) { app.dotshermes.data.direct.ChatLog.neverSleeps(context) }
-                    Hairline(startIndent = 60.dp)
-                    CollapsedHeader(Icons.Rounded.BatteryChargingFull, stringResource(R.string.keep_listening_title),
-                        stringResource(if (awake) R.string.setting_on else R.string.setting_off), open == "awake", { toggle("awake") })
-                    SettingDetail(open == "awake") {
-                        SettingHint(stringResource(if (awake) R.string.keep_listening_on else R.string.keep_listening_hint))
-                        if (!awake) SettingAction(stringResource(R.string.keep_listening_action)) {
-                            launch(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                                android.net.Uri.parse("package:" + context.packageName)))
-                        }
-                    }
-
-                    // Toujours actif (24 h/24) et le guide de la marque du téléphone (dontkillmyapp.com).
-                    var alwaysOn by remember { mutableStateOf(app.dotshermes.data.direct.AlwaysOnService.enabled(context)) }
+                // Toujours actif : allumé par Claydot pour une routine « message » ; ici seulement pour l'éteindre.
+                var alwaysOn by remember { mutableStateOf(app.dotshermes.data.direct.AlwaysOnService.enabled(context)) }
+                if (alwaysOn) {
                     Hairline(startIndent = 60.dp)
                     CollapsedHeader(Icons.Rounded.AllInclusive, stringResource(R.string.always_on_title),
-                        stringResource(if (alwaysOn) R.string.setting_on else R.string.setting_off), open == "always", { toggle("always") }) {
-                        androidx.compose.material3.Switch(checked = alwaysOn, onCheckedChange = {
+                        stringResource(R.string.setting_on), open == "always", { toggle("always") }) {
+                        androidx.compose.material3.Switch(checked = true, onCheckedChange = {
                             alwaysOn = it; app.dotshermes.data.direct.AlwaysOnService.set(context, it)
                         }, colors = switchColors)
                     }
                     SettingDetail(open == "always") {
-                        SettingHint(stringResource(R.string.always_on_hint))
+                        SettingHint(stringResource(R.string.always_on_short))
                         SettingAction(stringResource(R.string.always_on_guide, android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() })) {
                             launch(android.content.Intent(android.content.Intent.ACTION_VIEW,
                                 android.net.Uri.parse(app.dotshermes.data.direct.AlwaysOnService.guideUrl())))
                         }
-                    }
-                }
-
-                // Contrôle de l'écran : seul Android peut l'activer (Réglages > Accessibilité).
-                val screenOn by app.dotshermes.screen.ClaydotAccessibilityService.running.collectAsStateWithLifecycle()
-                Hairline(startIndent = 60.dp)
-                CollapsedHeader(Icons.Rounded.TouchApp, stringResource(R.string.screen_title),
-                    stringResource(if (screenOn) R.string.setting_on else R.string.setting_off), open == "screen", { toggle("screen") })
-                SettingDetail(open == "screen") {
-                    SettingHint(stringResource(if (screenOn) R.string.screen_on_hint else R.string.screen_hint))
-                    SettingAction(stringResource(if (screenOn) R.string.screen_turn_off else R.string.screen_turn_on)) {
-                        launch(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     }
                 }
 
@@ -320,6 +267,18 @@ fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
                         else SettingAction(stringResource(R.string.autoglm_get_key, agentState.host.label)) {
                             launch(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(agentState.host.keysUrl)))
                         }
+                    }
+                }
+
+                // Les accès donnés se retirent dans Android (fiche de l'app) ; Claydot les redemandera au besoin.
+                Hairline(startIndent = 60.dp)
+                CollapsedHeader(Icons.Rounded.Lock, stringResource(R.string.permissions_title), stringResource(R.string.permissions_summary),
+                    open == "perms", { toggle("perms") })
+                SettingDetail(open == "perms") {
+                    SettingHint(stringResource(R.string.permissions_hint))
+                    SettingAction(stringResource(R.string.open_android_settings)) {
+                        launch(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.parse("package:" + context.packageName)))
                     }
                 }
             }

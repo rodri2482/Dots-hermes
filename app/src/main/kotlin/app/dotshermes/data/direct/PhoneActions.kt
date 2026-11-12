@@ -27,8 +27,15 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** Une action proposée par Claydot, en attente de l'accord de l'utilisateur. */
-class PendingPhoneAction(val title: String, val detail: String, internal val answer: CompletableDeferred<Boolean>) {
+/**
+ * Un accès Android que Claydot demande au moment où il en a besoin (au lieu de réglages à l'avance) :
+ * contacts et SMS, notifications WhatsApp, contrôle de l'écran, écoute toute la journée.
+ */
+enum class PhoneAccess(val icon: String) { Contacts("sms"), Notifications("message"), Screen("screen"), AllDay("routine") }
+
+/** Une action proposée par Claydot, en attente de l'accord de l'utilisateur ([access] : une demande d'accès). */
+class PendingPhoneAction(val title: String, val detail: String, internal val answer: CompletableDeferred<Boolean>,
+    val access: PhoneAccess? = null) {
     fun confirm() { answer.complete(true) }
     fun cancel() { answer.complete(false) }
 }
@@ -85,6 +92,38 @@ class PhoneActions(
         return try { withTimeoutOrNull(120_000) { action.answer.await() } ?: false } finally {
             if (_pending.value === action) _pending.value = null
         }
+    }
+
+    /** L'accès est-il déjà donné ? */
+    fun hasAccess(access: PhoneAccess): Boolean = when (access) {
+        PhoneAccess.Contacts -> MessagingTools.PERMISSIONS.all {
+            androidx.core.content.ContextCompat.checkSelfPermission(context, it) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        PhoneAccess.Notifications -> ChatLog.accessGranted(context)
+        PhoneAccess.Screen -> screen()?.connected() == true
+        PhoneAccess.AllDay -> AlwaysOnService.enabled(context)
+    }
+
+    /**
+     * Demande [access] dans la fenêtre « Claydot veut… » ; « Autoriser » ouvre la demande ou le réglage
+     * Android (l'écran de l'app s'en charge). On attend le retour de l'utilisateur, deux minutes au plus.
+     */
+    suspend fun requestAccess(access: PhoneAccess): Boolean {
+        if (hasAccess(access)) return true
+        val (title, detail) = when (access) {
+            PhoneAccess.Contacts -> app.dotshermes.R.string.access_contacts_title to app.dotshermes.R.string.access_contacts_detail
+            PhoneAccess.Notifications -> app.dotshermes.R.string.access_notifications_title to app.dotshermes.R.string.access_notifications_detail
+            PhoneAccess.Screen -> app.dotshermes.R.string.access_screen_title to app.dotshermes.R.string.access_screen_detail
+            PhoneAccess.AllDay -> app.dotshermes.R.string.access_allday_title to app.dotshermes.R.string.access_allday_detail
+        }
+        val action = PendingPhoneAction(ToolKeys.title(access.icon, context.getString(title)), context.getString(detail), CompletableDeferred(), access)
+        _pending.value = action
+        val allowed = try { withTimeoutOrNull(120_000) { action.answer.await() } ?: false } finally {
+            if (_pending.value === action) _pending.value = null
+        }
+        if (!allowed) return false
+        if (access == PhoneAccess.AllDay) { AlwaysOnService.set(context, true); return true }
+        return withTimeoutOrNull(120_000) { while (!hasAccess(access)) kotlinx.coroutines.delay(700); true } ?: false
     }
 
     override fun label(call: ApiToolCall) = when (call.name) {
@@ -355,6 +394,19 @@ class PhoneActions(
 
     companion object {
         /** Genres d'actions approuvés d'avance pour la routine qui s'exécute (vide hors routine). */
+        /** Le réglage Android qui donne [access] (Contacts passe par la demande d'autorisation de l'app). */
+        fun settingsIntent(context: Context, access: PhoneAccess): Intent? = when (access) {
+            PhoneAccess.Contacts -> null
+            PhoneAccess.Notifications -> if (android.os.Build.VERSION.SDK_INT >= 30)
+                Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+                    android.provider.Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                    android.content.ComponentName(context, ChatNotificationListener::class.java).flattenToString())
+                else Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            PhoneAccess.Screen -> Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            PhoneAccess.AllDay -> if (ChatLog.neverSleeps(context)) null
+                else Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + context.packageName))
+        }
+
         @Volatile var autoApprove: Set<String> = emptySet()
 
         /** Par ordre de préférence quand l'utilisateur n'en nomme aucune. */
