@@ -539,7 +539,7 @@
     <string name="local_recommended_line">Recomendado para o seu telefone</string>
     <string name="online_groq_note">Chave grátis · o mais rápido · pode usar seu telefone</string>
     <string name="online_chatgpt_title">ChatGPT</string>
-    <string name="online_chatgpt_note">Chave de API da OpenAI · só conversa</string>
+    <string name="online_chatgpt_note">Chave de API da OpenAI · usa ferramentas, cria imagens</string>
     <string name="online_claude_title">Claude</string>
     <string name="online_claude_note">Chave de API da Anthropic · só conversa</string>
     <string name="local_note_gemma3">Minúsculo e muito rápido, para conversar.</string>
@@ -550,7 +550,18 @@
     <string name="msg_editing">Editando mensagem</string>
     <string name="msg_like">Boa resposta</string>
     <string name="msg_dislike">Resposta ruim</string>
-    <string name="local_note_gemma4_e4b">O mais capaz, vê fotos. Para celulares de 8 GB ou mais.</string>
-    <string name="local_note_qwen4b">Raciocínio forte, usa ferramentas. Para celulares de 8 GB ou mais.</string>
+    <string name="local_note_gemma4_e4b">O mais capaz, vê fotos, o melhor para controlar seu celular. 8 GB ou mais.</string>
+    <string name="local_note_qwen4b">Raciocínio forte e ferramentas, bom para controlar seu celular. 8 GB ou mais.</string>
     <string name="local_note_smollm">O menor e mais rápido, conversa simples.</string>
+    <string name="card_switch">Modelo sugerido</string>
+    <string name="card_switch_action">Trocar</string>
+    <string name="card_switched">Trocado para %1$s</string>
+    <string name="call_ringing">Ligando para %1$s…</string>
+    <string name="call_incoming">%1$s está ligando…</string>
+    <string name="call_connected">Em chamada com %1$s</string>
+    <string name="msg_ringing">Escrevendo para %1$s…</string>
+    <string name="msg_connected">Conversando com %1$s</string>
+    <string name="doing_model">Sugerindo um modelo melhor…</string>
+    <string name="doing_wiki">Lendo a Wikipédia…</string>
+    <string name="doing_draw">Criando uma imagem…</string>
 </resources>

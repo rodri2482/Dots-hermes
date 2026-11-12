@@ -515,7 +515,7 @@
     <string name="local_recommended_line">推荐用于你的手机</string>
     <string name="online_groq_note">免费密钥 · 最快 · 可操作你的手机</string>
     <string name="online_chatgpt_title">ChatGPT</string>
-    <string name="online_chatgpt_note">OpenAI API 密钥 · 仅聊天</string>
+    <string name="online_chatgpt_note">OpenAI API 密钥 · 可用工具，可生成图片</string>
     <string name="online_claude_title">Claude</string>
     <string name="online_claude_note">Anthropic API 密钥 · 仅聊天</string>
     <string name="local_note_gemma3">很小很快，适合聊天。</string>
@@ -526,7 +526,18 @@
     <string name="msg_editing">正在编辑消息</string>
     <string name="msg_like">好回答</string>
     <string name="msg_dislike">差回答</string>
-    <string name="local_note_gemma4_e4b">能力最强，能看图片。适合 8 GB 以上手机。</string>
-    <string name="local_note_qwen4b">推理能力强，可使用工具。适合 8 GB 以上手机。</string>
+    <string name="local_note_gemma4_e4b">能力最强，能看图片，最擅长操作手机。适合 8 GB 以上。</string>
+    <string name="local_note_qwen4b">推理和工具能力强，擅长操作手机。适合 8 GB 以上。</string>
     <string name="local_note_smollm">最小最快，简单聊天。</string>
+    <string name="card_switch">推荐模型</string>
+    <string name="card_switch_action">切换</string>
+    <string name="card_switched">已切换到 %1$s</string>
+    <string name="call_ringing">正在呼叫 %1$s…</string>
+    <string name="call_incoming">%1$s 来电…</string>
+    <string name="call_connected">正在与 %1$s 通话</string>
+    <string name="msg_ringing">正在给 %1$s 发消息…</string>
+    <string name="msg_connected">正在与 %1$s 聊天</string>
+    <string name="doing_model">正在推荐更好的模型…</string>
+    <string name="doing_wiki">正在查阅维基百科…</string>
+    <string name="doing_draw">正在生成图片…</string>
 </resources>

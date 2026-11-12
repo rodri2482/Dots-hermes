@@ -11,7 +11,10 @@ enum class ApiProvider(val id: String, val title: String, val origin: String) {
     Local("local", "On this phone", "local://device");
 
     /** Fournisseurs qui reçoivent les outils (téléphone, écran, Gmail…) et la mémoire. */
-    val hasTools: Boolean get() = this == Groq || this == Local
+    val hasTools: Boolean get() = this == Groq || this == Local || this == OpenAI
+
+    /** Format « chat/completions » (Groq, OpenAI) : outils, photos et compte de jetons au même format. */
+    val chatFormat: Boolean get() = this == Groq || this == OpenAI
 
     companion object {
         fun fromId(id: String): ApiProvider? = entries.firstOrNull { it.id == id }

@@ -539,7 +539,7 @@
     <string name="local_recommended_line">Recomendado para tu teléfono</string>
     <string name="online_groq_note">Clave gratis · el más rápido · puede usar tu teléfono</string>
     <string name="online_chatgpt_title">ChatGPT</string>
-    <string name="online_chatgpt_note">Clave API de OpenAI · solo chat</string>
+    <string name="online_chatgpt_note">Clave API de OpenAI · usa herramientas, crea imágenes</string>
     <string name="online_claude_title">Claude</string>
     <string name="online_claude_note">Clave API de Anthropic · solo chat</string>
     <string name="local_note_gemma3">Diminuto y muy rápido, para charlar.</string>
@@ -550,7 +550,18 @@
     <string name="msg_editing">Editando mensaje</string>
     <string name="msg_like">Buena respuesta</string>
     <string name="msg_dislike">Mala respuesta</string>
-    <string name="local_note_gemma4_e4b">El más capaz, ve fotos. Para teléfonos de 8 GB o más.</string>
-    <string name="local_note_qwen4b">Razonamiento sólido, usa herramientas. Para teléfonos de 8 GB o más.</string>
+    <string name="local_note_gemma4_e4b">El más capaz, ve fotos, el mejor para controlar tu teléfono. 8 GB o más.</string>
+    <string name="local_note_qwen4b">Razonamiento sólido y herramientas, bueno para controlar tu teléfono. 8 GB o más.</string>
     <string name="local_note_smollm">El más pequeño y rápido, charla sencilla.</string>
+    <string name="card_switch">Modelo sugerido</string>
+    <string name="card_switch_action">Cambiar</string>
+    <string name="card_switched">Cambiado a %1$s</string>
+    <string name="call_ringing">Llamando a %1$s…</string>
+    <string name="call_incoming">%1$s está llamando…</string>
+    <string name="call_connected">En llamada con %1$s</string>
+    <string name="msg_ringing">Escribiendo a %1$s…</string>
+    <string name="msg_connected">Charlando con %1$s</string>
+    <string name="doing_model">Sugiriendo un modelo mejor…</string>
+    <string name="doing_wiki">Leyendo Wikipedia…</string>
+    <string name="doing_draw">Creando una imagen…</string>
 </resources>

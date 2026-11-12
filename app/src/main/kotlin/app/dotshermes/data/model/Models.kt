@@ -77,7 +77,8 @@ sealed interface MessageContent {
 data class ChatImage(val path: String, val caption: String, val source: String)
 
 /** Ce qu'une carte demande. Le modèle ne choisit que parmi ces types : jamais un intent, une URL ou une permission libre. */
-enum class CardKind { Question, Confirm, Access, Handover }
+/** Switch : un modèle plus capable que l'utilisateur a déjà, proposé quand celui-ci ne peut pas faire la tâche. */
+enum class CardKind { Question, Confirm, Access, Handover, Switch }
 
 /** Pending : en attente. Waiting : l'utilisateur est parti donner l'accès (réglages, dialogue Android). */
 enum class CardStatus { Pending, Waiting, Answered, Declined, Expired }

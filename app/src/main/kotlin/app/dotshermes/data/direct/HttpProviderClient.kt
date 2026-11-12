@@ -97,7 +97,7 @@ class HttpProviderClient(client: OkHttpClient = OkHttpClient()) : ProviderClient
         extra: List<JSONObject>, tools: org.json.JSONArray?,
         onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
         val path = when (provider) {
-            ApiProvider.OpenAI -> "responses"
+            ApiProvider.OpenAI -> "chat/completions"
             ApiProvider.Anthropic -> "messages"
             ApiProvider.Groq -> "chat/completions"
             ApiProvider.Local -> throw ApiException(ApiFailure.InvalidRequest)

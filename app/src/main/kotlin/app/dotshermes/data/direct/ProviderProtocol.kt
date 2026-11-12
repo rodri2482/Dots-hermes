@@ -18,24 +18,21 @@ internal object ProviderProtocol {
         val messages = JSONArray().apply {
             if (system.isNotEmpty() && provider != ApiProvider.Anthropic) put(JSONObject().put("role", "system").put("content", system))
             turns.filter { it.role != "system" }.forEach { turn ->
-                val content: Any = if (turn.image != null && provider == ApiProvider.Groq) JSONArray()
+                val content: Any = if (turn.image != null && provider.chatFormat) JSONArray()
                     .put(JSONObject().put("type", "text").put("text", turn.text))
                     .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", turn.image)))
                 else turn.text
                 put(JSONObject().put("role", turn.role).put("content", content))
             }
-            if (provider == ApiProvider.Groq) extra.forEach { put(it) }
+            if (provider.chatFormat) extra.forEach { put(it) }
         }
         val body = JSONObject().put("model", model.trim()).put("stream", true)
         // Groq (format OpenAI) : un dernier fragment donne le total de jetons de la réponse.
-        if (provider == ApiProvider.Groq) body.put("stream_options", JSONObject().put("include_usage", true))
-        if (provider == ApiProvider.Groq && tools != null && tools.length() > 0) body.put("tools", tools).put("tool_choice", "auto")
+        if (provider.chatFormat) body.put("stream_options", JSONObject().put("include_usage", true))
+        if (provider.chatFormat && tools != null && tools.length() > 0) body.put("tools", tools).put("tool_choice", "auto")
         if (system.isNotEmpty() && provider == ApiProvider.Anthropic) body.put("system", system)
-        if (provider == ApiProvider.OpenAI) {
-            body.put("input", messages).put("store", false).put("max_output_tokens", 4096)
-        } else {
-            body.put("messages", messages).put(if (provider == ApiProvider.Groq) "max_completion_tokens" else "max_tokens", 4096)
-        }
+        if (provider == ApiProvider.OpenAI) body.put("store", false)
+        body.put("messages", messages).put(if (provider.chatFormat) "max_completion_tokens" else "max_tokens", 4096)
         return body.toString()
     }
 
@@ -89,7 +86,7 @@ internal object ProviderProtocol {
         }
         fun event(data: String) {
             if (data == "[DONE]") {
-                if (provider == ApiProvider.Groq) completed = true
+                if (provider.chatFormat) completed = true
                 return
             }
             if (data.isBlank()) return
@@ -111,16 +108,7 @@ internal object ProviderProtocol {
                     else -> ApiFailure.InvalidResponse
                 })
             }
-            if (provider == ApiProvider.OpenAI) {
-                when (type) {
-                    "response.output_text.delta", "response.refusal.delta" -> text(frame.optString("delta"))
-                    "response.completed" -> {
-                        frame.optJSONObject("response")?.optJSONObject("usage")?.let { tokensIn = it.optLong("total_tokens") }
-                        completed = true
-                    }
-                    "response.incomplete" -> throw ApiException(ApiFailure.OutputLimit)
-                }
-            } else if (provider == ApiProvider.Groq) {
+            if (provider.chatFormat) {
                 (frame.optJSONObject("usage") ?: frame.optJSONObject("x_groq")?.optJSONObject("usage"))
                     ?.let { tokensIn = it.optLong("total_tokens") }
                 val choice = frame.optJSONArray("choices")?.optJSONObject(0)

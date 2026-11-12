@@ -17,8 +17,8 @@ class HttpProviderClientTest {
     private lateinit var client: HttpProviderClient
     private lateinit var http: OkHttpClient
     private val key = "fixture-key-never-a-real-credential"
-    private val completed = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hello 🌍\"}\n\n" +
-        "data: {\"type\":\"response.completed\"}\n\n"
+    private val completed = "data: {\"choices\":[{\"delta\":{\"content\":\"Hello 🌍\"}}]}\n\n" +
+        "data: [DONE]\n\n"
 
     @Before fun setUp() {
         server = MockWebServer().apply { start() }
@@ -90,7 +90,7 @@ class HttpProviderClientTest {
         val chunks = mutableListOf<String>()
         client.stream(ApiProvider.OpenAI, key, "phone-selected-model", listOf(ApiTurn("user", "Hello")), chunks::add)
         val request = server.takeRequest(2, TimeUnit.SECONDS)!!
-        assertEquals("/v1/responses", request.path)
+        assertEquals("/v1/chat/completions", request.path)
         assertEquals("Bearer $key", request.getHeader("Authorization"))
         assertNull(request.getHeader("x-api-key"))
         assertFalse(JSONObject(request.body.readUtf8()).getBoolean("store"))

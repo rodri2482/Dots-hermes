@@ -161,6 +161,14 @@ fun HermesApp(
     }
     val cardReply: (app.dotshermes.data.model.ChatCard, app.dotshermes.data.direct.CardReply) -> Unit = { card, reply ->
         viewModel.replyCard(card.id, reply)
+        // « Changer » sur une carte « Modèle conseillé » : l'agent ou le modèle du téléphone proposé.
+        if (card.kind == app.dotshermes.data.model.CardKind.Switch && reply is app.dotshermes.data.direct.CardReply.Answer) {
+            val target = card.access.orEmpty()
+            when {
+                target.startsWith("agent:") -> viewModel.selectAgent(target.removePrefix("agent:"))
+                target.startsWith("local:") -> viewModel.switchModel(app.dotshermes.data.direct.ApiProvider.Local, target.removePrefix("local:"))
+            }
+        }
         if (reply == app.dotshermes.data.direct.CardReply.Continue && card.kind == app.dotshermes.data.model.CardKind.Access) {
             val access = app.dotshermes.data.direct.PhoneAccess.entries.firstOrNull { it.name == card.access }
             when {
@@ -223,6 +231,16 @@ fun HermesApp(
                     scrollTarget = viewModel.scrollTarget.collectAsStateWithLifecycle().value, onScrolled = viewModel::scrolled,
                     onSendReply = if (!gatewayFeatures) viewModel::sendReply else null,
                     onEdit = if (!gatewayFeatures) viewModel::editMessage else null,
+                    agentCall = run {
+                        val calls by app.dotshermes.data.direct.AgentCalls.active.collectAsStateWithLifecycle()
+                        calls.firstOrNull { it.from == activeAgent || it.to == activeAgent }?.let { c ->
+                            val peerId = if (c.from == activeAgent) c.to else c.from
+                            val look = AppContainer.agents.appearance(peerId).state.collectAsStateWithLifecycle().value
+                            val link = AppContainer.agents.store.get(peerId)
+                            val model = link?.model.orEmpty().let { m -> app.dotshermes.data.direct.LocalModels.byId(m)?.name ?: m.substringAfterLast('/') }
+                            app.dotshermes.ui.chat.AgentCallUi(model.ifBlank { look.displayName }, look, c.mode, outgoing = c.from == activeAgent, connected = c.connected)
+                        }
+                    },
                     onReact = viewModel::toggleReaction,
                     onApproval = viewModel::answerApproval,
                     onClarify = viewModel::answerClarify,

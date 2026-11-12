@@ -164,7 +164,7 @@ fun ToolTrail(
 @Composable
 private fun Headline(label: String, detail: String?, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1)
+        Text(app.dotshermes.ui.components.toolText(label), style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1)
         if (!detail.isNullOrBlank()) {
             Text(
                 "  $detail",
@@ -225,7 +225,7 @@ private fun TimelineStep(call: ToolCall, isFirst: Boolean, isLast: Boolean) {
         }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f).padding(top = 8.dp, bottom = 8.dp)) {
-            Text(call.label, style = MaterialTheme.typography.labelLarge, color = Ink.Primary)
+            Text(app.dotshermes.ui.components.toolText(call.label), style = MaterialTheme.typography.labelLarge, color = Ink.Primary)
             if (call.detail.isNotBlank()) {
                 Text(
                     call.detail,

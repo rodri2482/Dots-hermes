@@ -141,6 +141,20 @@ class ImagesTest {
         assertEquals(null, pictureQuery("Post today's attendance in my WhatsApp group"))
     }
 
+    @Test fun `replies are tidied for a phone screen`() {
+        assertEquals("Steps:\n\n- one\n- two\n\n1. first\n2. second", tidyMarkdown("Steps:\n• one\n• two\n\n1) first\n2) second"))
+        assertEquals("A **bold** word and a stray one", tidyMarkdown("A **bold** word and a stray** one"))
+        assertEquals("Line one\nLine two", tidyMarkdown("Line one<br>Line two   "))
+        assertEquals("```\n• keep() // code\n```", tidyMarkdown("```\n• keep() // code\n```"))
+    }
+
+    @Test fun `general-knowledge questions name their topic`() {
+        assertEquals("black hole", factQuery("What is a black hole?"))
+        assertEquals("Lagos", factQuery("Tell me about Lagos"))
+        assertEquals(null, factQuery("What is your name?"))
+        assertEquals(null, factQuery("Play Burna Boy"))
+    }
+
     @Test fun `broken reaction tags from a small model never show`() {
         assertEquals("Minecraft is a top pick.\n\nCheck the latest updates.",
             withoutMarkdownImages("Minecraft is a top pick.\n[\uD83C\uDF89 That's a solid pick!]\n\nCheck the latest updates.\n[\uD83E\uDD14 Need help with anything else?]]"))

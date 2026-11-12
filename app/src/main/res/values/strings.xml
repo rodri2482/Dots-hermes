@@ -579,7 +579,7 @@ Paste a Groq API key to get started.</string>
     <string name="local_recommended_line">Recommended for your phone</string>
     <string name="online_groq_note">Free key · fastest · can use your phone</string>
     <string name="online_chatgpt_title">ChatGPT</string>
-    <string name="online_chatgpt_note">OpenAI API key · chat only</string>
+    <string name="online_chatgpt_note">OpenAI API key · uses tools, makes pictures</string>
     <string name="online_claude_title">Claude</string>
     <string name="online_claude_note">Anthropic API key · chat only</string>
     <string name="local_note_gemma3">Tiny and very fast, for chatting.</string>
@@ -590,7 +590,18 @@ Paste a Groq API key to get started.</string>
     <string name="msg_editing">Editing message</string>
     <string name="msg_like">Good answer</string>
     <string name="msg_dislike">Bad answer</string>
-    <string name="local_note_gemma4_e4b">Most capable, sees photos. For 8 GB+ phones.</string>
-    <string name="local_note_qwen4b">Strong reasoning, uses tools. For 8 GB+ phones.</string>
+    <string name="local_note_gemma4_e4b">Most capable, sees photos, best at controlling your phone. 8 GB+ phones.</string>
+    <string name="local_note_qwen4b">Strong reasoning and tools, good at controlling your phone. 8 GB+ phones.</string>
     <string name="local_note_smollm">Smallest and fastest, simple chat.</string>
+    <string name="card_switch">Suggested model</string>
+    <string name="card_switch_action">Switch</string>
+    <string name="card_switched">Switched to %1$s</string>
+    <string name="call_ringing">Calling %1$s…</string>
+    <string name="call_incoming">%1$s is calling…</string>
+    <string name="call_connected">On a call with %1$s</string>
+    <string name="msg_ringing">Messaging %1$s…</string>
+    <string name="msg_connected">Chatting with %1$s</string>
+    <string name="doing_model">Suggesting a better model…</string>
+    <string name="doing_wiki">Reading Wikipedia…</string>
+    <string name="doing_draw">Creating a picture…</string>
 </resources>

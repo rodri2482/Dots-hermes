@@ -63,6 +63,8 @@ import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.rounded.Call
+import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -166,6 +168,8 @@ fun ChatScreen(
     onScrolled: () -> Unit = {},
     /** Réponse à un message précis (glisser une bulle vers la gauche) ; null : geste désactivé. */
     onSendReply: ((text: String, quote: String) -> Unit)? = null,
+    /** Appel ou message en cours avec un autre agent : les deux mascottes dans l'en-tête ; null hors échange. */
+    agentCall: AgentCallUi? = null,
     /** Compte direct : modifier un message envoyé (appui long → Modifier) ; null = pas de « Modifier ». */
     onEdit: ((messageId: String, text: String) -> Unit)? = null,
     onReact: (messageId: String, emoji: String) -> Unit,
@@ -375,6 +379,7 @@ fun ChatScreen(
                 onOpenAgents = onOpenAgents,
                 otherAgentsUnread = otherAgentsUnread,
                 modelMenu = modelMenu,
+                agentCall = agentCall,
             )
             }
             // « Arrêter » flotte au-dessus du champ, comme la pastille de navigation : le fil ne saute pas.
@@ -466,6 +471,47 @@ fun ChatScreen(
     }
 }
 
+/** Un échange entre agents vu de l'agent affiché : l'autre agent, appel ou message, sortant ou entrant, décroché ou non. */
+data class AgentCallUi(val peerName: String, val peer: DotAppearance, val mode: app.dotshermes.data.direct.CallMode,
+    val outgoing: Boolean, val connected: Boolean)
+
+@Composable
+private fun callLabel(call: AgentCallUi): String = stringResource(when {
+    call.mode == app.dotshermes.data.direct.CallMode.Message && call.connected -> R.string.msg_connected
+    call.mode == app.dotshermes.data.direct.CallMode.Message -> R.string.msg_ringing
+    call.connected -> R.string.call_connected
+    call.outgoing -> R.string.call_ringing
+    else -> R.string.call_incoming
+}, call.peerName)
+
+/**
+ * Les deux agents de l'échange côte à côte, l'icône verte (téléphone ou bulle) entre eux : elle bat tant que
+ * l'autre n'a pas décroché ; l'autre mascotte, pâle à la sonnerie, s'anime quand il répond.
+ */
+@Composable
+private fun CallMascots(palette: app.dotshermes.ui.theme.DotPalette, me: DotAppearance, call: AgentCallUi) {
+    val beat by rememberInfiniteTransition(label = "call-beat").animateFloat(
+        initialValue = 0.9f, targetValue = 1.12f,
+        animationSpec = infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "call-beat-scale",
+    )
+    val peerAlpha by androidx.compose.animation.core.animateFloatAsState(if (call.connected) 1f else 0.45f, tween(350), label = "peer-alpha")
+    val talking = app.dotshermes.ui.dot.DotMood.Talking
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        ClayDot(palette, Modifier.size(54.dp), mood = if (call.connected) talking else app.dotshermes.ui.dot.DotMood.Thinking,
+            accessory = me.accessory, species = me.species, showShadow = false)
+        Box(
+            Modifier.graphicsLayer { val s = if (call.connected) 1f else beat; scaleX = s; scaleY = s }
+                .size(32.dp).background(Ink.Success, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(if (call.mode == app.dotshermes.data.direct.CallMode.Call) Icons.Rounded.Call else Icons.Rounded.ChatBubble,
+                null, tint = Color.White, modifier = Modifier.size(17.dp))
+        }
+        ClayDot(call.peer.palette, Modifier.size(54.dp).graphicsLayer { alpha = peerAlpha }, mood = if (call.connected) talking else app.dotshermes.ui.dot.DotMood.Idle,
+            accessory = call.peer.accessory, species = call.peer.species, showShadow = false)
+    }
+}
+
 /** En-tête Dots : le personnage au centre, vivant, avec son nom et ce qu'il est en train de faire. */
 @Composable
 private fun ChatHeader(
@@ -485,6 +531,7 @@ private fun ChatHeader(
     otherAgentsUnread: Int = 0,
     modelMenu: (@Composable () -> Unit)? = null,
     gatewayFeatures: Boolean = true,
+    agentCall: AgentCallUi? = null,
 ) {
     val palette = LocalDotPalette.current
     Column(
@@ -508,10 +555,14 @@ private fun ChatHeader(
                 .clickable(onClick = onOpenAgent)
                 .padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
-            if (heroDots.size > 1) {
-                HeroDots(heroDots, activeChat, activity.toMood(), 68.dp, onSwitch = onSwitchDot)
-            } else {
-                ClayDot(palette, Modifier.mascotElement().size(68.dp), mood = activity.toMood(), accessory = appearance.accessory, species = appearance.species)
+            AnimatedContent(
+                targetState = agentCall != null,
+                transitionSpec = { (fadeIn(tween(260)) + scaleIn(initialScale = 0.9f, animationSpec = tween(260))) togetherWith fadeOut(tween(180)) },
+                label = "agent-call",
+            ) { inCall ->
+                if (inCall && agentCall != null) CallMascots(palette, appearance, agentCall)
+                else if (heroDots.size > 1) HeroDots(heroDots, activeChat, activity.toMood(), 68.dp, onSwitch = onSwitchDot)
+                else ClayDot(palette, Modifier.mascotElement().size(68.dp), mood = activity.toMood(), accessory = appearance.accessory, species = appearance.species)
             }
             if (onOpenAgents == null) {
                 Text(name, style = MaterialTheme.typography.titleSmall, color = Ink.Primary)
@@ -535,7 +586,7 @@ private fun ChatHeader(
             }
             AnimatedContent(
                 // En plein débat, l'en-tête annonce qui a la parole ; le dot de la conversation reste au centre.
-                targetState = speakingName?.let { stringResource(R.string.room_speaking, it) } ?: activity.statusLabel(),
+                targetState = agentCall?.let { callLabel(it) } ?: speakingName?.let { stringResource(R.string.room_speaking, it) } ?: activity.statusLabel(),
                 transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
                 label = "status",
             ) { label ->

@@ -575,7 +575,7 @@
     <string name="local_recommended_line">موصى به لهاتفك</string>
     <string name="online_groq_note">مفتاح مجاني · الأسرع · يمكنه استخدام هاتفك</string>
     <string name="online_chatgpt_title">ChatGPT</string>
-    <string name="online_chatgpt_note">مفتاح API من OpenAI · محادثة فقط</string>
+    <string name="online_chatgpt_note">مفتاح API من OpenAI · يستخدم الأدوات وينشئ الصور</string>
     <string name="online_claude_title">Claude</string>
     <string name="online_claude_note">مفتاح API من Anthropic · محادثة فقط</string>
     <string name="local_note_gemma3">صغير جدًا وسريع جدًا، للدردشة.</string>
@@ -586,7 +586,18 @@
     <string name="msg_editing">جارٍ تعديل الرسالة</string>
     <string name="msg_like">إجابة جيدة</string>
     <string name="msg_dislike">إجابة سيئة</string>
-    <string name="local_note_gemma4_e4b">الأقدر، يفهم الصور. للهواتف بذاكرة 8 جيجابايت فأكثر.</string>
-    <string name="local_note_qwen4b">تفكير قوي، يستخدم الأدوات. للهواتف بذاكرة 8 جيجابايت فأكثر.</string>
+    <string name="local_note_gemma4_e4b">الأقدر، يفهم الصور، الأفضل في التحكم بهاتفك. 8 جيجابايت فأكثر.</string>
+    <string name="local_note_qwen4b">تفكير قوي وأدوات، جيد في التحكم بهاتفك. 8 جيجابايت فأكثر.</string>
     <string name="local_note_smollm">الأصغر والأسرع، دردشة بسيطة.</string>
+    <string name="card_switch">نموذج مقترح</string>
+    <string name="card_switch_action">تبديل</string>
+    <string name="card_switched">تم التبديل إلى %1$s</string>
+    <string name="call_ringing">يتصل بـ %1$s…</string>
+    <string name="call_incoming">%1$s يتصل…</string>
+    <string name="call_connected">في مكالمة مع %1$s</string>
+    <string name="msg_ringing">يراسل %1$s…</string>
+    <string name="msg_connected">يتحدث مع %1$s</string>
+    <string name="doing_model">يقترح نموذجًا أفضل…</string>
+    <string name="doing_wiki">يقرأ ويكيبيديا…</string>
+    <string name="doing_draw">ينشئ صورة…</string>
 </resources>

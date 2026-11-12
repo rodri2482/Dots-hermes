@@ -587,7 +587,7 @@ Colle une clé API Groq pour commencer.</string>
     <string name="local_recommended_line">Conseillé pour ton téléphone</string>
     <string name="online_groq_note">Clé gratuite · le plus rapide · peut utiliser ton téléphone</string>
     <string name="online_chatgpt_title">ChatGPT</string>
-    <string name="online_chatgpt_note">Clé API OpenAI · discussion seulement</string>
+    <string name="online_chatgpt_note">Clé API OpenAI · utilise les outils, crée des images</string>
     <string name="online_claude_title">Claude</string>
     <string name="online_claude_note">Clé API Anthropic · discussion seulement</string>
     <string name="local_note_gemma3">Tout petit et très rapide, pour discuter.</string>
@@ -598,7 +598,18 @@ Colle une clé API Groq pour commencer.</string>
     <string name="msg_editing">Modification du message</string>
     <string name="msg_like">Bonne réponse</string>
     <string name="msg_dislike">Mauvaise réponse</string>
-    <string name="local_note_gemma4_e4b">Le plus capable, voit les photos. Téléphones de 8 Go et plus.</string>
-    <string name="local_note_qwen4b">Raisonnement solide, utilise les outils. Téléphones de 8 Go et plus.</string>
+    <string name="local_note_gemma4_e4b">Le plus capable, voit les photos, le meilleur pour piloter ton téléphone. 8 Go et plus.</string>
+    <string name="local_note_qwen4b">Raisonnement solide et outils, bon pour piloter ton téléphone. 8 Go et plus.</string>
     <string name="local_note_smollm">Le plus petit et le plus rapide, discussion simple.</string>
+    <string name="card_switch">Modèle conseillé</string>
+    <string name="card_switch_action">Changer</string>
+    <string name="card_switched">Passé à %1$s</string>
+    <string name="call_ringing">Appelle %1$s…</string>
+    <string name="call_incoming">%1$s appelle…</string>
+    <string name="call_connected">En appel avec %1$s</string>
+    <string name="msg_ringing">Écrit à %1$s…</string>
+    <string name="msg_connected">Discute avec %1$s</string>
+    <string name="doing_model">Propose un meilleur modèle…</string>
+    <string name="doing_wiki">Lit Wikipédia…</string>
+    <string name="doing_draw">Crée une image…</string>
 </resources>

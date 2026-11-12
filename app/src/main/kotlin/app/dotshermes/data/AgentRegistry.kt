@@ -3,6 +3,7 @@ package app.dotshermes.data
 import android.content.Context
 import androidx.core.content.edit
 import app.dotshermes.data.direct.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.currentCoroutineContext
@@ -91,6 +92,9 @@ class AgentRegistry(
             }, link.model.substringAfterLast('/'))
         }
 
+        override fun imageKey(): String? = store.agents.value.firstOrNull { it.provider == ApiProvider.OpenAI }
+            ?.let { runCatching { apiStorage.key(it.id) }.getOrNull()?.takeIf { k -> k.isNotBlank() } }
+
         override fun facts(self: String) = directOthers(self).flatMap { runCatching { apiStorage.facts(it.id) }.getOrDefault(emptyList()) }
 
         override suspend fun search(self: String, query: String): List<String> = directOthers(self).flatMap { link ->
@@ -103,10 +107,35 @@ class AgentRegistry(
             }.orEmpty()
         }
 
-        override suspend fun ask(self: String, peerId: String, message: String): String? {
-            val other = repo(peerId) as? DirectChatRepository ?: return null
+        override suspend fun ask(self: String, peerId: String, message: String, onConnected: () -> Unit): String? = kotlinx.coroutines.coroutineScope {
+            val other = repo(peerId) as? DirectChatRepository ?: return@coroutineScope null
             val from = appearance(self).state.value.displayName
-            return other.runRoutine("(Message from $from, another of the user's Claydot agents) $message", timeoutMs = 3 * 60_000L)
+            // « Décroché » dès que l'autre agent se met au travail.
+            val pickUp = launch { other.activity.first { it != app.dotshermes.data.model.AgentActivity.Idle }; onConnected() }
+            try { other.runRoutine("(Message from $from, another of the user's Claydot agents) $message", timeoutMs = 3 * 60_000L) }
+            finally { pickUp.cancel() }
+        }
+
+        /**
+         * Les modèles que l'utilisateur a déjà, le plus capable d'abord : les autres agents (clé enregistrée ou modèle
+         * téléchargé), et pour un agent du téléphone, ses autres modèles téléchargés.
+         */
+        override fun switchOptions(self: String): List<SwitchOption> {
+            val me = store.get(self)
+            val agents = directOthers(self).map { link ->
+                val model = link.model.substringAfterLast('/')
+                val name = if (link.provider == ApiProvider.Local) LocalModels.byId(link.model)?.name ?: model else model
+                SwitchOption("agent:${link.id}", name, link.provider!!.title,
+                    strong = link.provider != ApiProvider.Local || LocalModels.byId(link.model)?.chatOnly == false)
+            }
+            val local = if (me?.provider != ApiProvider.Local) emptyList() else {
+                val states = app.dotshermes.AppContainer.localModels.states.value
+                LocalModels.CATALOG.filter { it.id != me.model && states[it.id] == LocalModelState.Ready }
+                    .sortedByDescending { it.sizeBytes }
+                    .map { SwitchOption("local:${it.id}", it.name, "${it.maker} · on this phone", strong = !it.chatOnly) }
+            }
+            return (agents.sortedByDescending { it.target.let { t -> store.get(t.removePrefix("agent:"))?.provider != ApiProvider.Local } } + local)
+                .distinctBy { it.name }
         }
     }
 

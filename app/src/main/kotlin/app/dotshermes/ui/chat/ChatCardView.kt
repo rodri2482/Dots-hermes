@@ -88,6 +88,7 @@ fun ChatCardView(card: ChatCard, modifier: Modifier = Modifier) {
                 CardKind.Confirm -> R.string.approval_required
                 CardKind.Access -> R.string.card_access
                 CardKind.Handover -> R.string.card_handover
+                CardKind.Switch -> R.string.card_switch
             }), style = MaterialTheme.typography.labelMedium, color = Ink.Secondary)
         }
         Spacer(Modifier.height(8.dp))
@@ -108,6 +109,8 @@ fun ChatCardView(card: ChatCard, modifier: Modifier = Modifier) {
                     onFirst = { send(CardReply.Decline) }, onSecond = { send(CardReply.Continue) })
                 CardKind.Handover -> TwoButtons(stringResource(R.string.action_stop), stringResource(R.string.takeover_done_answer), !sent,
                     onFirst = { send(CardReply.Decline) }, onSecond = { send(CardReply.Answer(ChatCards.DONE)) })
+                CardKind.Switch -> TwoButtons(stringResource(R.string.permission_not_now), stringResource(R.string.card_switch_action), !sent,
+                    onFirst = { send(CardReply.Decline) }, onSecond = { send(CardReply.Answer(ChatCards.APPROVE)) })
             }
             CardStatus.Waiting -> Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(16.dp), color = palette.base, strokeWidth = 2.dp, trackColor = palette.light)
@@ -122,6 +125,7 @@ fun ChatCardView(card: ChatCard, modifier: Modifier = Modifier) {
                 CardKind.Confirm -> stringResource(R.string.approval_approved)
                 CardKind.Access -> stringResource(R.string.card_granted)
                 CardKind.Handover -> stringResource(R.string.takeover_resumed)
+                CardKind.Switch -> stringResource(R.string.card_switched, card.question)
             }, palette.deep)
             CardStatus.Declined -> StatusRow(Icons.Rounded.Cancel, stringResource(when (card.kind) {
                 CardKind.Confirm -> R.string.approval_declined

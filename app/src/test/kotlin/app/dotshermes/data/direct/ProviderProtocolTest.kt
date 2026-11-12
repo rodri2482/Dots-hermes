@@ -8,15 +8,17 @@ import java.io.StringReader
 class ProviderProtocolTest {
     private val turns = listOf(ApiTurn("user", "Hello"), ApiTurn("assistant", "Hi"), ApiTurn("user", "Again"))
 
-    @Test fun `OpenAI requests stream full context without server response storage`() {
-        val body = JSONObject(ProviderProtocol.requestBody(ApiProvider.OpenAI, "chosen-model", turns))
+    @Test fun `OpenAI requests use the chat format with tools and without server storage`() {
+        val tools = org.json.JSONArray().put(JSONObject().put("type", "function").put("function", JSONObject().put("name", "wikipedia")))
+        val body = JSONObject(ProviderProtocol.requestBody(ApiProvider.OpenAI, "chosen-model", turns, tools = tools))
         assertEquals("chosen-model", body.getString("model"))
         assertTrue(body.getBoolean("stream"))
         assertFalse(body.getBoolean("store"))
-        assertEquals(3, body.getJSONArray("input").length())
-        assertEquals("assistant", body.getJSONArray("input").getJSONObject(1).getString("role"))
-        assertEquals("Again", body.getJSONArray("input").getJSONObject(2).getString("content"))
-        assertFalse(body.has("previous_response_id"))
+        assertEquals(3, body.getJSONArray("messages").length())
+        assertEquals("assistant", body.getJSONArray("messages").getJSONObject(1).getString("role"))
+        assertEquals("Again", body.getJSONArray("messages").getJSONObject(2).getString("content"))
+        assertEquals("wikipedia", body.getJSONArray("tools").getJSONObject(0).getJSONObject("function").getString("name"))
+        assertFalse(body.has("input"))
     }
 
     @Test fun `Anthropic requests use Messages format with an explicit output bound`() {
@@ -26,12 +28,12 @@ class ProviderProtocolTest {
         assertEquals("Hello", body.getJSONArray("messages").getJSONObject(0).getString("content"))
     }
 
-    @Test fun `OpenAI deltas are joined only until a completed response`() {
+    @Test fun `OpenAI deltas are joined only until the stream is done`() {
         val chunks = mutableListOf<String>()
         ProviderProtocol.consume(ApiProvider.OpenAI, StringReader(
-            "event: response.output_text.delta\r\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"Hel\"}\r\n\r\n" +
-            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"lo 🌍\"}\n\n" +
-            "data: {\"type\":\"response.completed\"}\n\n"), chunks::add)
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\r\n\r\n" +
+            "data: {\"choices\":[{\"delta\":{\"content\":\"lo 🌍\"}}]}\n\n" +
+            "data: [DONE]\n\n"), chunks::add)
         assertEquals(listOf("Hel", "lo 🌍"), chunks)
     }
 
@@ -48,7 +50,7 @@ class ProviderProtocolTest {
         val chunks = mutableListOf<String>()
         val failure = assertThrows(ApiException::class.java) {
             ProviderProtocol.consume(ApiProvider.OpenAI, StringReader(
-                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hel\"}\n\n"), chunks::add)
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n\n"), chunks::add)
         }
         assertEquals(ApiFailure.Interrupted, failure.failure)
         assertEquals(listOf("Hel"), chunks)
@@ -73,7 +75,8 @@ class ProviderProtocolTest {
 
     @Test fun `a token-limited response is distinguished from a completed reply`() {
         val failure = assertThrows(ApiException::class.java) {
-            ProviderProtocol.consume(ApiProvider.OpenAI, StringReader("data: {\"type\":\"response.incomplete\"}\n\n"), {})
+            ProviderProtocol.consume(ApiProvider.OpenAI, StringReader(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n"), {})
         }
         assertEquals(ApiFailure.OutputLimit, failure.failure)
     }

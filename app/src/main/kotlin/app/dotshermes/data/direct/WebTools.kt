@@ -26,6 +26,9 @@ class WebTools(private val http: OkHttpClient = defaultClient) : DirectTools {
         .put(fn("get_news", "Latest news headlines, for a topic or the top stories of the user's country.",
             JSONObject().put("topic", str("Optional topic, e.g. 'Davido', 'Nigeria economy', 'AI'")), ))
         .put(fn("read_webpage", "Read the text of a web page (http/https).", JSONObject().put("url", str("Full URL")), "url"))
+        .put(fn("wikipedia", "Look up a person, place, thing or topic on Wikipedia: a reliable summary, the page link, and its main " +
+            "picture shown above your reply. Prefer it for who/what/where questions.",
+            JSONObject().put("query", str("Topic, e.g. 'Lionel Messi', 'Lagos', 'black holes'")), "query"))
         .put(fn("show_images", "Search the web for 1 to 3 real pictures and show them above your reply, with captions and source links. " +
             "Use it when pictures help answer (a person, character, place, animal, food, product, landmark, how something looks), " +
             "not for every reply. Never write image links or markdown images yourself.",
@@ -33,7 +36,9 @@ class WebTools(private val http: OkHttpClient = defaultClient) : DirectTools {
                 .put("count", JSONObject().put("type", "integer").put("minimum", 1).put("maximum", 3).put("description", "How many pictures, 1 to 3")),
             "query"))
 
-    override fun label(call: ApiToolCall) = when (call.name) { "get_news" -> ToolKeys.of("news"); "show_image", "show_images" -> ToolKeys.of("image"); else -> ToolKeys.of("web") }
+    override fun label(call: ApiToolCall) = when (call.name) {
+        "get_news" -> ToolKeys.of("news"); "show_image", "show_images" -> ToolKeys.of("image"); "wikipedia" -> ToolKeys.of("wiki"); else -> ToolKeys.of("web")
+    }
 
     override suspend fun run(call: ApiToolCall): String = withContext(Dispatchers.IO) {
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }
@@ -42,6 +47,7 @@ class WebTools(private val http: OkHttpClient = defaultClient) : DirectTools {
                 "search_web" -> search(args.optString("query").trim().take(200).ifEmpty { return@withContext err("query is required") })
                 "get_news" -> news(args.optString("topic").trim().take(120))
                 "read_webpage" -> read(args.optString("url").trim())
+                "wikipedia" -> wikipedia(args.optString("query").trim().take(120).ifEmpty { return@withContext err("query is required") })
                 // « show_image » : l'ancien nom, une seule image.
                 "show_images", "show_image" -> images(args.optString("query").trim().take(120).ifEmpty { return@withContext err("query is required") },
                     if (call.name == "show_image") 1 else args.optInt("count", 2).coerceIn(1, MAX_PICTURES))
@@ -50,6 +56,28 @@ class WebTools(private val http: OkHttpClient = defaultClient) : DirectTools {
         } catch (e: Exception) {
             if (call.name.startsWith("show_image")) noPictures("network error") else err("network error: ${e.javaClass.simpleName}")
         }
+    }
+
+    /**
+     * Le premier article Wikipédia trouvé pour [query] : son introduction (1 200 caractères au plus), son lien, et son
+     * image principale (posée au-dessus de la réponse, comme show_images). Dans la langue anglaise de Wikipédia.
+     */
+    fun wikipedia(query: String, withPicture: Boolean = true): String {
+        val q = URLEncoder.encode(query, "UTF-8")
+        val json = http.newCall(Request.Builder().url("https://en.wikipedia.org/w/api.php?action=query&format=json&generator=search" +
+            "&gsrsearch=$q&gsrlimit=1&prop=extracts|pageimages|info&exintro=1&explaintext=1&exchars=1200&piprop=thumbnail" +
+            "&pithumbsize=800&pilicense=any&inprop=url&redirects=1")
+            .header("User-Agent", "Claydot/0.3 (Android app)").build()).execute().use { it.body?.string().orEmpty() }
+        val pages = JSONObject(json).optJSONObject("query")?.optJSONObject("pages") ?: return err("nothing found on Wikipedia for '$query'")
+        val page = pages.keys().asSequence().mapNotNull { pages.optJSONObject(it) }.firstOrNull() ?: return err("nothing found on Wikipedia for '$query'")
+        val out = JSONObject().put("title", page.optString("title")).put("summary", page.optString("extract").trim())
+            .put("url", page.optString("fullurl")).put("note", UNTRUSTED)
+        if (withPicture) page.optJSONObject("thumbnail")?.optString("source")?.takeIf { it.startsWith("https://") && !it.substringBefore('?').endsWith(".svg") }
+            ?.let { src -> runCatching { download(src) }.getOrNull() }?.let { bytes ->
+                out.put(IMAGES_KEY, JSONArray().put(JSONObject().put("jpeg", java.util.Base64.getEncoder().encodeToString(bytes))
+                    .put("caption", page.optString("title")).put("source", page.optString("fullurl"))))
+            }
+        return out.toString()
     }
 
     private fun search(query: String): String {
