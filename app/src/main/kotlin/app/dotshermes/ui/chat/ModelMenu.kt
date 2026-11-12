@@ -136,7 +136,8 @@ fun ModelMenu(
             properties = PopupProperties(focusable = true),
         ) {
             AnimatedVisibility(shown,
-                enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 0f)),
+                enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.95f, animationSpec = tween(200, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+                    transformOrigin = TransformOrigin(0.5f, 0f)),
                 exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.96f, transformOrigin = TransformOrigin(0.5f, 0f)),
             ) {
                 Column(

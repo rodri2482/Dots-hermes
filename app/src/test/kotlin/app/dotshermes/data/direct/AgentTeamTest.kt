@@ -133,6 +133,57 @@ class AgentTeamTest {
         }
     }
 
+    /** Groq gratuit : le modèle principal est à court de quota quand l'équipe se met au travail. */
+    private class Busy : ProviderClient {
+        val used = java.util.Collections.synchronizedList(mutableListOf<String>())
+        override suspend fun models(provider: ApiProvider, key: String) = listOf("m", "openai/gpt-oss-20b")
+        override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) = error("unused")
+        override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+            extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+            val system = turns.first().text
+            if (system.contains("one of Claydot's sub-dots")) {
+                used += model
+                if (model == "m") throw ApiException(ApiFailure.RateLimited, 30)
+                onDelta("Done on $model"); return emptyList()
+            }
+            if (system.contains("split a task")) { onDelta("{}"); return emptyList() }
+            onDelta("Final answer."); return emptyList()
+        }
+    }
+
+    @Test fun `a rate-limited sub-dot moves to another Groq model instead of giving up`() {
+        val client = Busy()
+        turn(ApiProvider.Groq, client, "Find cheap phones with your team", dotModel = "none") { storage, _ ->
+            val said = storage.load("a").messages.filter { it.speaker != null }.map { it.text }
+            assertTrue(said.isNotEmpty())
+            assertTrue(said.all { it == "Done on openai/gpt-oss-20b" })
+            assertTrue("m" in client.used && "openai/gpt-oss-20b" in client.used)
+        }
+    }
+
+    /** Plus aucun quota nulle part : l'équipe ne peut pas travailler. */
+    private class NoQuota : ProviderClient {
+        var lastAsk = ""
+        override suspend fun models(provider: ApiProvider, key: String) = listOf("m")
+        override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) = error("unused")
+        override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+            extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+            val system = turns.first().text
+            if (system.contains("one of Claydot's sub-dots")) throw ApiException(ApiFailure.RateLimited, 30)
+            if (system.contains("split a task")) { onDelta("{}"); return emptyList() }
+            lastAsk = turns.last().text
+            onDelta("The team is unavailable right now."); return emptyList()
+        }
+    }
+
+    @Test fun `when the team cannot work the model is told so instead of an empty report`() {
+        val client = NoQuota()
+        turn(ApiProvider.Groq, client, "Find cheap phones with your team", dotModel = "none") { _, _ ->
+            assertTrue(client.lastAsk.contains("Your team could not work on this right now"))
+            assertFalse(client.lastAsk.contains("Checker:"))
+        }
+    }
+
     @Test fun `agents cannot loop but one agent can ask several at once`() {
         assertTrue(AgentTalk.start("A", "B"))
         assertFalse(AgentTalk.start("B", "A"))      // B répondait à A : pas de retour vers A
@@ -144,7 +195,7 @@ class AgentTeamTest {
 
     @Test fun `the main dot calls a sub-dot, which answers in its own chat`() {
         val client = Team()
-        turn(ApiProvider.Groq, client, "Find the capital of France with your team") { storage, repo ->
+        turn(ApiProvider.Groq, client, "Find the capital of France, delegate it") { storage, repo ->
             val action = repo.tools.value.single()
             assertEquals(ToolKind.Delegate, action.kind)
             assertEquals(ToolState.Done, action.state)
@@ -164,7 +215,7 @@ class AgentTeamTest {
 
     @Test fun `a sub-dot runs on its own model with that account's key`() {
         val client = Team()
-        turn(ApiProvider.Groq, client, "Ask your team", dotModel = "openai:gpt-test") { _, _ ->
+        turn(ApiProvider.Groq, client, "Delegate this", dotModel = "openai:gpt-test") { _, _ ->
             assertEquals(listOf("openai:gpt-test:openai-fixture-key"), client.used)
         }
     }

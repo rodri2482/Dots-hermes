@@ -20,6 +20,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -223,9 +225,18 @@ private fun TextBubble(
 
     // Appui long n'importe où sur la bulle : le menu (réactions, Copier, Modifier, Sélectionner le texte),
     // jamais une sélection de texte d'emblée. Double toucher : ❤️.
+    // Où le doigt s'est posé : le menu s'ouvre juste au-dessus (tip 11), même sur une longue réponse dont le haut
+    // est caché sous l'en-tête.
+    var pressY by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     Box {
         Box(
             modifier = Modifier
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        pressY = awaitFirstDown(requireUnconsumed = false,
+                            pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial).position.y
+                    }
+                }
                 .padding(top = if (reactions.isNotEmpty()) 16.dp else 0.dp)
                 .widthIn(max = bubbleMaxWidth)
                 .clip(shape)
@@ -261,6 +272,7 @@ private fun TextBubble(
                 fromUser = fromUser,
                 feedback = message.reactions[Sender.User],
                 anchorEnd = fromUser,
+                pressY = pressY,
                 onCopy = { menuOpen = false; clipboard.setText(androidx.compose.ui.text.AnnotatedString(text)) },
                 onEdit = onEdit?.let { edit -> { menuOpen = false; edit() } },
                 onFeedback = if (!fromUser && reactionsEnabled) ({ emoji -> menuOpen = false; onReact(emoji) }) else null,
@@ -275,7 +287,7 @@ private fun ReactionBadge(emojis: List<String>, modifier: Modifier = Modifier) {
     val pop = remember { Animatable(0.4f) }
     LaunchedEffect(emojis) {
         pop.snapTo(0.4f)
-        pop.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 420f))
+        pop.animateTo(1f, spring(dampingRatio = 0.75f, stiffness = 520f))
     }
     Row(
         modifier = modifier
@@ -299,21 +311,25 @@ private fun MessageMenu(
     fromUser: Boolean,
     feedback: String?,
     anchorEnd: Boolean,
+    pressY: Float,
     onCopy: () -> Unit,
     onEdit: (() -> Unit)?,
     onFeedback: ((String) -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     val visible = remember { MutableTransitionState(false).apply { targetState = true } }
+    // Le bas du menu (68 dp de haut) à 12 dp au-dessus du doigt ; jamais plus haut que le bord de la bulle.
+    val y = with(LocalDensity.current) { maxOf((-56).dp.roundToPx(), (pressY - 80.dp.toPx()).toInt()) }
     Popup(
         alignment = if (anchorEnd) Alignment.TopEnd else Alignment.TopStart,
-        offset = IntOffset(0, with(LocalDensity.current) { (-56).dp.roundToPx() }),
+        offset = IntOffset(0, y),
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
     ) {
         AnimatedVisibility(
             visibleState = visible,
-            enter = scaleIn(initialScale = 0.85f, transformOrigin = TransformOrigin(if (anchorEnd) 1f else 0f, 1f)) + fadeIn(),
+            enter = scaleIn(initialScale = 0.95f, animationSpec = androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+                transformOrigin = TransformOrigin(if (anchorEnd) 1f else 0f, 1f)) + fadeIn(androidx.compose.animation.core.tween(150)),
         ) {
             Row(
                 Modifier.padding(8.dp).shadow(12.dp, CircleShape).clip(CircleShape).background(Ink.Raised).padding(horizontal = 4.dp, vertical = 2.dp),
@@ -340,6 +356,7 @@ private fun MenuIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, labe
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.material3.Icon(icon, label, tint = if (on) LocalDotPalette.current.deep else Ink.Primary, modifier = Modifier.size(20.dp))
+        // Tip 18 : l'icône choisie se fond (J'aime plein / vide) au lieu de sauter.
     }
 }
 
@@ -361,7 +378,8 @@ private fun ReactionPicker(
     ) {
         AnimatedVisibility(
             visibleState = visible,
-            enter = scaleIn(initialScale = 0.7f, transformOrigin = TransformOrigin(if (anchorEnd) 1f else 0f, 1f)) + fadeIn(),
+            enter = scaleIn(initialScale = 0.95f, animationSpec = androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+                transformOrigin = TransformOrigin(if (anchorEnd) 1f else 0f, 1f)) + fadeIn(androidx.compose.animation.core.tween(150)),
         ) {
             Row(
                 modifier = Modifier

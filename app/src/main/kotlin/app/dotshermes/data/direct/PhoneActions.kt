@@ -51,9 +51,9 @@ class PhoneActions(
     fun setEnabled(on: Boolean) { prefs.edit { putBoolean("enabled", on) }; _enabled.value = on }
 
     override fun definitions(): JSONArray? = if (!_enabled.value) null else JSONArray()
-        .put(function("set_alarm", "Set an alarm on the user's phone (the user confirms first).",
+        .put(function("set_alarm", "Set an alarm on the user's phone. Call it right away when the user asks; the phone shows its own confirmation.",
             props("hour" to int("0-23"), "minute" to int("0-59"), "label" to str("Optional alarm label")), "hour", "minute"))
-        .put(function("set_timer", "Start a countdown timer on the user's phone (the user confirms first).",
+        .put(function("set_timer", "Start a countdown timer on the user's phone. Call it right away when the user asks; never ask 'do you want me to' first.",
             props("seconds" to int("Duration in seconds, 1 to 86400"), "label" to str("Optional label")), "seconds"))
         .put(function("phone_info", "Read the phone's status: battery, charging, storage, network, volume, model, Android version " +
             "and the installed apps. Read-only.", props()))

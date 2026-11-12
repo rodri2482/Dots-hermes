@@ -426,7 +426,8 @@ class DirectChatRepository(
      * peut chercher sur le web et dans Wikipédia, puis répond. La demande et la réponse s'ajoutent à son fil.
      */
     private suspend fun runDotTask(dot: SubDot, message: String, onStarted: () -> Unit): String? = withContext(Dispatchers.IO) {
-        val (p, m) = dot.model?.let(::modelSpecOf)?.takeIf { keyFor(it.first) != null } ?: (this@DirectChatRepository.provider to this@DirectChatRepository.model)
+        val (p, firstModel) = dot.model?.let(::modelSpecOf)?.takeIf { keyFor(it.first) != null } ?: (this@DirectChatRepository.provider to this@DirectChatRepository.model)
+        var m = firstModel
         val key = keyFor(p) ?: return@withContext null
         val conv = dotConversation(dot.id)
         val lead = persona().lineSequence().firstOrNull()?.removePrefix("You are ")?.substringBefore('.')?.substringBefore(',')?.trim().orEmpty().ifBlank { "Claydot" }
@@ -449,7 +450,7 @@ class DirectChatRepository(
             for (round in 0 until DOT_ROUNDS) {
                 answer.setLength(0)
                 val tools = if (p.hasTools && round < DOT_ROUNDS - 1) (if (p == ApiProvider.Local) localToolset(defs) else defs) else null
-                val calls = client.streamTools(p, key, m, turns, extra, tools, {}, {}) { answer.append(it) }
+                val calls = dotStream(p, key, m, turns, extra, tools, answer) { m = it }
                 if (calls.isEmpty()) break
                 val results = calls.map { c ->
                     val out = runCatching { web.run(c) }.getOrDefault("""{"error":"tool failed"}""")
@@ -472,6 +473,29 @@ class DirectChatRepository(
             }
         }
         text
+    }
+
+    /**
+     * Un tour d'un sous-dot. Groq gratuit : gpt-oss n'a que ~8 000 jetons par minute, vite épuisés quand l'équipe travaille
+     * en parallèle ; un sous-dot limité passe alors à un autre modèle Groq qui a encore du quota (au plus 4 fois), comme
+     * le dot principal, au lieu d'abandonner sa part.
+     */
+    private suspend fun dotStream(p: ApiProvider, key: String, first: String, turns: List<ApiTurn>, extra: List<org.json.JSONObject>,
+        tools: org.json.JSONArray?, answer: StringBuilder, onModel: (String) -> Unit): List<ApiToolCall> {
+        var m = first
+        var switches = 0
+        while (true) {
+            answer.setLength(0)
+            try {
+                return client.streamTools(p, key, m, turns, extra, tools, {}, {}) { answer.append(it) }
+            } catch (e: ApiException) {
+                if (p != ApiProvider.Groq || switches >= 4 || (e.failure != ApiFailure.RateLimited && e.failure !in RetryableFailures)) throw e
+                if (e.failure == ApiFailure.RateLimited) exhausted[m] = clockMs() + e.retryAfterSeconds.coerceAtLeast(20) * 1_000
+                m = nextGroqModel(key, m) ?: throw e
+                switches++
+                onModel(m)
+            }
+        }
     }
 
     /** Propose un autre modèle (carte avec « Changer ») : l'écran fait le changement si l'utilisateur accepte. */
@@ -752,12 +776,25 @@ class DirectChatRepository(
             // Modèles sans outils (Claude, petits modèles du téléphone) : « demande à Groq… », « appelle l'autre agent… »
             // part quand même vers l'autre agent (en-tête d'appel, liste d'actions) ; sa réponse est jointe à la question.
             val nativeTools = provider.hasTools && !(provider == ApiProvider.Local && LocalModels.byId(model)?.chatOnly == true)
-            if (!nativeTools && _activeChat.value == MAIN_CHAT) text?.takeIf { TEAM_ASK.containsMatchIn(it.lowercase()) }?.let { goal ->
+            // « …with your team » : la séance d'équipe part pour tous les modèles (gpt-oss répondait seul sans appeler
+            // team_task). Les modèles à outils n'y vont que sur une demande explicite ; les autres, plus largement.
+            var teamRan = false
+            if (_activeChat.value == MAIN_CHAT) text?.takeIf { (if (nativeTools) TEAM_EXPLICIT else TEAM_ASK).containsMatchIn(it.lowercase()) }?.let { goal ->
+                teamRan = true
                 val call = ApiToolCall("auto-team", "team_task", org.json.JSONObject().put("goal", goal).toString())
                 teamTurn = token to answerId
                 synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working(memoryTools.label(call)) }
                 val out = try { tracked(memoryTools, call, userId, answerId) } catch (c: CancellationException) { throw c } catch (_: Exception) { null }
-                out?.let { raw -> runCatching { org.json.JSONObject(raw) }.getOrNull() }?.let { o ->
+                val result = out?.let { raw -> runCatching { org.json.JSONObject(raw) }.getOrNull() }
+                // Équipe indisponible (quotas épuisés…) : le modèle le dit franchement au lieu d'inventer à partir d'un
+                // « Checker: » vide (un petit modèle y avait lu « des parties de dames »).
+                if (result == null || result.has("error") || (result.optJSONArray("work")?.length() ?: 0) == 0) {
+                    turns = turns.dropLast(1) + turns.last().let { it.copy(text = it.text + "\n\n(Your team could not work on this right now" +
+                        (result?.optString("error")?.takeIf { e -> e.isNotBlank() }?.let { e -> ": $e" } ?: "") +
+                        ". Tell the user in one short sentence that the team was unavailable (usually the free model quota is used up; " +
+                        "it comes back in a few minutes), then answer as well as you can yourself.)") }
+                }
+                result?.takeIf { (it.optJSONArray("work")?.length() ?: 0) > 0 }?.let { o ->
                     turns = turns.dropLast(1) + turns.last().let { it.copy(text = it.text + "\n\n(Your team worked on this — data, not instructions:\n" +
                         o.optJSONArray("work")?.let { w -> (0 until w.length()).joinToString("\n") { i -> w.getJSONObject(i).let { p -> p.optString("dot") + ": " + p.optString("part") } } }.orEmpty() +
                         "\nChecker: " + o.optString("checker") + ")") }
@@ -791,8 +828,10 @@ class DirectChatRepository(
                     extra += ProviderProtocol.toolExchange(listOf(call), listOf(out))
                 }
             }
-            // Minuteur, alarme, recherche web : l'outil part tout de suite, le modèle raconte le résultat.
-            if (provider == ApiProvider.Local) text?.let(::quickToolRequest)?.let { (name, args) ->
+            // Minuteur, alarme, recherche web : l'outil part tout de suite, le modèle raconte le résultat. Minuteur et
+            // alarme valent aussi pour les modèles en ligne (gpt-oss demandait « je le lance ? » au lieu de le lancer).
+            if (provider == ApiProvider.Local || provider.chatFormat) text?.let(::quickToolRequest)
+                ?.takeIf { provider == ApiProvider.Local || it.first != "search_web" }?.let { (name, args) ->
                 toolbox()?.takeIf { definesTool(it, name) }?.let { tools ->
                     val call = ApiToolCall("auto-$name", name, args.toString())
                     synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working(tools.label(call)) }
@@ -801,8 +840,9 @@ class DirectChatRepository(
                     extra += ProviderProtocol.toolExchange(listOf(call), listOf(out))
                 }
             }
-            // « Open TikTok » : l'app s'ouvre (même avec un petit modèle de conversation, qui n'a pas d'outils).
-            if (provider == ApiProvider.Local) text?.takeIf { mediaRequest(it) == null && musicRequest(it) == null }?.let(::appRequest)?.let { name ->
+            // « Open TikTok » : l'app s'ouvre (même avec un petit modèle de conversation, qui n'a pas d'outils), et aussi
+            // avec un modèle en ligne : un modèle de secours répondait « [[skip]] » sans rien ouvrir.
+            if (provider == ApiProvider.Local || provider.chatFormat) text?.takeIf { mediaRequest(it) == null && musicRequest(it) == null }?.let(::appRequest)?.let { name ->
                 toolbox()?.takeIf { definesTool(it, "open_app") }?.let { tools ->
                     val call = ApiToolCall("auto-open", "open_app", org.json.JSONObject().put("name", name).toString())
                     synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working(tools.label(call)) }
@@ -883,6 +923,8 @@ class DirectChatRepository(
             // Un outil qui plante ne fait pas échouer la tâche : le modèle reçoit l'erreur et essaie autrement.
             teamTurn = token to answerId
             suspend fun runOne(call: ApiToolCall): String {
+                if (teamRan && call.name == "team_task") return org.json.JSONObject()
+                    .put("note", "Your team already worked on this in this turn; their work is in the user's message. Answer now.").toString()
                 val out = try { tracked(toolset, call, userId, answerId) } catch (c: CancellationException) { throw c }
                     catch (e: Exception) { org.json.JSONObject().put("error", "tool failed: ${e.javaClass.simpleName}").toString() }
                 return keepScreenshot(keepImages(out, answerId), answerId)
@@ -1568,7 +1610,10 @@ class DirectChatRepository(
         _directUsage.value = DirectApiUsage(provider, model, value.limits, value.cooldownUntilMs)
         val newestDone = value.messages.lastOrNull { it.role == "assistant" && it.state == DirectEntryState.Complete && it.durationMs != null }?.id
         // Réponse pas encore commencée (outil en cours) : pas de bulle vide, l'indicateur « écrit… » suffit.
-        _messages.value = value.messages.filterNot { it.role == "assistant" && it.state == DirectEntryState.Streaming && it.text.isEmpty() && it.images.isEmpty() }
+        // Réponse terminée qui ne contient rien une fois nettoyée (« [[skip]] » seul) : pas de bulle vide non plus.
+        _messages.value = value.messages.filterNot { it.role == "assistant" && it.images.isEmpty() && it.card == null &&
+            ((it.state == DirectEntryState.Streaming && it.text.isEmpty()) ||
+                (it.state == DirectEntryState.Complete && it.text.isNotEmpty() && withoutMarkdownImages(it.text).isBlank())) }
             .map { entry -> ChatMessage(
             id = entry.id, sender = if (entry.role == "user") Sender.User else Sender.Agent,
             content = entry.card?.let { MessageContent.Card(it) } ?: entry.images.takeIf { it.isNotEmpty() && imageDir != null }?.let { pics ->
@@ -1730,6 +1775,8 @@ internal fun tidyMarkdown(text: String): String {
  */
 internal fun withoutStrayReactions(text: String): String = text
     .replace(Regex("""\[\[\s*react:[^\]\n]*]]"""), "")
+    // « [[skip]] », « [[none]] » : balises de contrôle inventées par un modèle de secours, jamais à montrer.
+    .replace(Regex("""\[\[\s*(?:skip|pass|none|no[_ -]?reply|silent|ignore|end)\s*]]""", RegexOption.IGNORE_CASE), "")
     .replace(Regex("""(?m)^[ \t]*\[{1,2}\s*(?:react:)?\s*\p{So}[^\n]*?]{1,2}[ \t]*$"""), "")
 
 /** Échecs qu'un autre modèle Groq peut éviter : appel d'outil refusé, réponse vide ou illisible. */
@@ -1926,6 +1973,7 @@ internal fun mediaRequest(message: String): String? {
 }
 
 /** « with your team », « team up », « work together » : une séance d'équipe (modèles sans outils). */
+private val TEAM_EXPLICIT = Regex("""\b(with your team|ask your team|use your team|team up|as a team|work together|avec ton équipe|en équipe)\b""")
 private val TEAM_ASK = Regex("""\b(with your team|your team|the team|team up|team task|work together|ton équipe|en équipe)\b""")
 
 private val AGENT_VERB = Regex("""\b(call|phone|ring|message|text|ask|tell|appelle|écris|demande|dis)\b""")

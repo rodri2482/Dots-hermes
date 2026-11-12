@@ -384,7 +384,8 @@ fun ChatScreen(
             }
             // « Arrêter » flotte au-dessus du champ, comme la pastille de navigation : le fil ne saute pas.
             androidx.compose.animation.AnimatedVisibility(stopVisible, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
-                enter = fadeIn() + scaleIn(initialScale = 0.85f), exit = fadeOut() + scaleOut(targetScale = 0.85f)) {
+                enter = fadeIn(tween(200)) + scaleIn(initialScale = 0.95f, animationSpec = tween(200, easing = androidx.compose.animation.core.LinearOutSlowInEasing)),
+                exit = fadeOut(tween(160)) + scaleOut(targetScale = 0.95f, animationSpec = tween(160))) {
                 Row(
                     Modifier.clip(CircleShape).background(Ink.Raised).border(0.5.dp, Ink.Separator, CircleShape)
                         .clickable(role = androidx.compose.ui.semantics.Role.Button) {
@@ -558,7 +559,7 @@ private fun ChatHeader(
             AnimatedContent(
                 targetState = agentCall != null,
                 // Sans découpe : les dots voisins débordent sur les côtés, ils ne doivent jamais être tranchés.
-                transitionSpec = { ((fadeIn(tween(260)) + scaleIn(initialScale = 0.9f, animationSpec = tween(260))) togetherWith fadeOut(tween(180)))
+                transitionSpec = { ((fadeIn(tween(240)) + scaleIn(initialScale = 0.95f, animationSpec = tween(240, easing = androidx.compose.animation.core.LinearOutSlowInEasing))) togetherWith fadeOut(tween(190)))
                     .using(androidx.compose.animation.SizeTransform(clip = false)) },
                 label = "agent-call",
             ) { inCall ->
@@ -783,9 +784,12 @@ private fun Composer(
                             style = MaterialTheme.typography.bodyLarge, color = Ink.Secondary,
                         )
                     }
+                    // Texte posé par l'app (Modifier un message, une suggestion) : le curseur va à la fin, pas au début.
+                    var field by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(draft, androidx.compose.ui.text.TextRange(draft.length))) }
+                    if (field.text != draft) field = androidx.compose.ui.text.input.TextFieldValue(draft, androidx.compose.ui.text.TextRange(draft.length))
                     BasicTextField(
-                        value = draft,
-                        onValueChange = onDraftChange,
+                        value = field,
+                        onValueChange = { field = it; if (it.text != draft) onDraftChange(it.text) },
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink.Primary),
                         cursorBrush = SolidColor(palette.base),
                         maxLines = 6,
@@ -889,7 +893,7 @@ private fun AttachChip(modifier: Modifier, icon: ImageVector, label: String, onC
 @Composable
 private fun BrowsingPill(visible: Boolean, agentName: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val palette = LocalDotPalette.current
-    AnimatedVisibility(visible, modifier = modifier, enter = fadeIn() + scaleIn(initialScale = 0.8f), exit = fadeOut() + scaleOut(targetScale = 0.8f)) {
+    AnimatedVisibility(visible, modifier = modifier, enter = fadeIn(tween(200)) + scaleIn(initialScale = 0.95f, animationSpec = tween(200)), exit = fadeOut(tween(160)) + scaleOut(targetScale = 0.8f)) {
         Row(
             Modifier.clip(CircleShape).background(Ink.Raised).border(0.5.dp, Ink.Separator, CircleShape)
                 .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),

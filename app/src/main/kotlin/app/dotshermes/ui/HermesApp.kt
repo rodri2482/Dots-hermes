@@ -216,8 +216,12 @@ fun HermesApp(
                         val activeModel by viewModel.activeModel.collectAsStateWithLifecycle()
                         val groqModel by viewModel.groqModel.collectAsStateWithLifecycle()
                         val localStates by AppContainer.localModels.states.collectAsStateWithLifecycle()
+                        // Fil d'un sous-dot qui a son propre modèle : la pastille montre ce modèle-là (Nova sur Qwen3 0.6B),
+                        // pas celui du dot principal.
+                        val dotModel = dots.firstOrNull { it.id == activeChat }?.model?.let { app.dotshermes.data.direct.modelSpecOf(it) }
                         app.dotshermes.ui.chat.ModelMenu(
-                            active = activeModel, groqModel = groqModel, localStates = localStates,
+                            active = dotModel?.let { (p, m) -> app.dotshermes.ui.chat.ActiveModel(p, m) } ?: activeModel,
+                            groqModel = groqModel, localStates = localStates,
                             onPickGroq = { viewModel.switchModel(app.dotshermes.data.direct.ApiProvider.Groq, it) },
                             onPickLocal = { viewModel.switchModel(app.dotshermes.data.direct.ApiProvider.Local, it) },
                             onDownload = AppContainer.localModels::download,

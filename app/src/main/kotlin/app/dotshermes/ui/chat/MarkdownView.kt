@@ -191,28 +191,63 @@ private fun TableDialog(table: MdBlock.Table, colors: MdColors, body: TextStyle,
                         tint = app.dotshermes.ui.theme.Ink.Primary, modifier = Modifier.size(24.dp))
                 }
             }
-            Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+                // Plein écran : toutes les colonnes tiennent dans la largeur (le texte long passe à la ligne).
                 TableGrid(table, colors.copy(ink = app.dotshermes.ui.theme.Ink.Primary), body.copy(color = app.dotshermes.ui.theme.Ink.Primary),
-                    cellSize = 16, maxCell = 320f)
+                    cellSize = 16, maxCell = 320f, fitWidth = maxWidth.value)
             }
         }
     }
 }
 
+/**
+ * Fait tenir les colonnes dans [total] dp : les plus larges sont plafonnées à une même largeur (les étroites gardent
+ * la leur), sans descendre sous 90 dp ; au-delà, le tableau défile encore.
+ */
+internal fun fitColumns(widths: List<Float>, total: Float, mins: List<Float> = widths.map { minOf(it, 90f) }): List<Float> {
+    if (widths.sum() <= total) return widths
+    // Une colonne ne descend jamais sous son mot le plus long (« Childhoo / d » coupé en deux) : si même ainsi le
+    // tableau ne tient pas, il garde ces largeurs minimales et défile un peu.
+    val floor = widths.indices.map { minOf(widths[it], mins.getOrElse(it) { 90f }) }
+    fun width(cap: Float) = widths.indices.sumOf { maxOf(floor[it], minOf(widths[it], cap)).toDouble() }
+    if (width(0f) >= total) return floor
+    var lo = 0f; var hi = widths.max()
+    repeat(30) {
+        val mid = (lo + hi) / 2
+        if (width(mid) > total) hi = mid else lo = mid
+    }
+    return widths.indices.map { maxOf(floor[it], minOf(widths[it], lo)) }
+}
+
 /** La grille du tableau : en-tête en gras, filets entre les lignes, colonnes mesurées sur leur texte. */
 @Composable
-private fun TableGrid(table: MdBlock.Table, colors: MdColors, body: TextStyle, cellSize: Int, maxCell: Float, modifier: Modifier = Modifier) {
+private fun TableGrid(table: MdBlock.Table, colors: MdColors, body: TextStyle, cellSize: Int, maxCell: Float,
+    modifier: Modifier = Modifier, fitWidth: Float? = null) {
     val line = colors.ink.copy(alpha = 0.14f)
-    val cell = body.copy(fontSize = cellSize.sp, lineHeight = (cellSize + 5).sp)
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val widths = remember(table, cell, density) {
-        table.header.indices.map { c ->
-            val widest = (listOf(table.header[c]) + table.rows.map { it.getOrElse(c) { "" } }).maxOf { value ->
-                measurer.measure(inlineMarkdown(value, colors), style = cell.copy(fontWeight = FontWeight.SemiBold), maxLines = 1).size.width
+    // Plein écran : si les mots les plus longs ne tiennent pas à la taille prévue, le texte descend d'un ou deux crans
+    // (14, 13, 12 sp) pour que toutes les colonnes restent visibles ; à défaut, le tableau défile.
+    val (cell, widths) = remember(table, body, cellSize, density, fitWidth) {
+        val sizes = if (fitWidth == null) listOf(cellSize) else listOf(cellSize, cellSize - 2, cellSize - 3, cellSize - 4).filter { it >= 12 }
+        var chosen: Pair<TextStyle, List<Float>>? = null
+        for (size in sizes) {
+            val style = body.copy(fontSize = size.sp, lineHeight = (size + 5).sp)
+            fun width(text: String) = with(density) {
+                measurer.measure(inlineMarkdown(text, colors), style = style.copy(fontWeight = FontWeight.SemiBold), maxLines = 1).size.width.toDp().value
+            } + 22f
+            val cells = table.header.indices.map { c -> listOf(table.header[c]) + table.rows.map { it.getOrElse(c) { "" } } }
+            val natural = cells.map { column -> column.maxOf(::width).coerceIn(64f, maxCell) }
+            if (fitWidth == null) { chosen = style to natural; break }
+            // Le mot le plus long de chaque colonne (en-tête en gras compris) : la largeur sous laquelle on ne descend pas.
+            val words = cells.map { column ->
+                column.flatMap { it.split(Regex("\\s+")) }.filter { it.isNotBlank() }.maxOfOrNull(::width) ?: 64f
             }
-            (with(density) { widest.toDp().value } + 22f).coerceIn(64f, maxCell)
+            chosen = style to fitColumns(natural, fitWidth - 2f, words)
+            if (words.indices.sumOf { minOf(natural[it], words[it]).toDouble() } <= fitWidth - 2f) break
         }
+        chosen!!
     }
     Box(modifier.horizontalScroll(rememberScrollState())) {
         Column(Modifier.clip(RoundedCornerShape(10.dp)).border(1.dp, line, RoundedCornerShape(10.dp))) {

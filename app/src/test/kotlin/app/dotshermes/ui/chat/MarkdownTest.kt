@@ -10,6 +10,31 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MarkdownTest {
+    @Test fun `made-up control tags such as skip never show`() {
+        assertEquals("", app.dotshermes.data.direct.withoutStrayReactions("[[skip]]").trim())
+        assertEquals("Opening it.", app.dotshermes.data.direct.withoutStrayReactions("Opening it. [[ None ]]").trim())
+        assertEquals("[[a link]]", app.dotshermes.data.direct.withoutStrayReactions("[[a link]]"))
+    }
+    @Test fun `escaped punctuation such as dollar signs shows without the backslash`() {
+        val colors = MdColors(ink = Color.White, link = Color.Blue, codeBackground = Color.Black)
+        assertEquals("Bargain ~\$10 & 50% off", inlineMarkdown("Bargain ~\\\$10 \\& 50\\% off", colors).text)
+        assertEquals("a\\b", inlineMarkdown("a\\b", colors).text)
+    }
+    @Test fun `expanded tables cap the widest columns to fit the screen`() {
+        val fit = fitColumns(listOf(64f, 320f, 100f, 320f), 360f)
+        assertEquals(64f, fit[0], 0.01f)
+        assertEquals(360f, fit.sum(), 0.5f)
+        assertEquals(fit[1], fit[3], 0.01f)
+        assertEquals(listOf(64f, 120f), fitColumns(listOf(64f, 120f), 360f))
+        // trop de colonnes : jamais sous 90 dp, le tableau défile
+        assertTrue(fitColumns(List(8) { 300f }, 360f).all { it >= 89.9f })
+        // jamais sous le mot le plus long : la colonne des notes garde 150 dp, la place se prend sur les autres
+        val words = fitColumns(listOf(64f, 320f, 100f, 320f), 420f, mins = listOf(64f, 100f, 85f, 150f))
+        assertTrue(words[3] >= 150f && words[1] >= 100f)
+        assertEquals(420f, words.sum(), 0.5f)
+        // même au minimum ça ne tient pas : les minimums, et le tableau défile
+        assertEquals(listOf(64f, 100f, 85f, 150f), fitColumns(listOf(64f, 320f, 100f, 320f), 328f, mins = listOf(64f, 100f, 85f, 150f)))
+    }
     private val colors = MdColors(Color.Black, Color.Blue, Color.LightGray)
 
     @Test

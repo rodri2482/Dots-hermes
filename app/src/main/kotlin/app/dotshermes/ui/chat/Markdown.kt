@@ -158,6 +158,8 @@ private fun cells(line: String): List<String> =
 /** Couleurs du texte enrichi : encre du bloc, liens, fond du code en ligne. */
 data class MdColors(val ink: Color, val link: Color, val codeBackground: Color)
 
+private const val MD_ESCAPABLE = "!\"#\$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+
 fun inlineMarkdown(text: String, colors: MdColors): AnnotatedString = buildAnnotatedString { appendInline(text, colors) }
 
 private fun AnnotatedString.Builder.appendInline(text: String, colors: MdColors) {
@@ -169,8 +171,9 @@ private fun AnnotatedString.Builder.appendInline(text: String, colors: MdColors)
     }
     while (i < text.length) {
         val c = text[i]
-        // Échappement : \* \_ \` … s'affichent tels quels.
-        if (c == '\\' && i + 1 < text.length && text[i + 1] in "\\`*_{}[]()#+-.!~|>") {
+        // Échappement : \* \_ \` \$ … s'affichent tels quels (toute ponctuation ASCII, comme CommonMark ; « ~\$10 »
+        // des modèles affichait la barre oblique).
+        if (c == '\\' && i + 1 < text.length && text[i + 1] in MD_ESCAPABLE) {
             plain.append(text[i + 1]); i += 2; continue
         }
         if (c == '`') {

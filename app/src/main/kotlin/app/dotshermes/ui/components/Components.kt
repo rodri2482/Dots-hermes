@@ -56,6 +56,19 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * Retour d'appui : l'élément descend à 0,97 dès que le doigt se pose (sans s'attarder pendant qu'on tient), puis
+ * revient en ease-out au relâchement.
+ */
+@Composable
+fun Modifier.pressScale(interaction: MutableInteractionSource): Modifier {
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f,
+        if (pressed) androidx.compose.animation.core.tween(70) else androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+        label = "press")
+    return graphicsLayer { scaleX = scale; scaleY = scale }
+}
+
 /** Bouton pilule sans ripple : retour tactile par léger rétrécissement, à la manière d'iOS. */
 @Composable
 fun PillButton(
@@ -68,11 +81,9 @@ fun PillButton(
     height: Dp = 48.dp,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, label = "press")
     Box(
         modifier = modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .pressScale(interaction)
             .height(height)
             .clip(CircleShape)
             .background(if (enabled) container else container.copy(alpha = 0.45f))
@@ -93,8 +104,10 @@ fun CircleIconButton(
     container: Color = Ink.Fill,
     tint: Color = Ink.Primary,
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Box(
-        modifier = modifier.size(size).clip(CircleShape).background(container).clickable(role = Role.Button, onClick = onClick),
+        modifier = modifier.pressScale(interaction).size(size).clip(CircleShape).background(container)
+            .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(size * 0.5f))

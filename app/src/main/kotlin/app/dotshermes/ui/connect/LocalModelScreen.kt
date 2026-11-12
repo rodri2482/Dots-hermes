@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -91,7 +92,7 @@ internal fun LocalModelScreen(
     fun Rows(list: List<LocalModel>) = GroupedCard {
         list.forEachIndexed { i, model ->
             if (i > 0) Hairline(startIndent = 68.dp)
-            ModelRow(model, states[model.id] ?: LocalModelState.Missing, current = model.id == currentModel,
+            ModelRow(model, Modifier.stagger(i), states[model.id] ?: LocalModelState.Missing, current = model.id == currentModel,
                 enoughRoom = models.hasRoom(model), busy = working != null,
                 recommended = model.id == recommended, fits = remember(model.id) { DeviceTier.fits(context, model) },
                 onDownload = { models.download(model) }, onCancel = { models.cancel(model) },
@@ -150,7 +151,7 @@ internal fun LocalModelScreen(
 /** Une ligne de modèle du téléphone : logo, nom entier, « taille · éditeur », puis « Conseillé » ou la note (deux lignes). */
 @Composable
 private fun ModelRow(
-    model: LocalModel, state: LocalModelState, current: Boolean, enoughRoom: Boolean, busy: Boolean, recommended: Boolean, fits: Boolean,
+    model: LocalModel, rowModifier: Modifier, state: LocalModelState, current: Boolean, enoughRoom: Boolean, busy: Boolean, recommended: Boolean, fits: Boolean,
     onDownload: () -> Unit, onCancel: () -> Unit, onUse: () -> Unit,
 ) {
     val palette = LocalDotPalette.current
@@ -163,7 +164,7 @@ private fun ModelRow(
     val subtitle = if (state is LocalModelState.Downloading)
         stringResource(R.string.local_progress, gigabytes((model.sizeBytes * state.fraction).toLong()), gigabytes(model.sizeBytes))
         else "${gigabytes(model.sizeBytes)} · ${model.maker}"
-    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(rowModifier.fillMaxWidth().padding(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         LogoTile(model.logo, 40)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
@@ -185,6 +186,17 @@ private fun ModelRow(
             is LocalModelState.Downloading -> DownloadProgress(state.fraction, onCancel)
         }
     }
+}
+
+/** Entrée d'une ligne : fondu et léger glissement en ease-out, 30 ms après la précédente. */
+@Composable
+private fun Modifier.stagger(index: Int): Modifier {
+    val shown = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(index.coerceAtMost(10) * 30L)
+        shown.animateTo(1f, androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+    }
+    return this.then(Modifier.graphicsLayer { alpha = shown.value; translationY = (1f - shown.value) * 14f })
 }
 
 /** Un modèle en ligne : son logo, son nom, la clé qu'il demande ; un toucher ouvre le formulaire de clé. */

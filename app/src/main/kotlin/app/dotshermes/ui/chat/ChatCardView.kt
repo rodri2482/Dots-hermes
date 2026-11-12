@@ -1,5 +1,7 @@
 package app.dotshermes.ui.chat
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.background
@@ -196,7 +198,13 @@ private fun TwoButtons(first: String, second: String, enabled: Boolean, onFirst:
 
 @Composable
 private fun StatusRow(icon: ImageVector, label: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    // La réponse vient d'être enregistrée : un léger battement (1 → 1,06 → 1) le confirme.
+    val beat = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(label) {
+        beat.animateTo(1.06f, androidx.compose.animation.core.tween(120, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+        beat.animateTo(1f, androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    Row(Modifier.graphicsLayer { scaleX = beat.value; scaleY = beat.value }, verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(label, style = MaterialTheme.typography.labelLarge, color = color)
