@@ -2,19 +2,8 @@
 <!-- Textes de l'interface en français. Mêmes clés que values/strings.xml (anglais, langue par défaut). -->
 <resources>
     <!-- Profil de l'agent -->
-    <string name="profile_tagline_gateway">Agent personnel · gateway Hermes</string>
 
     <!-- Connexion au gateway -->
-    <string name="gateway_connecting">Connexion au gateway…</string>
-    <string name="gateway_syncing">Synchronisation de la conversation…</string>
-    <string name="gateway_error_invalid_url">Adresse invalide : elle doit commencer par wss://</string>
-    <string name="gateway_error_timeout">Le gateway ne répond pas.</string>
-    <string name="gateway_error_cancelled">Connexion annulée.</string>
-    <string name="gateway_error_token_refused">Jeton refusé par le gateway.</string>
-    <string name="gateway_error_not_found">Aucun gateway Dots à cette adresse.</string>
-    <string name="gateway_error_unreachable">Gateway injoignable (%1$s).</string>
-    <string name="gateway_error_rate_limited">Limite du gateway atteinte. Veuillez patienter.</string>
-    <string name="gateway_error_closed">Connexion fermée par le gateway.</string>
 
     <!-- Libellés des outils de l'agent -->
     <string name="tool_terminal">Exécute une commande</string>
@@ -69,12 +58,7 @@
     <string name="latency_ms">%1$d ms</string>
 
     <!-- Écran de connexion -->
-    <string name="connect_tagline">Votre agent, à portée de message.\nConnectez son gateway pour commencer.</string>
     <string name="connect_gateway">Gateway</string>
-    <string name="connect_gateway_hint">wss://ton-serveur/dots/ws</string>
-    <string name="connect_token">Jeton</string>
-    <string name="connect_token_hint">DOTS_TOKEN du serveur</string>
-    <string name="connect_token_help">Le jeton se trouve dans ~/.hermes/.env sur le serveur (DOTS_TOKEN). Il reste mémorisé sur ce téléphone uniquement.</string>
     <string name="connect_connecting">Connexion…</string>
     <string name="connect_button">Se connecter</string>
 
@@ -208,7 +192,6 @@
     <string name="agents_title">Agents</string>
     <string name="agents_add_row">Ajouter un agent</string>
     <string name="agents_add_title">Nouvel agent</string>
-    <string name="agents_add_tagline">Un autre agent Hermes, avec son propre gateway.\nSes conversations, sa mémoire et ses outils restent à part.</string>
     <string name="agents_add_cancel">Annuler</string>
     <string name="agents_switch_to">Ou ouvrir un autre agent :</string>
     <string name="agents_add_hint">Ajoutez OpenAI ou Claude avec une clé API, ou connectez un gateway Hermes existant. Chaque compte possède sa propre conversation enregistrée.</string>
@@ -407,7 +390,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="screen_overlay_working">Claydot utilise ton écran</string>
     <string name="screen_overlay_stop">Arrêter</string>
     <string name="permission_not_now">Pas maintenant</string>
-    <string name="permission_hint">Rien ne se passe tant que tu n\'appuies pas sur %1$s.</string>
     <string name="composer_caption">Ajoute un message…</string>
     <string name="attach_remove">Retirer la pièce jointe</string>
     <string name="doing_memory">Je mémorise…</string>
@@ -426,7 +408,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="doing_web">Je cherche sur le web…</string>
     <string name="doing_phone">Je regarde le téléphone…</string>
     <string name="doing_mail">Je lis Gmail…</string>
-    <string name="local_link">Pas de clé d\'API ? Utilise Claydot hors ligne</string>
     <string name="local_title">Claydot hors ligne</string>
     <string name="local_tagline">Télécharge un modèle une fois. Il répond directement sur ton téléphone, sans clé d\'API ni Internet.</string>
     <string name="local_download">Télécharger</string>
@@ -474,50 +455,6 @@ Colle une clé API Groq pour commencer.</string>
         <item quantity="other">%1$d invités au plus.</item>
     </plurals>
     <!-- App web : appairage d'un navigateur par QR code (docs/appairage-web.md) -->
-    <string name="web_section">App web</string>
-    <string name="web_connect_row">Connecter un navigateur</string>
-    <string name="web_sessions_row">Sessions web</string>
-    <string name="web_scan_title">Connecter un navigateur</string>
-    <string name="web_scan_hint">Ouvre l\'app web Dots sur ton ordinateur et vise le QR code qu\'elle affiche.</string>
-    <string name="web_camera_title">Scanne le QR code de l\'app web</string>
-    <string name="web_camera_rationale">Claydot n\'utilise l\'appareil photo que pour lire le QR code affiché par l\'app web. Rien n\'est enregistré ni envoyé.</string>
-    <string name="web_camera_blocked">L\'accès à l\'appareil photo est désactivé pour Claydot. Autorise-le dans les réglages de l\'app pour scanner le QR code.</string>
-    <string name="web_camera_allow">Autoriser l\'appareil photo</string>
-    <string name="web_camera_settings">Ouvrir les réglages</string>
-    <string name="web_qr_not_pairing">Ce QR code ne vient pas de l\'app web Dots.</string>
-    <string name="web_qr_unsupported">Ce QR code vient d\'une app web plus récente : mets d\'abord Claydot à jour.</string>
-    <string name="web_qr_insecure">Refusé : l\'app web doit être servie en https.</string>
-    <string name="web_qr_malformed">QR code illisible. Recharge la page de l\'app web et scanne à nouveau.</string>
-    <string name="web_confirm_title">Connecter un navigateur sur %1$s ?</string>
-    <string name="web_confirm_agents">Agents transmis à ce navigateur</string>
-    <string name="web_confirm_offline">Hors ligne : ne sera pas transmis</string>
-    <string name="web_confirm_none">Aucun agent n\'est connecté en ce moment : rien à transmettre.</string>
-    <string name="web_confirm_warning">Ne scanne qu\'un QR code affiché sur ton propre écran. Ce navigateur pourra parler à ces agents jusqu\'à ce que tu le révoques.</string>
-    <string name="web_connect">Connecter</string>
-    <string name="web_working">Connexion du navigateur sur %1$s…</string>
-    <string name="web_success_title">Navigateur connecté</string>
-    <string name="web_success_text">%1$s est maintenant utilisable depuis %2$s.</string>
-    <string name="web_failed_title">Navigateur non connecté</string>
-    <string name="web_error_nothing">Aucun agent n\'a pu être transmis à ce navigateur.</string>
-    <string name="web_error_expired">Ce QR code a expiré ou a déjà servi. Scanne le nouveau qu\'affiche l\'app web.</string>
-    <string name="web_error_invalid">L\'app web a refusé ce QR code. Recharge la page et scanne à nouveau.</string>
-    <string name="web_error_network">Impossible de joindre %1$s. Vérifie ta connexion et réessaie avec un nouveau QR code.</string>
-    <string name="web_issues_title">Non transmis</string>
-    <string name="web_issue_offline">%1$s est hors ligne : non transmis.</string>
-    <string name="web_issue_origin">%1$s ne fait pas confiance à %2$s. Sur ce gateway, ajoute DOTS_WEB_ORIGINS=%2$s (ou lance install.sh avec --web-origin %2$s), redémarre-le, puis scanne à nouveau.</string>
-    <string name="web_issue_unsupported">%1$s : son plugin dots est trop ancien pour l\'app web. Mets-le à jour sur le gateway.</string>
-    <string name="web_issue_no_reply">%1$s n\'a pas répondu à temps : non transmis.</string>
-    <string name="web_done">Terminé</string>
-    <string name="web_scan_again">Scanner à nouveau</string>
-    <string name="web_sessions_title">Sessions web</string>
-    <string name="web_sessions_hint">Chaque navigateur a son propre jeton, distinct de celui du téléphone. Le révoquer coupe aussitôt sa connexion.</string>
-    <string name="web_sessions_loading">Chargement…</string>
-    <string name="web_sessions_empty">Aucun navigateur connecté.</string>
-    <string name="web_sessions_offline">Agent hors ligne : liste indisponible.</string>
-    <string name="web_session_seen">vu %1$s</string>
-    <string name="web_revoke">Révoquer</string>
-    <string name="web_revoke_title">Révoquer ce navigateur ?</string>
-    <string name="web_revoke_text">« %1$s » sera aussitôt déconnecté de %2$s. Il lui faudra un nouveau QR code pour revenir.</string>
 
     <!-- Connexion directe aux fournisseurs, sans gateway. -->
     <string name="api_connect_title">Connexion à %s</string>

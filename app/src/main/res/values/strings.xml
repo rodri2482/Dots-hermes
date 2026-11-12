@@ -4,19 +4,8 @@
     <string name="app_name" translatable="false">Claydot</string>
 
     <!-- Profil de l'agent -->
-    <string name="profile_tagline_gateway">Personal agent · Hermes gateway</string>
 
     <!-- Connexion au gateway -->
-    <string name="gateway_connecting">Connecting to the gateway…</string>
-    <string name="gateway_syncing">Syncing the conversation…</string>
-    <string name="gateway_error_invalid_url">Invalid address: it must start with wss://</string>
-    <string name="gateway_error_timeout">The gateway is not responding.</string>
-    <string name="gateway_error_cancelled">Connection cancelled.</string>
-    <string name="gateway_error_token_refused">Token refused by the gateway.</string>
-    <string name="gateway_error_not_found">No Dots gateway at this address.</string>
-    <string name="gateway_error_unreachable">Gateway unreachable (%1$s).</string>
-    <string name="gateway_error_rate_limited">Gateway rate limit reached. Please wait.</string>
-    <string name="gateway_error_closed">Connection closed by the gateway.</string>
 
     <!-- Libellés des outils de l'agent -->
     <string name="tool_terminal">Runs a command</string>
@@ -71,12 +60,7 @@
     <string name="latency_ms">%1$d ms</string>
 
     <!-- Écran de connexion -->
-    <string name="connect_tagline">Your agent, one message away.\nConnect its gateway to get started.</string>
     <string name="connect_gateway">Gateway</string>
-    <string name="connect_gateway_hint">wss://your-server/dots/ws</string>
-    <string name="connect_token">Token</string>
-    <string name="connect_token_hint">Server DOTS_TOKEN</string>
-    <string name="connect_token_help">The token is in ~/.hermes/.env on the server (DOTS_TOKEN). It is only stored on this phone.</string>
     <string name="connect_connecting">Connecting…</string>
     <string name="connect_button">Connect</string>
 
@@ -207,7 +191,6 @@
     <string name="agents_title">Agents</string>
     <string name="agents_add_row">Add an agent</string>
     <string name="agents_add_title">New agent</string>
-    <string name="agents_add_tagline">Another Hermes agent, with its own gateway.\nIts conversations, memory and tools stay separate.</string>
     <string name="agents_add_cancel">Cancel</string>
     <string name="agents_switch_to">Or open another agent:</string>
     <string name="agents_add_hint">Add OpenAI or Claude with an API key, or connect an existing Hermes gateway. Each account has its own saved conversation.</string>
@@ -400,7 +383,6 @@ Paste a Groq API key to get started.</string>
     <string name="screen_overlay_working">Claydot is using your screen</string>
     <string name="screen_overlay_stop">Stop</string>
     <string name="permission_not_now">Not now</string>
-    <string name="permission_hint">Nothing happens unless you tap %1$s.</string>
     <string name="composer_caption">Add a message…</string>
     <string name="attach_remove">Remove attachment</string>
     <string name="doing_memory">Remembering…</string>
@@ -419,7 +401,6 @@ Paste a Groq API key to get started.</string>
     <string name="doing_web">Searching the web…</string>
     <string name="doing_phone">Checking your phone…</string>
     <string name="doing_mail">Reading Gmail…</string>
-    <string name="local_link">No API key? Use Claydot offline</string>
     <string name="local_title">Claydot offline</string>
     <string name="local_tagline">Download a model once. It answers right on your phone, with no API key and no internet.</string>
     <string name="local_download">Download</string>
@@ -466,50 +447,6 @@ Paste a Groq API key to get started.</string>
         <item quantity="other">Up to %1$d guests.</item>
     </plurals>
     <!-- App web : appairage d'un navigateur par QR code (docs/appairage-web.md) -->
-    <string name="web_section">Web app</string>
-    <string name="web_connect_row">Connect a browser</string>
-    <string name="web_sessions_row">Browser sessions</string>
-    <string name="web_scan_title">Connect a browser</string>
-    <string name="web_scan_hint">Open the Dots web app on your computer and point the camera at the QR code it shows.</string>
-    <string name="web_camera_title">Scan the web app\'s QR code</string>
-    <string name="web_camera_rationale">Claydot needs the camera only to read the QR code shown by the web app. Nothing is recorded or sent.</string>
-    <string name="web_camera_blocked">Camera access is turned off for Claydot. Allow it in the app settings to scan the QR code.</string>
-    <string name="web_camera_allow">Allow the camera</string>
-    <string name="web_camera_settings">Open settings</string>
-    <string name="web_qr_not_pairing">This QR code doesn\'t come from the Dots web app.</string>
-    <string name="web_qr_unsupported">This QR code comes from a newer web app: update Claydot first.</string>
-    <string name="web_qr_insecure">Refused: the web app must be served over https.</string>
-    <string name="web_qr_malformed">Unreadable QR code. Reload the web app page and scan again.</string>
-    <string name="web_confirm_title">Connect a browser on %1$s?</string>
-    <string name="web_confirm_agents">Agents shared with this browser</string>
-    <string name="web_confirm_offline">Offline: won\'t be shared</string>
-    <string name="web_confirm_none">No agent is connected right now: there is nothing to share.</string>
-    <string name="web_confirm_warning">Only scan a QR code shown on your own screen. That browser will be able to talk to these agents until you revoke it.</string>
-    <string name="web_connect">Connect</string>
-    <string name="web_working">Connecting the browser on %1$s…</string>
-    <string name="web_success_title">Browser connected</string>
-    <string name="web_success_text">%1$s can now be used from %2$s.</string>
-    <string name="web_failed_title">Browser not connected</string>
-    <string name="web_error_nothing">No agent could be shared with this browser.</string>
-    <string name="web_error_expired">This QR code has expired or was already used. Scan the new one shown by the web app.</string>
-    <string name="web_error_invalid">The web app refused this QR code. Reload the page and scan again.</string>
-    <string name="web_error_network">Couldn\'t reach %1$s. Check your connection and try again with a fresh QR code.</string>
-    <string name="web_issues_title">Not shared</string>
-    <string name="web_issue_offline">%1$s is offline: not shared.</string>
-    <string name="web_issue_origin">%1$s doesn\'t trust %2$s. On that gateway, add DOTS_WEB_ORIGINS=%2$s (or run install.sh with --web-origin %2$s), restart it, then scan again.</string>
-    <string name="web_issue_unsupported">%1$s: its dots plugin is too old for the web app. Update it on the gateway.</string>
-    <string name="web_issue_no_reply">%1$s didn\'t answer in time: not shared.</string>
-    <string name="web_done">Done</string>
-    <string name="web_scan_again">Scan again</string>
-    <string name="web_sessions_title">Browser sessions</string>
-    <string name="web_sessions_hint">Each browser has its own token, separate from this phone\'s. Revoking it closes its connection right away.</string>
-    <string name="web_sessions_loading">Loading…</string>
-    <string name="web_sessions_empty">No browser connected.</string>
-    <string name="web_sessions_offline">Agent offline: list unavailable.</string>
-    <string name="web_session_seen">seen %1$s</string>
-    <string name="web_revoke">Revoke</string>
-    <string name="web_revoke_title">Revoke this browser?</string>
-    <string name="web_revoke_text">“%1$s” will be disconnected from %2$s right away. It will need a new QR code to come back.</string>
 
     <!-- Connexion directe aux fournisseurs, sans gateway. -->
     <string name="api_connect_title">Connect to %s</string>
