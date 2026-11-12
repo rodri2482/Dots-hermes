@@ -575,4 +575,8 @@ Colle une clé API Groq pour commencer.</string>
     <string name="card_pick_several">Choisissez-en un ou plusieurs</string>
     <string name="card_open_app">Ouvrir Claydot</string>
     <string name="doing_ask">Attend votre réponse…</string>
+    <string name="image_picture">Image</string>
+    <string name="image_open">Voir en grand</string>
+    <string name="image_unavailable">Image indisponible</string>
+    <string name="image_source">Ouvrir la source : %1$s</string>
 </resources>

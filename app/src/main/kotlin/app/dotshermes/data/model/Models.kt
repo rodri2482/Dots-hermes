@@ -65,7 +65,16 @@ sealed interface MessageContent {
 
     /** Carte interactive d'un compte direct (question à choix, accord, accès Android) ; voir [ChatCard]. */
     data class Card(val card: ChatCard) : MessageContent
+
+    /** Réponse avec des images trouvées par la recherche d'images (1 à 3), sous le texte. */
+    data class Rich(val text: String, val images: List<ChatImage>) : MessageContent
 }
+
+/**
+ * Une image d'une réponse : fichier local (téléchargé par l'outil de recherche, jamais une adresse écrite par le
+ * modèle), sa légende et la page d'où elle vient.
+ */
+data class ChatImage(val path: String, val caption: String, val source: String)
 
 /** Ce qu'une carte demande. Le modèle ne choisit que parmi ces types : jamais un intent, une URL ou une permission libre. */
 enum class CardKind { Question, Confirm, Access, Handover }

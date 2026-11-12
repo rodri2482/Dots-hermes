@@ -563,4 +563,8 @@
     <string name="card_pick_several">اختر واحدًا أو أكثر</string>
     <string name="card_open_app">فتح Claydot</string>
     <string name="doing_ask">بانتظار إجابتك…</string>
+    <string name="image_picture">صورة</string>
+    <string name="image_open">عرض بحجم أكبر</string>
+    <string name="image_unavailable">الصورة غير متاحة</string>
+    <string name="image_source">فتح المصدر: %1$s</string>
 </resources>

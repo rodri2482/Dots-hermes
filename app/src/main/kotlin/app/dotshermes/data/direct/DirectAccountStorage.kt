@@ -25,6 +25,8 @@ data class DirectEntry(
     /** Salon de groupe : le sous-dot qui a dit ce message, et son nom à ce moment-là. */
     val speaker: String? = null,
     val speakerName: String? = null,
+    /** Images de la réponse (recherche d'images) : fichiers du dossier privé du compte, légende, page source. */
+    val images: List<StoredImage> = emptyList(),
 ) {
     init {
         require(role == "user" || role == "assistant")
@@ -100,7 +102,8 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                     row.optString("quote").takeIf { it.isNotBlank() }?.take(200),
                     row.optJSONObject("card")?.let(::cardOf),
                     row.optString("speaker").takeIf { it.matches(DOT_ID) },
-                    row.optString("speaker_name").takeIf { it.isNotBlank() }?.take(40))
+                    row.optString("speaker_name").takeIf { it.isNotBlank() }?.take(40),
+                    row.optJSONArray("images")?.let { a -> (0 until minOf(a.length(), MAX_IMAGES)).mapNotNull { a.optJSONObject(it)?.let(::storedImageOf) } }.orEmpty())
             }
             val retry = if (root.isNull("retry_user_id")) null else root.getString("retry_user_id")
             val failure = if (root.isNull("failure")) null else ApiFailure.valueOf(root.getString("failure"))
@@ -129,7 +132,8 @@ class EncryptedAccountStorage(private val records: EncryptedRecords) : DirectAcc
                 put(JSONObject().put("id", row.id).put("role", row.role).put("text", row.text)
                     .put("timestamp_ms", row.timestampMs).put("state", row.state.name)
                     .put("reply_to", row.replyTo ?: JSONObject.NULL)
-                    .apply { row.durationMs?.let { put("duration_ms", it) }; row.tokens?.let { put("tokens", it) }; row.reaction?.let { put("reaction", it) }; row.image?.let { put("image", it) }; row.model?.let { put("model", it) }; row.quote?.let { put("quote", it) }; row.card?.let { put("card", cardJson(it)) }; row.speaker?.let { put("speaker", it) }; row.speakerName?.let { put("speaker_name", it) } })
+                    .apply { row.durationMs?.let { put("duration_ms", it) }; row.tokens?.let { put("tokens", it) }; row.reaction?.let { put("reaction", it) }; row.image?.let { put("image", it) }; row.model?.let { put("model", it) }; row.quote?.let { put("quote", it) }; row.card?.let { put("card", cardJson(it)) }; row.speaker?.let { put("speaker", it) }; row.speakerName?.let { put("speaker_name", it) }
+                        if (row.images.isNotEmpty()) put("images", JSONArray().apply { row.images.forEach { put(JSONObject().put("name", it.name).put("caption", it.caption).put("source", it.source)) } }) })
             }
         }
         val limits = transcript.limits?.let { row ->
@@ -233,3 +237,16 @@ internal fun dotOf(row: JSONObject): app.dotshermes.data.model.SubDot? = try {
         lastActivityAt = if (row.isNull("last")) null else java.time.Instant.ofEpochMilli(row.optLong("last")),
     )
 } catch (_: Exception) { null }
+
+/** Une image enregistrée avec une réponse. [source] : page web d'origine (http/https), ou vide. */
+data class StoredImage(val name: String, val caption: String, val source: String)
+
+internal const val MAX_IMAGES = 3
+
+internal fun storedImageOf(row: JSONObject): StoredImage? {
+    val name = row.optString("name").takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,64}\\.jpg")) } ?: return null
+    return StoredImage(name, row.optString("caption").take(120), safeSource(row.optString("source")))
+}
+
+/** Seule une adresse http(s) courte peut servir de lien « source ». */
+internal fun safeSource(url: String): String = url.trim().takeIf { (it.startsWith("https://") || it.startsWith("http://")) && it.length <= 500 && it.none { c -> c <= ' ' } }.orEmpty()

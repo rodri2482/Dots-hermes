@@ -503,4 +503,8 @@
     <string name="card_pick_several">可选一个或多个</string>
     <string name="card_open_app">打开 Claydot</string>
     <string name="doing_ask">正在等你回答…</string>
+    <string name="image_picture">图片</string>
+    <string name="image_open">查看大图</string>
+    <string name="image_unavailable">图片无法显示</string>
+    <string name="image_source">打开来源：%1$s</string>
 </resources>

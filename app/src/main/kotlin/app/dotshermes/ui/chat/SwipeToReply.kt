@@ -101,6 +101,7 @@ fun SwipeToReply(enabled: Boolean, onReply: () -> Unit, content: @Composable () 
 fun quoteOf(message: ChatMessage): String? {
     val raw = when (val c = message.content) {
         is MessageContent.Text -> c.text
+        is MessageContent.Rich -> c.text.ifBlank { "📷" }
         is MessageContent.File -> c.caption.ifBlank { "📷" }
         else -> return null
     }

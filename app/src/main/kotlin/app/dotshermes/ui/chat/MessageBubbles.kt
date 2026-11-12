@@ -114,6 +114,11 @@ fun MessageRow(
             is MessageContent.File -> attachments?.let { FileBubble(message.id, content, fromUser, it) }
             is MessageContent.Takeover -> TakeoverCard(content, onTakeover, Modifier.fillMaxWidth(0.86f))
             is MessageContent.Card -> ChatCardView(content.card, Modifier.fillMaxWidth(0.86f))
+            // Réponse avec images : le texte, puis les images trouvées (légende et source sous chacune).
+            is MessageContent.Rich -> {
+                if (content.text.isNotBlank()) TextBubble(message, content.text, fromUser, row.groupedWithPrev, row.groupedWithNext, onReact, reactionsEnabled)
+                ImageStrip(content.images, Modifier.fillMaxWidth(0.86f).padding(top = 6.dp))
+            }
         }
         if (!fromUser && (message.footer != null)) {
             Row(Modifier.padding(top = 4.dp, start = 6.dp), verticalAlignment = Alignment.CenterVertically) {

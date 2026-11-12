@@ -427,7 +427,7 @@ class DirectChatRepository(
             val raw = calls.map { call ->
                 val out = try { toolset.run(call) } catch (c: CancellationException) { throw c }
                     catch (e: Exception) { org.json.JSONObject().put("error", "tool failed: ${e.javaClass.simpleName}").toString() }
-                keepScreenshot(out, answerId)
+                keepScreenshot(keepImages(out, answerId), answerId)
             }
             // Capture numérotée (look_at_screen) : retirée du texte, jointe en image pour le modèle qui voit.
             val seen = raw.mapNotNull(::visionImage)
@@ -905,6 +905,39 @@ class DirectChatRepository(
     private fun withoutVision(result: String): String =
         if (!result.contains(ScreenTools.VISION_KEY)) result else runCatching { org.json.JSONObject(result).apply { remove(ScreenTools.VISION_KEY) }.toString() }.getOrDefault(result)
 
+    /**
+     * Images de la recherche d'images : enregistrées avec les photos du compte et posées sous la réponse en cours
+     * (3 au plus par réponse) ; le modèle apprend seulement combien sont affichées, avec leurs légendes.
+     */
+    private fun keepImages(result: String, answerId: String?): String {
+        if (!result.contains(WebTools.IMAGES_KEY)) return result
+        val json = try { org.json.JSONObject(result) } catch (_: org.json.JSONException) { return result }
+        val found = json.optJSONArray(WebTools.IMAGES_KEY) ?: return result
+        json.remove(WebTools.IMAGES_KEY)
+        val dir = imageDir ?: return json.put("shown", false).toString()
+        val saved = ArrayList<StoredImage>()
+        for (i in 0 until found.length()) {
+            val row = found.optJSONObject(i) ?: continue
+            runCatching {
+                val name = "pic-" + UUID.randomUUID().toString().replace("-", "").take(12) + ".jpg"
+                dir.mkdirs()
+                File(dir, name).writeBytes(java.util.Base64.getDecoder().decode(row.optString("jpeg")))
+                saved += StoredImage(name, row.optString("caption").take(120), safeSource(row.optString("source")))
+            }
+        }
+        val shown = synchronized(lock) {
+            val entry = transcript.messages.firstOrNull { it.id == answerId } ?: return json.put("shown", false).toString()
+            val room = (MAX_IMAGES - entry.images.size).coerceAtLeast(0)
+            saved.drop(room).forEach { File(dir, it.name).delete() }
+            val kept = saved.take(room)
+            try { commit(transcript.copy(messages = transcript.messages.map { if (it.id == answerId) it.copy(images = it.images + kept) else it })) }
+            catch (_: Exception) { kept.forEach { File(dir, it.name).delete() }; return json.put("shown", false).toString() }
+            kept.size
+        }
+        return json.put("shown", "$shown picture(s) are now shown under your reply with their captions and source links. " +
+            "Do not add image links or markdown images; refer to them naturally if useful.").toString()
+    }
+
     private fun keepScreenshot(result: String, answerId: String?): String {
         if (!result.contains(ScreenTools.SCREENSHOT_KEY)) return result
         val json = try { org.json.JSONObject(result) } catch (_: org.json.JSONException) { return result }
@@ -1019,13 +1052,15 @@ class DirectChatRepository(
         _directUsage.value = DirectApiUsage(provider, model, value.limits, value.cooldownUntilMs)
         val newestDone = value.messages.lastOrNull { it.role == "assistant" && it.state == DirectEntryState.Complete && it.durationMs != null }?.id
         // Réponse pas encore commencée (outil en cours) : pas de bulle vide, l'indicateur « écrit… » suffit.
-        _messages.value = value.messages.filterNot { it.role == "assistant" && it.state == DirectEntryState.Streaming && it.text.isEmpty() }
+        _messages.value = value.messages.filterNot { it.role == "assistant" && it.state == DirectEntryState.Streaming && it.text.isEmpty() && it.images.isEmpty() }
             .map { entry -> ChatMessage(
             id = entry.id, sender = if (entry.role == "user") Sender.User else Sender.Agent,
-            content = entry.card?.let { MessageContent.Card(it) } ?: entry.image?.let { name ->
+            content = entry.card?.let { MessageContent.Card(it) } ?: entry.images.takeIf { it.isNotEmpty() && imageDir != null }?.let { pics ->
+                MessageContent.Rich(withoutMarkdownImages(entry.text), pics.map { ChatImage(File(imageDir, it.name).path, it.caption, it.source) })
+            } ?: entry.image?.let { name ->
                 MessageContent.File(name = "photo.jpg", mime = "image/jpeg", size = imageDir?.let { File(it, name).length() } ?: 0,
                     localPath = imageDir?.let { File(it, name).path }, caption = entry.text)
-            } ?: MessageContent.Text(entry.text), sentAt = Instant.ofEpochMilli(entry.timestampMs),
+            } ?: MessageContent.Text(if (entry.role == "assistant") withoutMarkdownImages(entry.text) else entry.text), sentAt = Instant.ofEpochMilli(entry.timestampMs),
             delivery = if (entry.role == "user") Delivery.Sent else Delivery.Read,
             remoteId = entry.id, turn = entry.replyTo, failed = entry.role == "user" && entry.state == DirectEntryState.Failed,
             footer = if (entry.id == newestDone) replyFooter(entry.model ?: model, entry.durationMs ?: 0, entry.tokens) else null,
@@ -1140,6 +1175,10 @@ private const val SHORT_WAIT_S = 20L
 private val FallbackModels = listOf("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3-32b", "moonshotai/kimi-k2-instruct", "llama-3.1-8b-instant")
 private val AgentModels = listOf("meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile", "meta-llama/llama-4-maverick-17b-128e-instruct")
 
+/** Une image en markdown écrite par le modèle (adresse inventée possible) : retirée, seules les images de l'outil s'affichent. */
+internal fun withoutMarkdownImages(text: String): String =
+    if ("![" !in text) text else text.replace(Regex("!\\[[^\\]]*]\\([^)]*\\)"), "").replace(Regex("\\n{3,}"), "\n\n").trim()
+
 /** Échecs qu'un autre modèle Groq peut éviter : appel d'outil refusé, réponse vide ou illisible. */
 private val RetryableFailures = setOf(ApiFailure.InvalidRequest, ApiFailure.InvalidResponse)
 /** Échecs après lesquels [DirectChatRepository.rescue] tente une réponse sans outils. */
@@ -1188,7 +1227,9 @@ internal const val TOOL_RULE = "You run on the user's Android phone and have too
     "instead of giving up; keep going until the whole task is done, then say briefly what you did. " +
     "For questions about something (a person, place, food, how-to, comparison), answer like a polished assistant: a direct first " +
     "sentence, then ## headings or **bold** labels, short bullet points, a table when comparing, and a one-line tip at the end; " +
-    "call show_image when a picture helps. Keep small talk short and casual. " +
+    "when pictures help (a person, character, place, food, animal, product), call show_images for 1 to 3 real pictures from image " +
+    "search, shown under your reply with captions and sources; never write image links or markdown images, and if pictures cannot " +
+    "be retrieved, answer in text and say so briefly. Keep small talk short and casual. " +
     "use the screen tools to complete it when they are available, otherwise tell the user the one step left. " +
     "After a tool runs, say briefly what happened. " +
     "When you need missing information or a choice to continue, call ask_user (a card with suggested answers) instead of " +
@@ -1256,7 +1297,7 @@ private val LocalToolNames = setOf(
     "add_calendar_event", "find_contact", "send_sms", "send_whatsapp", "start_screen_control", "read_screen", "tap",
     "type_text", "scroll", "swipe", "press_key", "take_screenshot", "launch_app", "long_press", "open_link", "wait",
     "search_web", "get_news", "read_webpage", "create_routine", "list_routines", "chat_messages", "take_attendance", "reply_in_chat",
-    "ask_user", "request_access", "hand_over_to_user",
+    "ask_user", "request_access", "hand_over_to_user", "show_images",
 )
 
 internal fun localToolset(all: org.json.JSONArray): org.json.JSONArray = org.json.JSONArray().apply {

@@ -567,4 +567,8 @@ Paste a Groq API key to get started.</string>
     <string name="card_pick_several">Pick one or more</string>
     <string name="card_open_app">Open Claydot</string>
     <string name="doing_ask">Waiting for your answer…</string>
+    <string name="image_picture">Picture</string>
+    <string name="image_open">View larger</string>
+    <string name="image_unavailable">Picture unavailable</string>
+    <string name="image_source">Open the source: %1$s</string>
 </resources>
