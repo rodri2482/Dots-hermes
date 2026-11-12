@@ -88,6 +88,51 @@ class AgentTeamTest {
         } finally { scope.cancel() }
     }
 
+    /** Une séance d'équipe complète : plan, travail, discussion, contrôle qui signale, correction, validation, réponse. */
+    private class Session : ProviderClient {
+        var checks = 0
+        var fixes = 0
+        override suspend fun models(provider: ApiProvider, key: String) = listOf("m")
+        override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) = error("unused")
+        override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+            extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+            val system = turns.first().text
+            val ask = turns.last().text
+            when {
+                system.contains("split a task") -> onDelta("""{"tasks":[{"dot":"Researcher","task":"find the facts"},{"dot":"Analyst","task":"make the plan"}]}""")
+                system.contains("one of Claydot's sub-dots") -> onDelta(synchronized(this) {
+                    when {
+                        ask.contains("team's checker") -> { checks++; if (checks == 1) "- FIX Researcher: no source given" else "APPROVED: sourced and complete" }
+                        ask.contains("teammates' work") -> "Looks fine to me, but the dates need a source."
+                        ask.contains("checker found problems") -> { fixes++; "Fixed part with a source" }
+                        else -> "My part: " + system.substringAfter("You are ").substringBefore(",")
+                    }
+                })
+                extra.none { it.optString("role") == "tool" } ->
+                    return listOf(ApiToolCall("t1", "team_task", """{"goal":"Plan a weekend in Lagos"}"""))
+                else -> onDelta("Final answer.")
+            }
+            return emptyList()
+        }
+    }
+
+    @Test fun `a team session splits the work, talks, gets checked and fixed, then answers`() {
+        val client = Session()
+        turn(ApiProvider.Groq, client, "Plan a weekend in Lagos with your team", dotModel = "none") { storage, repo ->
+            val main = storage.load("a").messages
+            assertEquals("Final answer.", main.last().text)
+            val said = main.filter { it.speaker != null }.map { it.speakerName to it.text }
+            // Travail (2), discussion (2), contrôle (2), correction (1 : seul le Researcher est signalé)
+            assertEquals(2, said.count { it.second.startsWith("My part") })
+            assertEquals(2, said.count { it.second.startsWith("Looks fine") })
+            assertEquals(listOf("Checker", "Checker"), said.filter { it.second.contains("FIX") || it.second.startsWith("APPROVED") }.map { it.first })
+            assertEquals(listOf("Researcher"), said.filter { it.second.startsWith("Fixed") }.map { it.first })
+            assertEquals(2, client.checks)
+            assertEquals(1, client.fixes)
+            assertEquals(setOf("Researcher", "Analyst", "Checker"), repo.dots.value.map { it.name }.toSet())
+        }
+    }
+
     @Test fun `agents cannot loop but one agent can ask several at once`() {
         assertTrue(AgentTalk.start("A", "B"))
         assertFalse(AgentTalk.start("B", "A"))      // B répondait à A : pas de retour vers A
