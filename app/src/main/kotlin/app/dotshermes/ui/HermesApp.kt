@@ -1,5 +1,6 @@
 package app.dotshermes.ui
 
+import app.dotshermes.ui.dots.appearance
 import android.graphics.Color as AndroidColor
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -233,8 +234,12 @@ fun HermesApp(
                     onEdit = if (!gatewayFeatures) viewModel::editMessage else null,
                     agentCall = run {
                         val calls by app.dotshermes.data.direct.AgentCalls.active.collectAsStateWithLifecycle()
+                        val dots by AppContainer.agents.repo(activeAgent ?: "").dots.collectAsStateWithLifecycle()
                         calls.firstOrNull { it.from == activeAgent || it.to == activeAgent }?.let { c ->
                             val peerId = if (c.from == activeAgent) c.to else c.from
+                            val dot = peerId.removePrefix("dot:").takeIf { peerId.startsWith("dot:") }?.let { id -> dots.firstOrNull { it.id == id } }
+                            if (dot != null) return@let app.dotshermes.ui.chat.AgentCallUi(dot.name,
+                                dot.appearance(appearance), c.mode, outgoing = c.from == activeAgent, connected = c.connected)
                             val look = AppContainer.agents.appearance(peerId).state.collectAsStateWithLifecycle().value
                             val link = AppContainer.agents.store.get(peerId)
                             val model = link?.model.orEmpty().let { m -> app.dotshermes.data.direct.LocalModels.byId(m)?.name ?: m.substringAfterLast('/') }
@@ -422,11 +427,13 @@ fun HermesApp(
                             viewModel.createDot(draft)
                             creatingDot = false
                             editPreview = null
-                        }, onDelete = null, onPreview = { editPreview = it })
+                        }, onDelete = null, onPreview = { editPreview = it },
+                            modelChoices = remember(activeAgent) { activeAgent?.let { AppContainer.agents.modelChoices(it) }.orEmpty() })
                     }
                     sub != null -> key(sub.id) {
                         DotEditor(existing = sub, theme = appearance, onSave = { draft -> viewModel.updateDot(sub.id, draft) },
-                            onDelete = { viewModel.deleteDot(sub.id) }, onPreview = { editPreview = it })
+                            onDelete = { viewModel.deleteDot(sub.id) }, onPreview = { editPreview = it },
+                            modelChoices = remember(activeAgent) { activeAgent?.let { AppContainer.agents.modelChoices(it) }.orEmpty() })
                     }
                     else -> AgentSettings(
                         gatewayFeatures = gatewayFeatures,

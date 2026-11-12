@@ -45,6 +45,7 @@ import app.dotshermes.data.direct.ToolKeys
 fun toolIcon(key: String): ImageVector? = when (ToolKeys.kind(key)) {
     "memory" -> Icons.Rounded.Psychology
     "agent" -> Icons.Rounded.Forum
+    "dot" -> Icons.Rounded.Forum
     "wiki" -> Icons.Rounded.Language
     "draw" -> Icons.Rounded.Image
     "model" -> Icons.Rounded.Forum
@@ -75,6 +76,7 @@ fun toolText(key: String): String {
     return when (ToolKeys.kind(key)) {
         "memory" -> stringResource(R.string.doing_memory)
         "agent" -> stringResource(R.string.doing_agent)
+        "dot" -> stringResource(R.string.doing_dot)
         "wiki" -> stringResource(R.string.doing_wiki)
         "draw" -> stringResource(R.string.doing_draw)
         "model" -> stringResource(R.string.doing_model)

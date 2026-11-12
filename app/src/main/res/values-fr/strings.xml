@@ -613,4 +613,7 @@ Colle une clé API Groq pour commencer.</string>
     <string name="doing_wiki">Lit Wikipédia…</string>
     <string name="doing_draw">Crée une image…</string>
     <string name="table_expand">Agrandir le tableau</string>
+    <string name="dot_model">Modèle</string>
+    <string name="dot_model_same">Le même que le dot principal</string>
+    <string name="doing_dot">Travaille avec un sous-dot…</string>
 </resources>

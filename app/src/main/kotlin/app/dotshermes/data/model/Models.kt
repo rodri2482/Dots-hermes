@@ -277,6 +277,8 @@ data class SubDot(
     val accessory: String,
     val createdAt: Instant,
     val lastActivityAt: Instant?,
+    /** Modèle qui fait tourner ce sous-dot, « fournisseur:modèle » ; null = le même que le dot principal. */
+    val model: String? = null,
 )
 
 /** Ce que l'utilisateur saisit pour créer ou modifier un sous-dot. */
@@ -287,4 +289,6 @@ data class SubDotDraft(
     val species: String,
     val palette: String,
     val accessory: String,
+    /** Modèle choisi, « fournisseur:modèle » ; null = le même que le dot principal. */
+    val model: String? = null,
 )

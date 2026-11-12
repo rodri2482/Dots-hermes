@@ -553,4 +553,7 @@
     <string name="doing_wiki">Liest Wikipedia…</string>
     <string name="doing_draw">Erstellt ein Bild…</string>
     <string name="table_expand">Tabelle vergrößern</string>
+    <string name="dot_model">Modell</string>
+    <string name="dot_model_same">Wie der Haupt-Dot</string>
+    <string name="doing_dot">Arbeitet mit einem Sub-Dot…</string>
 </resources>

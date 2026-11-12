@@ -226,6 +226,7 @@ internal val DOT_ID = Regex("[a-f0-9]{10}")
 internal fun dotJson(dot: app.dotshermes.data.model.SubDot): JSONObject = JSONObject().put("id", dot.id).put("name", dot.name)
     .put("kind", dot.kind.wire).put("mission", dot.mission).put("species", dot.species).put("palette", dot.palette)
     .put("accessory", dot.accessory).put("created", dot.createdAt.toEpochMilli()).put("last", dot.lastActivityAt?.toEpochMilli() ?: JSONObject.NULL)
+    .apply { dot.model?.let { put("model", it) } }
 
 internal fun dotOf(row: JSONObject): app.dotshermes.data.model.SubDot? = try {
     val id = row.getString("id")
@@ -235,6 +236,7 @@ internal fun dotOf(row: JSONObject): app.dotshermes.data.model.SubDot? = try {
         mission = row.optString("mission").take(600), species = row.optString("species").take(40), palette = row.optString("palette").take(40),
         accessory = row.optString("accessory").take(40), createdAt = java.time.Instant.ofEpochMilli(row.optLong("created")),
         lastActivityAt = if (row.isNull("last")) null else java.time.Instant.ofEpochMilli(row.optLong("last")),
+        model = row.optString("model").takeIf { modelSpecOf(it) != null },
     )
 } catch (_: Exception) { null }
 

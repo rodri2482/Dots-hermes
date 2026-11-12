@@ -92,8 +92,22 @@ class AgentRegistry(
             }, link.model.substringAfterLast('/').let { m -> (LocalModels.byId(link.model)?.name ?: m) + " · " + link.provider!!.title })
         }
 
-        override fun imageKey(): String? = store.agents.value.firstOrNull { it.provider == ApiProvider.OpenAI }
-            ?.let { runCatching { apiStorage.key(it.id) }.getOrNull()?.takeIf { k -> k.isNotBlank() } }
+        override fun imageKey(): String? = keyFor(ApiProvider.OpenAI)
+
+        override fun keyFor(provider: ApiProvider): String? = if (provider == ApiProvider.Local) LocalModels.LOCAL_KEY
+            else store.agents.value.firstOrNull { it.provider == provider }?.let { runCatching { apiStorage.key(it.id) }.getOrNull()?.takeIf { k -> k.isNotBlank() } }
+
+        /** Les modèles des comptes de l'utilisateur, puis ses modèles téléchargés (sans doublon). */
+        override fun modelChoices(self: String): List<ModelChoice> {
+            val accounts = store.agents.value.filter { it.provider != null }.map { link ->
+                val name = if (link.provider == ApiProvider.Local) LocalModels.byId(link.model)?.name ?: link.model else link.model.substringAfterLast('/')
+                ModelChoice("${link.provider!!.id}:${link.model}", "$name · ${link.provider.title}")
+            }
+            val states = app.dotshermes.AppContainer.localModels.states.value
+            val local = LocalModels.CATALOG.filter { states[it.id] == LocalModelState.Ready }
+                .map { ModelChoice("local:${it.id}", "${it.name} · ${ApiProvider.Local.title}") }
+            return (accounts + local).distinctBy { it.spec }
+        }
 
         override fun facts(self: String) = directOthers(self).flatMap { runCatching { apiStorage.facts(it.id) }.getOrDefault(emptyList()) }
 
@@ -138,6 +152,9 @@ class AgentRegistry(
                 .distinctBy { it.name }
         }
     }
+
+    /** Les modèles que l'utilisateur a, pour le choix du modèle d'un sous-dot. */
+    fun modelChoices(self: String): List<ModelChoice> = peers.modelChoices(self)
 
     /** Connexion de repli quand aucun agent n'est appairé : jamais connectée, l'écran d'appairage s'affiche. */
     private val unpaired by lazy { create(UNPAIRED) }

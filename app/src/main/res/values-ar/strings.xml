@@ -601,4 +601,7 @@
     <string name="doing_wiki">يقرأ ويكيبيديا…</string>
     <string name="doing_draw">ينشئ صورة…</string>
     <string name="table_expand">تكبير الجدول</string>
+    <string name="dot_model">النموذج</string>
+    <string name="dot_model_same">نفس الدوت الرئيسي</string>
+    <string name="doing_dot">يعمل مع دوت فرعي…</string>
 </resources>

@@ -1,5 +1,6 @@
 package app.dotshermes.ui.dots
 
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -105,7 +106,7 @@ fun SubDot.appearance(theme: DotAppearance): DotAppearance = DotAppearance(
 
 /** Nom d'un dot temporaire laissé vide : les premiers mots de sa mission, sinon [fallback]. */
 internal fun nameFromMission(mission: String, fallback: String): String =
-    mission.trim().split(Regex("\\s+")).take(3).joinToString(" ").replaceFirstChar { it.titlecase() }.take(AGENT_NAME_MAX).ifBlank { fallback }
+    app.dotshermes.data.direct.dotName(mission, fallback).take(AGENT_NAME_MAX)
 
 /**
  * Fiche des dots, ouverte depuis l'en-tête : en haut la bande des dots, en dessous les réglages du
@@ -308,6 +309,8 @@ fun DotEditor(
     onDelete: (() -> Unit)?,
     /** Apparence en cours de saisie, pour que le carrousel montre le dot tel qu'il sera. */
     onPreview: (DotAppearance) -> Unit = {},
+    /** Les modèles que l'utilisateur a (clés, modèles téléchargés) : celui qui fera tourner ce sous-dot. */
+    modelChoices: List<app.dotshermes.data.direct.ModelChoice> = emptyList(),
 ) {
     var kind by rememberSaveable { mutableStateOf(existing?.kind ?: DotKind.Temporary) }
     var name by rememberSaveable { mutableStateOf(existing?.name.orEmpty()) }
@@ -320,6 +323,7 @@ fun DotEditor(
         mutableStateOf(existing?.palette ?: DotPalettes.all.firstOrNull { it.id != theme.palette.id }?.id ?: DotPalettes.Sky.id)
     }
     var confirmDelete by remember { mutableStateOf(false) }
+    var modelSpec by rememberSaveable { mutableStateOf(existing?.model) }
     val palette = DotPalettes.all.firstOrNull { it.id == paletteId } ?: DotPalettes.Sky
     val speciesValue = DotSpecies.entries.firstOrNull { it.name == species } ?: DotSpecies.Nuage
     val canSave = mission.isNotBlank() && (kind == DotKind.Temporary || name.isNotBlank())
@@ -379,11 +383,24 @@ fun DotEditor(
                 }
             }
 
+            // Le modèle du sous-dot : le même que le dot principal, ou un autre que l'utilisateur a déjà.
+            if (modelChoices.isNotEmpty()) {
+                SectionLabel(stringResource(R.string.dot_model))
+                GroupedCard {
+                    ModelOption(stringResource(R.string.dot_model_same), selected = modelSpec == null) { modelSpec = null }
+                    modelChoices.forEach { choice ->
+                        app.dotshermes.ui.components.Hairline()
+                        ModelOption(choice.label, selected = modelSpec == choice.spec) { modelSpec = choice.spec }
+                    }
+                }
+            }
+
             Spacer(Modifier.size(20.dp))
             PillButton(
                 stringResource(if (existing == null) R.string.dot_create else R.string.dot_save),
                 onClick = {
-                    onSave(SubDotDraft(name.trim().ifBlank { nameFromMission(mission, missionLabel) }, kind, mission.trim(), species, paletteId, DotAccessory.WingedCap.name))
+                    onSave(SubDotDraft(name.trim().ifBlank { nameFromMission(mission, missionLabel) }, kind, mission.trim(), species, paletteId,
+                        DotAccessory.WingedCap.name, model = modelSpec))
                 },
                 modifier = Modifier.fillMaxWidth(),
                 container = palette.base, content = palette.onBase, enabled = canSave,
@@ -444,6 +461,18 @@ private fun Segmented(labels: List<String>, selected: Int, onSelect: (Int) -> Un
                     .clickable { onSelect(i) }.padding(vertical = 8.dp),
             )
         }
+    }
+}
+
+/** Une ligne du choix de modèle : son nom, une coche quand il est choisi. */
+@Composable
+private fun ModelOption(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick)
+        .padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, modifier = Modifier.weight(1f),
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        if (selected) androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.Check, null,
+            tint = LocalDotPalette.current.deep, modifier = Modifier.size(20.dp))
     }
 }
 

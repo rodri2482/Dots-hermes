@@ -605,4 +605,7 @@ Paste a Groq API key to get started.</string>
     <string name="doing_wiki">Reading Wikipedia…</string>
     <string name="doing_draw">Creating a picture…</string>
     <string name="table_expand">Expand table</string>
+    <string name="dot_model">Model</string>
+    <string name="dot_model_same">Same as the main dot</string>
+    <string name="doing_dot">Working with a sub-dot…</string>
 </resources>
