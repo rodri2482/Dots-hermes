@@ -26,6 +26,9 @@ object AppContainer {
         set(value) { field = value; foreground.value = value }
     private val foreground = kotlinx.coroutines.flow.MutableStateFlow(false)
 
+    /** Carte déjà signalée par notification (une seule fois chacune). */
+    private var notifiedCard: String? = null
+
     fun init(context: Context) {
         appContext = context.applicationContext
         // Pastille de l'écran : hors de l'app, ce que Claydot dit et demande, au plus quatre fois par seconde.
@@ -35,7 +38,17 @@ object AppContainer {
                 .sample(250)
                 .collect { (note, shown) ->
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        app.dotshermes.screen.ClaydotAccessibilityService.instance?.overlay?.setNote(note, shown)
+                        val overlay = app.dotshermes.screen.ClaydotAccessibilityService.instance?.overlay
+                        overlay?.setNote(note, shown)
+                        // Sans pastille (accès à l'écran coupé), une question posée pendant que l'utilisateur est
+                        // ailleurs passerait inaperçue : une notification la signale, une fois par carte.
+                        val waiting = note?.card?.takeIf { it.status == app.dotshermes.data.model.CardStatus.Pending && !shown && overlay == null }
+                        if (waiting == null) {
+                            if (notifiedCard != null) { notifiedCard = null; app.dotshermes.push.Notifications.cancelCardWaiting(context) }
+                        } else if (waiting.id != notifiedCard) {
+                            notifiedCard = waiting.id
+                            app.dotshermes.push.Notifications.showCardWaiting(context, app.dotshermes.data.direct.ToolKeys.splitTitle(waiting.question).second)
+                        }
                     }
                 }
         }

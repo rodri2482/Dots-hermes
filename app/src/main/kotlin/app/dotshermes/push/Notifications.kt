@@ -143,6 +143,35 @@ object Notifications {
 
     private fun approvalNotificationId(approvalId: String) = 1_000 + (approvalId.hashCode() and 0x0FFFFFFF)
 
+    /** Une carte attend une réponse, l'utilisateur est dans une autre app : un toucher ramène au fil. */
+    private const val CARD_WAITING_ID = 4245
+
+    /**
+     * Claydot pose une question (carte) pendant que l'utilisateur est ailleurs et que la pastille par-dessus les
+     * apps n'est pas disponible (accès à l'écran coupé) : notification qui ouvre le fil, une fois par carte.
+     */
+    fun showCardWaiting(context: Context, question: String) {
+        if (!canNotify(context)) return
+        val open = PendingIntent.getActivity(context, 60_000,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val text = question.replace(MarkdownMarks, "")
+        val notification = NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_hermes)
+            .setColor(Accent)
+            .setContentTitle(context.getString(R.string.notif_card_title))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        notifySafely(context, CARD_WAITING_ID, notification)
+    }
+
+    fun cancelCardWaiting(context: Context) = NotificationManagerCompat.from(context).cancel(CARD_WAITING_ID)
+
     private fun approvalBuilder(context: Context, agent: String, title: String, text: String) = NotificationCompat.Builder(context, CHANNEL)
         .setSmallIcon(R.drawable.ic_stat_hermes)
         .setColor(Accent)

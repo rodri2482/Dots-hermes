@@ -519,4 +519,6 @@
     <string name="image_open">Größer anzeigen</string>
     <string name="image_unavailable">Bild nicht verfügbar</string>
     <string name="image_source">Quelle öffnen: %1$s</string>
+    <string name="music_needs_screen">%1$s wurde geöffnet, hat den Song aber nicht gestartet. Mit Bildschirmzugriff kann Claydot für dich auf Play drücken.</string>
+    <string name="notif_card_title">Claydot braucht deine Antwort</string>
 </resources>

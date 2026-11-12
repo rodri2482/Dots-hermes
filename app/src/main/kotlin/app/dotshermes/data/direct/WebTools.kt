@@ -26,7 +26,7 @@ class WebTools(private val http: OkHttpClient = defaultClient) : DirectTools {
         .put(fn("get_news", "Latest news headlines, for a topic or the top stories of the user's country.",
             JSONObject().put("topic", str("Optional topic, e.g. 'Davido', 'Nigeria economy', 'AI'")), ))
         .put(fn("read_webpage", "Read the text of a web page (http/https).", JSONObject().put("url", str("Full URL")), "url"))
-        .put(fn("show_images", "Search the web for 1 to 3 real pictures and show them under your reply, with captions and source links. " +
+        .put(fn("show_images", "Search the web for 1 to 3 real pictures and show them above your reply, with captions and source links. " +
             "Use it when pictures help answer (a person, character, place, animal, food, product, landmark, how something looks), " +
             "not for every reply. Never write image links or markdown images yourself.",
             JSONObject().put("query", str("What to show, e.g. 'Naruto Uzumaki', 'jollof rice', 'Eiffel Tower at night'"))
@@ -92,7 +92,7 @@ class WebTools(private val http: OkHttpClient = defaultClient) : DirectTools {
 
     /**
      * [count] images pour [query] (DuckDuckGo Images, puis Wikipédia), vraiment téléchargées ici : le fil les montre
-     * sous la réponse. Le modèle ne reçoit que leurs titres et sources, jamais d'adresse d'image à recopier.
+     * au-dessus de la réponse. Le modèle ne reçoit que leurs titres et sources, jamais d'adresse d'image à recopier.
      */
     private fun images(query: String, count: Int): String {
         // Wikipédia d'abord (images exactes : le personnage, la couverture, le lieu), puis Bing en recherche

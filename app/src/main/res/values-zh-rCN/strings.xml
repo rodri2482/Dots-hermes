@@ -507,4 +507,6 @@
     <string name="image_open">查看大图</string>
     <string name="image_unavailable">图片无法显示</string>
     <string name="image_source">打开来源：%1$s</string>
+    <string name="music_needs_screen">%1$s 已打开，但没有开始播放。允许访问屏幕后，Claydot 可以替你点播放。</string>
+    <string name="notif_card_title">Claydot 需要你的回答</string>
 </resources>

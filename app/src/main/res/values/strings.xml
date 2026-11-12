@@ -571,4 +571,6 @@ Paste a Groq API key to get started.</string>
     <string name="image_open">View larger</string>
     <string name="image_unavailable">Picture unavailable</string>
     <string name="image_source">Open the source: %1$s</string>
+    <string name="music_needs_screen">%1$s opened but did not start the song. With screen access, Claydot can press play for you.</string>
+    <string name="notif_card_title">Claydot needs your answer</string>
 </resources>

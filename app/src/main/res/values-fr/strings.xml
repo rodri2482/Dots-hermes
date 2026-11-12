@@ -579,4 +579,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="image_open">Voir en grand</string>
     <string name="image_unavailable">Image indisponible</string>
     <string name="image_source">Ouvrir la source : %1$s</string>
+    <string name="music_needs_screen">%1$s s’est ouvert sans lancer la chanson. Avec l’accès à l’écran, Claydot peut appuyer sur Lecture pour toi.</string>
+    <string name="notif_card_title">Claydot attend ta réponse</string>
 </resources>

@@ -313,7 +313,7 @@ class DirectChatRepository(
         var callKey = ""
         var replyTokens: Long? = null
         // « Qui est Naruto ? » : les images sont cherchées par l'app, en parallèle de la réponse (un petit modèle
-        // n'appelle presque jamais show_images de lui-même). Posées sous la réponse si le modèle n'en a pas mis.
+        // n'appelle presque jamais show_images de lui-même). Posées au-dessus de la réponse si le modèle n'en a pas mis.
         val pictures = text?.takeIf { image == null && provider.hasTools }?.let(::pictureQuery)?.let { query ->
             toolbox()?.takeIf { tools -> definesTool(tools, "show_images") }?.let { tools ->
                 scope.async(Dispatchers.IO) {
@@ -371,6 +371,17 @@ class DirectChatRepository(
             if (discussion.isNotEmpty()) turns = turns.dropLast(1) + turns.last().let {
                 it.copy(text = it.text + "\n\n(Group discussion between the invited sub-dots:\n$discussion\n\n" +
                     "Now conclude for the user: weigh their points and give the final answer.)")
+            }
+            // « Mets Blinding Lights sur Spotify » : le modèle du téléphone répondait « c'est parti » sans rien lancer.
+            // L'app lance la musique elle-même, puis le modèle raconte ce qui s'est vraiment passé (résultat de l'outil).
+            if (provider == ApiProvider.Local) text?.let(::musicRequest)?.let { (query, app) ->
+                toolbox()?.takeIf { definesTool(it, "play_music") }?.let { tools ->
+                    val call = ApiToolCall("auto-music", "play_music", org.json.JSONObject().put("query", query).apply { if (app != null) put("app", app) }.toString())
+                    synchronized(lock) { if (token == generation) _activity.value = AgentActivity.Working(tools.label(call)) }
+                    val out = try { tools.run(call) } catch (c: CancellationException) { throw c }
+                        catch (e: Exception) { org.json.JSONObject().put("error", "tool failed: ${e.javaClass.simpleName}").toString() }
+                    extra += ProviderProtocol.toolExchange(listOf(call), listOf(out))
+                }
             }
             val rounds = if (provider == ApiProvider.Local) LOCAL_TOOL_ROUNDS else MAX_TOOL_ROUNDS
             for (round in 0 until rounds) {
@@ -463,11 +474,18 @@ class DirectChatRepository(
             val problem = (e as? ApiException) ?: ApiException(ApiFailure.InvalidResponse)
             // Requête refusée, réponse vide ou illisible, contexte trop long : on répond quand même, sans outils.
             val answer = answerId
+            // Journal sans contenu : seulement le type d'échec et le fournisseur (diagnostic sur le téléphone).
+            runCatching { android.util.Log.i("Claydot", "turn failed: ${problem.failure} on $callProvider (${e.javaClass.simpleName})") }
             if (problem.failure in RescuableFailures && answer != null && callKey.isNotEmpty()) {
                 val used = try { rescue(token, turns, extra, callProvider, callKey, turnModel, answer, userId) { replyTokens = (replyTokens ?: 0) + it } }
-                    catch (_: CancellationException) { return } catch (_: Exception) { null }
-                if (used != null) { finishAnswer(token, answer, userId, used.second, replyTokens, used.first); return }
+                    catch (_: CancellationException) { pictures?.cancel(); return } catch (_: Exception) { null }
+                if (used != null) {
+                    finishAnswer(token, answer, userId, used.second, replyTokens, used.first)
+                    pictures?.let { found -> attachPictures(found, answer) }
+                    return
+                }
             }
+            pictures?.cancel()
             synchronized(lock) {
                 if (token == generation) {
                     val waitMs = problem.retryAfterSeconds.coerceIn(0, MAX_COOLDOWN_MS / 1000) * 1000
@@ -917,7 +935,7 @@ class DirectChatRepository(
         if (!result.contains(ScreenTools.VISION_KEY)) result else runCatching { org.json.JSONObject(result).apply { remove(ScreenTools.VISION_KEY) }.toString() }.getOrDefault(result)
 
     /**
-     * Images de la recherche d'images : enregistrées avec les photos du compte et posées sous la réponse en cours
+     * Images de la recherche d'images : enregistrées avec les photos du compte et posées au-dessus de la réponse en cours
      * (3 au plus par réponse) ; le modèle apprend seulement combien sont affichées, avec leurs légendes.
      */
     private fun keepImages(result: String, answerId: String?): String {
@@ -945,7 +963,7 @@ class DirectChatRepository(
             catch (_: Exception) { kept.forEach { File(dir, it.name).delete() }; return json.put("shown", false).toString() }
             kept.size
         }
-        return json.put("shown", "$shown picture(s) are now shown under your reply with their captions and source links. " +
+        return json.put("shown", "$shown picture(s) are now shown above your reply with their captions and source links. " +
             "Do not add image links or markdown images; refer to them naturally if useful.").toString()
     }
 
@@ -1248,7 +1266,7 @@ internal const val TOOL_RULE = "You run on the user's Android phone and have too
     "For questions about something (a person, place, food, how-to, comparison), answer like a polished assistant: a direct first " +
     "sentence, then ## headings or **bold** labels, short bullet points, a table when comparing, and a one-line tip at the end; " +
     "when pictures help (a person, character, place, food, animal, product), call show_images for 1 to 3 real pictures from image " +
-    "search, shown under your reply with captions and sources; never write image links or markdown images, and if pictures cannot " +
+    "search, shown above your reply with captions and sources; never write image links or markdown images, and if pictures cannot " +
     "be retrieved, answer in text and say so briefly. Keep small talk short and casual. " +
     "use the screen tools to complete it when they are available, otherwise tell the user the one step left. " +
     "After a tool runs, say briefly what happened. " +
@@ -1259,6 +1277,7 @@ internal const val TOOL_RULE = "You run on the user's Android phone and have too
 /** Version courte de [TOOL_RULE] pour les modèles du téléphone. */
 internal const val LOCAL_TOOL_RULE = "You run on the user's phone and have tools: music, alarms, timers, apps, texting, routines, " +
     "memory and, with approval, the screen. When a request matches a tool, call it; do one step at a time and say briefly what you did. " +
+    "Never say you did something (played, sent, opened, set) unless a tool result in this chat says it was done; if it failed, say so. " +
     "To ask the user something while working, call ask_user."
 
 /** Version courte de [REACTION_RULE] pour les modèles du téléphone. */
@@ -1310,6 +1329,25 @@ private const val MAX_TOOL_ROUNDS = 30
 private const val LOCAL_TOOL_ROUNDS = 12
 /** Une routine peut travailler jusqu'à 15 minutes (tâches à plusieurs étapes). */
 private const val ROUTINE_TIMEOUT_MS = 15 * 60_000L
+
+private val MUSIC_ASK = Regex("""^(?:please\s+|can you\s+|could you\s+|peux-tu\s+|stp\s+)?(?:play|put on|joue|mets|lance|pon|reproduce|toca|toque|spiel)\s+(.+?)(?:\s+(?:on|in|with|sur|dans|avec|en|no|auf)\s+(spotify|youtube music|youtube|deezer|apple music|soundcloud|audiomack|boomplay))?(?:\s+(?:please|stp|s'il te plaît))?$""")
+private val NOT_MUSIC = Regex("""^(?:a\s+game|games?|chess|with\s+me|a\s+video\s+game|un\s+jeu|aux\s+échecs|avec\s+moi|the\s+next|next|pause|it|that|this)\b""")
+
+/**
+ * « Play Blinding Lights by The Weeknd on Spotify » → (« Blinding Lights by The Weeknd », « Spotify ») ; null si ce
+ * n'est pas une demande de musique (« play chess with me »). L'app nommée garde le nom de [PhoneActions.MUSIC_APPS].
+ */
+internal fun musicRequest(message: String): Pair<String, String?>? {
+    val q = message.trim().trimEnd('.', '!', '?', ' ').replace(Regex("\\s+"), " ")
+    if (q.length > 120 || q.contains('\n')) return null
+    val m = MUSIC_ASK.find(q.lowercase()) ?: return null
+    val subject = m.groupValues[1].trim()
+    if (subject.length < 2 || NOT_MUSIC.containsMatchIn(subject)) return null
+    val start = q.lowercase().indexOf(subject)
+    val query = if (start >= 0) q.substring(start, start + subject.length) else subject
+    val app = m.groupValues[2].takeIf { it.isNotEmpty() }?.let { named -> PhoneActions.MUSIC_APPS.firstOrNull { it.name.equals(named, ignoreCase = true) }?.name }
+    return query to app
+}
 
 /** Délai maximal de la recherche d'images lancée par l'app (après, la réponse reste en texte seul). */
 private const val PICTURES_WAIT_MS = 15_000L

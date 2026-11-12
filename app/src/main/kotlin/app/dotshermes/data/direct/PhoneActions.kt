@@ -230,10 +230,16 @@ class PhoneActions(
         if (launched === play && waitForMusic(audio, 6_000)) { backToClaydot(); return answer("playing", "Playback started in ${app.name}.") }
         // 3. L'app est ouverte mais ne joue pas (simple page de résultats) : sa session média existe maintenant.
         if (playFromSession(app.packageName, query, extras, audio)) { backToClaydot(); return answer("playing", "Playback started in ${app.name}.") }
-        val driver = screen()?.takeIf { it.connected() }
-            ?: return answer("opened_not_playing", "${app.name} opened on '$query' but did not start playing by itself. " +
-                "Tell the user to tap the song, and that turning on notification access ('Read WhatsApp notifications') or 'Let Claydot use your screen' " +
-                "in Claydot's settings lets you start it for them next time.")
+        // Pas d'accès à l'écran : retour dans le fil, où une carte le propose (« Continuer » ouvre le réglage Android).
+        // Accordé, la recherche se rouvre et Claydot touche la chanson ; sinon l'utilisateur la touche lui-même.
+        val driver = screen()?.takeIf { it.connected() } ?: run {
+            backToClaydot()
+            if (!requestAccess(PhoneAccess.Screen, context.getString(MUSIC_NEEDS_SCREEN, app.name))) return@run null
+            runCatching { context.startActivity(launched.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            kotlinx.coroutines.delay(1_500)
+            screen()?.takeIf { it.connected() }
+        } ?: return answer("opened_not_playing", "${app.name} opened on '$query' but did not start playing, and screen access was not given. " +
+            "Tell the user in one short sentence to tap the song in ${app.name}.")
         // Rien ne joue : on touche le bon résultat (ou « Lecture » sur la page ouverte), trois essais au plus.
         var tappedRow = false
         repeat(4) {
@@ -399,6 +405,8 @@ class PhoneActions(
         }
 
         @Volatile var autoApprove: Set<String> = emptySet()
+
+        private val MUSIC_NEEDS_SCREEN = app.dotshermes.R.string.music_needs_screen
 
         /** Par ordre de préférence quand l'utilisateur n'en nomme aucune. */
         val MUSIC_APPS = listOf(

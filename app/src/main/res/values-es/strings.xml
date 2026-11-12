@@ -531,4 +531,6 @@
     <string name="image_open">Ver en grande</string>
     <string name="image_unavailable">Imagen no disponible</string>
     <string name="image_source">Abrir la fuente: %1$s</string>
+    <string name="music_needs_screen">%1$s se abrió pero no empezó la canción. Con acceso a la pantalla, Claydot puede darle a reproducir por ti.</string>
+    <string name="notif_card_title">Claydot necesita tu respuesta</string>
 </resources>
