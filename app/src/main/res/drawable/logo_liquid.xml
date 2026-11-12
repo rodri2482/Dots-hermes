@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo de l'éditeur du modèle (LobeHub icons, licence MIT). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M 12.028 8.546 l -.008 .005 3.03 5.25 a 3.94 3.94 0 0 1 .643 2.162 c 0 .754 -.212 1.46 -.58 2.062 l 6.173 -1.991 L 11.63 0 9.304 3.872 l 2.724 4.674 z M 6.837 24 l 4.85 -4.053 h -.013 c -2.219 0 -4.017 -1.784 -4.017 -3.984 0 -.794 .235 -1.534 .64 -2.156 l 2.865 -4.976 -2.381 -4.087 L 2 16.034 6.83 24 h .007 z M 13.737 19.382 h -.001 L 8.222 24 h 8.182 l 4.148 -6.769 -6.815 2.151 z" android:fillType="evenOdd" android:fillColor="#FF000000" />
+</vector>

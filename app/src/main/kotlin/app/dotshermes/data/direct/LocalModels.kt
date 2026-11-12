@@ -36,7 +36,9 @@ data class LocalModel(val id: String, val name: String, val sizeBytes: Long, val
     /** Petit modèle de conversation : pas d'outils, consigne courte, réponses brèves (contexte réduit). */
     val chatOnly: Boolean = false,
     /** Mémoire vive conseillée (Go annoncés par le fabricant) pour qu'il tourne sans ralentir le téléphone. */
-    val minRamGb: Int = 0)
+    val minRamGb: Int = 0,
+    /** Logo de l'éditeur (Google, Qwen, Liquid AI…), montré dans la liste des modèles. */
+    @param:androidx.annotation.DrawableRes val logo: Int = app.dotshermes.R.drawable.logo_qwen)
 
 /** État du téléchargement d'un modèle. */
 sealed interface LocalModelState {
@@ -143,7 +145,7 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
             // Gemma 4 E2B : le plus rapide sur la puce graphique (premier mot en ~0,3 s), appels d'outils natifs.
             LocalModel("gemma4-e2b", "Gemma 4 E2B", 2_588_147_712,
                 "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
-                "gemma-4-E2B-it.litertlm", app.dotshermes.R.string.local_note_gemma4, "Google", minRamGb = 6),
+                "gemma-4-E2B-it.litertlm", app.dotshermes.R.string.local_note_gemma4, "Google", minRamGb = 6, logo = app.dotshermes.R.drawable.logo_gemma),
             LocalModel("qwen3.5-2b", "Qwen 3.5 2B", 2_119_744_416,
                 "https://huggingface.co/litert-community/Qwen3.5-2B/resolve/main/Qwen3.5-2B_int8.litertlm",
                 "Qwen3.5-2B_int8.litertlm", app.dotshermes.R.string.local_note_qwen, "Alibaba Qwen", freshEngine = true, minRamGb = 6),
@@ -152,7 +154,7 @@ class LocalModels(private val context: Context, private val scope: CoroutineScop
                 "Qwen3.5-0.8B_int8.litertlm", app.dotshermes.R.string.local_note_qwen08, "Alibaba Qwen", freshEngine = true, minRamGb = 4),
             LocalModel("lfm2.5-1.2b", "LFM 2.5 1.2B", 736_015_744,
                 "https://huggingface.co/litert-community/LFM2.5-1.2B-Instruct/resolve/main/LFM2.5-1.2B-Instruct_int4.litertlm",
-                "LFM2.5-1.2B-Instruct_int4.litertlm", app.dotshermes.R.string.local_note_lfm, "Liquid AI", minRamGb = 3),
+                "LFM2.5-1.2B-Instruct_int4.litertlm", app.dotshermes.R.string.local_note_lfm, "Liquid AI", minRamGb = 3, logo = app.dotshermes.R.drawable.logo_liquid),
             // Sans « réflexion » (bloc <think> vide prérempli) : réponses directes, les plus rapides.
             LocalModel("qwen3-0.6b", "Qwen3 0.6B", 347_251_840,
                 "https://huggingface.co/litert-community/Qwen3-0.6B-int4/resolve/main/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",

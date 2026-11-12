@@ -63,34 +63,6 @@ import app.dotshermes.ui.components.SectionLabel
 import app.dotshermes.ui.theme.Ink
 import app.dotshermes.ui.theme.LocalDotPalette
 
-/** Ce qu'un modèle sait faire dans Claydot : montré sous le modèle choisi et dans « Ajouter un modèle ». */
-enum class Capability(val icon: ImageVector, @param:StringRes val label: Int) {
-    Phone(Icons.Rounded.TouchApp, R.string.cap_phone),
-    Messages(Icons.Rounded.Sms, R.string.cap_messages),
-    Routines(Icons.Rounded.Schedule, R.string.cap_routines),
-    Web(Icons.Rounded.Public, R.string.cap_web),
-    Photos(Icons.Rounded.Image, R.string.cap_photos),
-    Voice(Icons.Rounded.Mic, R.string.cap_voice),
-    Quick(Icons.Rounded.Bolt, R.string.cap_quick),
-    Offline(Icons.Rounded.WifiOff, R.string.cap_offline),
-    Private(Icons.Rounded.Lock, R.string.cap_private),
-}
-
-fun capabilitiesOf(provider: ApiProvider?, model: String): List<Capability> = when (provider) {
-    ApiProvider.Local -> if (LocalModels.byId(model)?.chatOnly == true)
-        listOf(Capability.Quick, Capability.Offline, Capability.Private)
-        else listOf(Capability.Phone, Capability.Messages, Capability.Routines, Capability.Offline, Capability.Private)
-    null -> emptyList()
-    else -> listOf(Capability.Phone, Capability.Messages, Capability.Routines, Capability.Web, Capability.Photos, Capability.Voice)
-}
-
-/** Ce que sait faire le modèle, en une ligne discrète : « Contrôle du téléphone · Messages · Hors ligne ». */
-@Composable
-fun CapabilityLine(capabilities: List<Capability>, modifier: Modifier = Modifier) {
-    val words = capabilities.map { stringResource(it.label) }
-    Text(words.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = LocalDotPalette.current.deep, modifier = modifier)
-}
-
 internal fun gigabytes(bytes: Long) = String.format(java.util.Locale.ROOT, "%.1f GB", bytes / 1_000_000_000.0)
 
 /**
@@ -128,24 +100,17 @@ fun AddModelSheet(
                     val state = localStates[model.id] ?: LocalModelState.Missing
                     val fits = DeviceTier.fits(context, model)
                     SheetRow(
-                        icon = Icons.Rounded.PhoneAndroid, title = model.name,
+                        logo = model.logo, title = model.name,
                         subtitle = "${gigabytes(model.sizeBytes)} · ${model.maker}",
                         note = stringResource(model.note),
-                        badge = when { !fits -> stringResource(R.string.models_needs_memory); model.id == recommended -> stringResource(R.string.models_recommended); else -> null },
-                        badgeWarn = !fits,
+                        recommended = model.id == recommended && fits,
+                        warning = if (!fits) stringResource(R.string.models_needs_memory) else null,
                     ) {
                         val chosen = active.provider == ApiProvider.Local && active.model == model.id
                         when (state) {
                             LocalModelState.Ready -> if (chosen) InUse() else SmallButton(stringResource(R.string.models_use), filled = true) { onPickLocal(model.id); onDismiss() }
-                            LocalModelState.Missing, is LocalModelState.Failed -> SmallButton(stringResource(R.string.local_download), filled = false, enabled = fits) { onDownload(model) }
-                            is LocalModelState.Downloading -> Row(verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clip(CircleShape).clickable(role = Role.Button) { onCancelDownload(model) }.padding(4.dp)) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(progress = { state.fraction }, modifier = Modifier.size(30.dp), color = LocalDotPalette.current.base,
-                                        trackColor = Ink.Fill, strokeWidth = 2.5.dp)
-                                    Icon(Icons.Rounded.Close, stringResource(R.string.local_cancel), tint = Ink.Secondary, modifier = Modifier.size(14.dp))
-                                }
-                            }
+                            LocalModelState.Missing, is LocalModelState.Failed -> DownloadButton(enabled = fits) { onDownload(model) }
+                            is LocalModelState.Downloading -> DownloadProgress(state.fraction) { onCancelDownload(model) }
                         }
                     }
                 }
@@ -154,9 +119,9 @@ fun AddModelSheet(
             SectionLabel(stringResource(R.string.models_online))
             GroupedCard {
                 SheetRow(
-                    icon = Icons.Rounded.Cloud, title = groqModel?.substringAfterLast('/') ?: "Groq",
+                    logo = R.drawable.logo_groq, title = groqModel?.substringAfterLast('/') ?: "Groq",
                     subtitle = "Groq · " + stringResource(R.string.model_online),
-                    note = stringResource(R.string.models_groq_note), badge = null, badgeWarn = false,
+                    note = stringResource(R.string.models_groq_note),
                 ) {
                     when {
                         groqModel == null -> SmallButton(stringResource(R.string.models_add_key), filled = false) { onDismiss(); onAddGroqKey() }
@@ -171,29 +136,30 @@ fun AddModelSheet(
 
 @Composable
 private fun SheetRow(
-    icon: ImageVector, title: String, subtitle: String, note: String, badge: String?, badgeWarn: Boolean,
+    @androidx.annotation.DrawableRes logo: Int, title: String, subtitle: String, note: String,
+    recommended: Boolean = false, warning: String? = null,
     trailing: @Composable () -> Unit,
 ) {
-    val palette = LocalDotPalette.current
     Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(palette.light), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = palette.deep, modifier = Modifier.size(21.dp))
-        }
+        LogoTile(logo, size = 38)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             // Titre et bouton sur la même ligne ; tout le reste prend la largeur entière en dessous.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false))
+                        if (recommended) { Spacer(Modifier.width(8.dp)); RecommendedBadge() }
+                    }
                     Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, maxLines = 1)
                 }
                 Spacer(Modifier.width(8.dp))
                 trailing()
             }
             Text(note, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, modifier = Modifier.padding(top = 4.dp))
-            badge?.let {
-                Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = if (badgeWarn) Ink.Danger else palette.deep,
-                    modifier = Modifier.padding(top = 4.dp))
+            warning?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = Ink.Danger, modifier = Modifier.padding(top = 4.dp))
             }
         }
     }

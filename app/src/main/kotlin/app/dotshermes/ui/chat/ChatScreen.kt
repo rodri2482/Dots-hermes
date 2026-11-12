@@ -459,8 +459,8 @@ private fun ChatHeader(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // La pastille d'origine (en ligne / hors ligne) reste à gauche ; le modèle s'affiche sous le nom.
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { ConnectionPill(connection, gatewayFeatures) }
+        // À gauche, à la place de la pastille « En ligne » : le modèle (un toucher ouvre la liste au milieu).
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { modelMenu?.invoke() ?: ConnectionPill(connection, gatewayFeatures) }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -499,9 +499,7 @@ private fun ChatHeader(
                 transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
                 label = "status",
             ) { label ->
-                // Au repos, la ligne d'état montre le modèle (un toucher pour en changer) ; au travail, ce qu'il fait.
-                if (label.isEmpty() && modelMenu != null) modelMenu()
-                else app.dotshermes.ui.components.ToolStatusLine(
+                app.dotshermes.ui.components.ToolStatusLine(
                     label,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (activity == AgentActivity.Idle || activity == AgentActivity.Reacting) Ink.Secondary else palette.deep,
