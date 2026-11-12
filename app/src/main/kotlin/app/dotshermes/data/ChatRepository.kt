@@ -89,7 +89,7 @@ interface ChatRepository {
     suspend fun connect(config: GatewayConfig)
     fun disconnect()
     fun send(text: String)
-    /** Réponse à un message précis (glisser vers la droite) : [quote] est le texte cité. */
+    /** Réponse à un message précis (glisser vers la gauche) : [quote] est le texte cité. */
     fun sendReply(text: String, quote: String) = send(text)
     fun toggleReaction(messageId: String, emoji: String)
     fun answerApproval(messageId: String, approved: Boolean)

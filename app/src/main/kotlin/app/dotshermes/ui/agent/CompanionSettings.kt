@@ -72,7 +72,8 @@ fun CompanionSettings(controls: CompanionControls) {
     val scope = rememberCoroutineScope()
     var fishKey by remember { mutableStateOf("") }
     var keyFailure by remember { mutableStateOf<ApiFailure?>(null) }
-    val ready = state.fishKeySaved && state.voiceId.isNotBlank()
+    // La voix du téléphone suffit : la lecture marche aussi sans clé Fish Audio.
+    val ready = state.voiceId.isNotBlank()
 
     Column(Modifier.fillMaxWidth()) {
         SectionLabel(stringResource(R.string.companion_personality))
@@ -142,12 +143,16 @@ fun CompanionSettings(controls: CompanionControls) {
                 }
             } else {
                 // Clé enregistrée : le choix de la voix ; « Autre » révèle l'identifiant, pour une voix à soi.
-                var custom by remember { mutableStateOf(VoicePresets.none { it.id == state.voiceId }) }
+                var custom by remember { mutableStateOf(state.voiceId != app.dotshermes.voice.MASCOT_VOICE && VoicePresets.none { it.id == state.voiceId }) }
                 Hairline()
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    // D'abord : la voix de la mascotte (elle change avec la mascotte choisie).
+                    VoiceChip(stringResource(R.string.companion_voice_mascot), on = !custom && state.voiceId == app.dotshermes.voice.MASCOT_VOICE) {
+                        custom = false; controls.onVoiceId(app.dotshermes.voice.MASCOT_VOICE)
+                    }
                     VoicePresets.forEach { preset ->
                         VoiceChip(preset.name, on = !custom && preset.id == state.voiceId,
                             onLongClick = { uri.openUri(CompanionVoice.voicePage(preset.id)) }) {

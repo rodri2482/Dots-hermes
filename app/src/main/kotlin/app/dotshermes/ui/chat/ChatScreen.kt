@@ -160,7 +160,7 @@ fun ChatScreen(
     connection: ConnectionState.Connected?,
     appearance: DotAppearance,
     onSend: (String) -> Unit,
-    /** Réponse à un message précis (glisser une bulle vers la droite) ; null : geste désactivé. */
+    /** Réponse à un message précis (glisser une bulle vers la gauche) ; null : geste désactivé. */
     onSendReply: ((text: String, quote: String) -> Unit)? = null,
     onReact: (messageId: String, emoji: String) -> Unit,
     onApproval: (messageId: String, approved: Boolean) -> Unit,
@@ -242,7 +242,7 @@ fun ChatScreen(
 
     // Pièce jointe choisie mais pas encore envoyée : on peut écrire un texte dessous, puis Envoyer.
     var pendingAttachment by remember { mutableStateOf<Uri?>(null) }
-    // Message auquel on répond (glissé vers la droite) : qui l'a écrit et son texte cité.
+    // Message auquel on répond (glissé vers la gauche) : qui l'a écrit et son texte cité.
     var replyTo by remember { mutableStateOf<Pair<String, String>?>(null) }
     val focusComposer = remember { androidx.compose.ui.focus.FocusRequester() }
     val youLabel = stringResource(R.string.reply_you)

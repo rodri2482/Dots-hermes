@@ -61,7 +61,8 @@ object AppContainer {
     val routines: app.dotshermes.data.direct.RoutineStore by lazy { app.dotshermes.data.direct.RoutineStore(appContext) }
     /** Gmail en lecture seule pour les comptes Groq (outils de recherche et de lecture). */
     val gmail: app.dotshermes.data.gmail.GmailAccess by lazy { app.dotshermes.data.gmail.GmailAccess(appContext) }
-    val companion: CompanionVoice by lazy { CompanionVoice(appContext, appScope, app.dotshermes.data.direct.androidApiVault(appContext)) }
+    val companion: CompanionVoice by lazy { CompanionVoice(appContext, appScope, app.dotshermes.data.direct.androidApiVault(appContext),
+        species = { agents.activeAppearance.value.species }) }
     val attachments: Attachments by lazy { Attachments(appContext) }
     val updater: AppUpdater by lazy { AppUpdater(appContext) }
 }

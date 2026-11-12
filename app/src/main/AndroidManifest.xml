@@ -24,6 +24,10 @@
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <!-- « Ouvre WhatsApp » : voir les apps de l'écran d'accueil (Android 11+). -->
     <queries>
+        <!-- Lecture à voix haute sans clé : la synthèse vocale du téléphone (Android 11+ exige de la déclarer). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

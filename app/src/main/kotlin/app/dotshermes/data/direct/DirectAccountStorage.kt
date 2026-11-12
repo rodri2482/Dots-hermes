@@ -18,7 +18,7 @@ data class DirectEntry(
     val image: String? = null,
     /** Réponse donnée par un autre modèle que celui du compte (quota épuisé, modèle sans outils…). */
     val model: String? = null,
-    /** Message auquel l'utilisateur répond (glisser vers la droite) : son texte, court. */
+    /** Message auquel l'utilisateur répond (glisser vers la gauche) : son texte, court. */
     val quote: String? = null,
 ) {
     init {

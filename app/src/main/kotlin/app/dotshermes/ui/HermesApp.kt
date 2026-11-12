@@ -181,7 +181,7 @@ fun HermesApp(
                             onAddGroqKey = viewModel::addAgent,
                         )
                     }),
-                    onListen = if (!gatewayFeatures && companion.fishKeySaved && companion.voiceId.isNotBlank()) viewModel::listen else null,
+                    onListen = if (!gatewayFeatures && companion.voiceId.isNotBlank()) viewModel::listen else null,
                     onRetryRequest = viewModel::retryRequest, onStopRequest = viewModel::stopTurn,
                     connection = connection as? ConnectionState.Connected,
                     appearance = look.appearance,

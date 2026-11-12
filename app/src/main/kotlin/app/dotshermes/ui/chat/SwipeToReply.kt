@@ -52,7 +52,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * Glisser un message vers la droite pour y répondre, comme dans WhatsApp : la bulle suit le doigt
+ * Glisser un message vers la gauche pour y répondre : la bulle suit le doigt
  * (avec un peu de résistance), une flèche « Répondre » apparaît, une vibration marque le seuil ;
  * relâchée au-delà, la réponse est préparée dans le champ.
  */
@@ -77,16 +77,18 @@ fun SwipeToReply(enabled: Boolean, onReply: () -> Unit, content: @Composable () 
             },
             onDragCancel = { armed = false; scope.launch { offset.animateTo(0f) } },
         ) { change, drag ->
-            val next = (offset.value + drag * 0.55f).coerceIn(0f, max)
-            if (next <= 0f && offset.value <= 0f) return@detectHorizontalDragGestures
+            // Vers la gauche seulement : le décalage va de 0 à -max ; un glissement vers la droite ne fait rien.
+            val next = (offset.value + drag * 0.55f).coerceIn(-max, 0f)
+            if (next >= 0f && offset.value >= 0f) return@detectHorizontalDragGestures
             change.consume()
-            if (!armed && next >= trigger) { armed = true; haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
-            else if (armed && next < trigger) armed = false
+            if (!armed && -next >= trigger) { armed = true; haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
+            else if (armed && -next < trigger) armed = false
             scope.launch { offset.snapTo(next) }
         }
     }) {
-        val progress = (offset.value / trigger).coerceIn(0f, 1f)
-        Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(30.dp)
+        val progress = (-offset.value / trigger).coerceIn(0f, 1f)
+        // La flèche apparaît à droite, à l'endroit que la bulle libère.
+        Box(Modifier.align(Alignment.CenterEnd).padding(end = 6.dp).size(30.dp)
             .graphicsLayer { alpha = progress; scaleX = 0.6f + 0.4f * progress; scaleY = 0.6f + 0.4f * progress }
             .clip(CircleShape).background(if (armed) palette.light else Ink.Fill), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = palette.deep, modifier = Modifier.size(18.dp))

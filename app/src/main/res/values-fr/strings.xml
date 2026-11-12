@@ -358,7 +358,7 @@ Colle une clé API Groq pour commencer.</string>
     <string name="companion_personality">Personnalité</string>
     <string name="companion_voice">Voix</string>
     <string name="companion_speak">Lire les réponses à voix haute</string>
-    <string name="companion_speak_setup">Ajoute une clé Fish Audio pour entendre Claydot.</string>
+    <string name="companion_speak_setup">Avec la voix du téléphone, propre à votre mascotte. Ajoutez une clé Fish Audio pour une voix plus naturelle.</string>
     <string name="companion_voice_id">Voix</string>
     <string name="companion_voice_id_hint">Identifiant de voix Fish Audio</string>
     <string name="companion_fish_key">Clé Fish</string>
@@ -594,20 +594,20 @@ Colle une clé API Groq pour commencer.</string>
         <item>Crée une routine : chaque jour à 19 h, envoie-moi les 5 grands titres de l\'actualité de mon pays.</item>
         <item>Crée une routine : quand quelqu\'un écrit mon prénom dans mon groupe WhatsApp, réponds que je reviens vite. Demande-moi le groupe et mon prénom.</item>
     </string-array>
-    <string name="local_note_gemma4">Le plus rapide et le plus malin sur la plupart des téléphones. Doué pour les tâches.</string>
-    <string name="local_note_qwen">Beaucoup de langues. Demande environ 6 Go de mémoire vive.</string>
-    <string name="local_note_lfm">Léger et rapide, pour les téléphones avec moins de place.</string>
-    <string name="local_note_qwen08">Petit et rapide, sait utiliser les outils. Bien pour la plupart des téléphones.</string>
-    <string name="local_note_qwen06">Minuscule et le plus rapide. Discussion seulement : pas de tâches sur le téléphone.</string>
+    <string name="local_note_gemma4">Le plus malin, idéal pour les tâches.</string>
+    <string name="local_note_qwen">Beaucoup de langues, 6 Go de mémoire.</string>
+    <string name="local_note_lfm">Léger et rapide.</string>
+    <string name="local_note_qwen08">Petit et rapide, utilise les outils.</string>
+    <string name="local_note_qwen06">Le plus rapide, discussion seule.</string>
     <string name="models_title">Modèles</string>
-    <string name="models_subtitle">Téléchargez un modèle pour utiliser Claydot sans Internet, ou branchez Groq.</string>
+    <string name="models_subtitle">Sur votre téléphone sans Internet, ou en ligne avec Groq.</string>
     <string name="models_on_phone">Sur ce téléphone</string>
     <string name="models_online">En ligne</string>
     <string name="models_use">Utiliser</string>
     <string name="models_add_key">Ajouter une clé</string>
     <string name="models_recommended">Recommandé</string>
     <string name="models_needs_memory">Mémoire insuffisante</string>
-    <string name="models_groq_note">Clé gratuite, les réponses les plus intelligentes et rapides.</string>
+    <string name="models_groq_note">Clé gratuite, les meilleures réponses.</string>
     <string name="routines_none">Aucune · touchez pour des idées</string>
     <string name="memory_none">Rien pour l\'instant</string>
     <string name="reply_cancel">Annuler la réponse</string>
@@ -626,4 +626,5 @@ Colle une clé API Groq pour commencer.</string>
     <string name="setting_not_allowed">Pas encore autorisé</string>
     <string name="open_android_settings">Ouvrir les réglages Android</string>
     <string name="keep_listening_action">Autoriser dans les réglages Android</string>
+    <string name="companion_voice_mascot">Voix de la mascotte</string>
 </resources>

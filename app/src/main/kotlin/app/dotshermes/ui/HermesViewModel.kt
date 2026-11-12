@@ -324,7 +324,7 @@ class HermesViewModel(
         if (text.isNotBlank()) repository.send(text.trim())
     }
 
-    /** Réponse à un message précis (glisser vers la droite). */
+    /** Réponse à un message précis (glisser vers la gauche). */
     fun sendReply(text: String, quote: String) {
         companion?.stop()
         if (text.isNotBlank()) repository.sendReply(text.trim(), quote)

@@ -107,7 +107,10 @@ class CompanionVoice(
     private val scope: CoroutineScope,
     private val vault: DirectAccountStorage,
     client: OkHttpClient = OkHttpClient(),
+    /** La mascotte affichée : sa voix est celle utilisée quand « Voix de la mascotte » est choisie. */
+    private val species: () -> app.dotshermes.ui.dot.DotSpecies = { app.dotshermes.ui.dot.DotSpecies.Galet },
 ) {
+    private val device by lazy { DeviceVoice(context) }
     private val prefs = context.getSharedPreferences("companion", Context.MODE_PRIVATE)
     private val cache = File(context.cacheDir, "speech").apply { mkdirs() }
     private val http = client.newBuilder().followRedirects(false).followSslRedirects(false)
@@ -124,8 +127,8 @@ class CompanionVoice(
     private fun load() = CompanionState(
         personality = Personality.entries.firstOrNull { it.name == prefs.getString("personality", null) } ?: Personality.Playful,
         speakReplies = prefs.getBoolean("speak", false),
-        // Pas encore choisie : la voix de Claydot par défaut (Fish Audio « Kaia »).
-        voiceId = prefs.getString("voice", null) ?: VoicePresets.first().id,
+        // Pas encore choisie : la voix suit la mascotte.
+        voiceId = prefs.getString("voice", null) ?: MASCOT_VOICE,
         fishKeySaved = try { !vault.key(FISH_ID).isNullOrBlank() } catch (_: Exception) { false },
         handsFree = prefs.getBoolean("hands_free", true),
     )
@@ -157,30 +160,41 @@ class CompanionVoice(
     suspend fun forgetFishKey() = withContext(Dispatchers.IO) {
         vault.remove(FISH_ID)
         stop()
-        _state.value = _state.value.copy(fishKeySaved = false, speakReplies = false)
-        prefs.edit { putBoolean("speak", false) }
+        // La lecture continue avec la voix du téléphone.
+        _state.value = _state.value.copy(fishKeySaved = false)
     }
 
     fun persona(name: String): String = personaPrompt(_state.value.personality, name, spoken = _state.value.speakReplies)
 
-    /** La voix est réglée (clé et identifiant) : « Écouter » peut s'afficher. */
-    val ready: Boolean get() = _state.value.fishKeySaved && _state.value.voiceId.isNotBlank()
+    /** Lecture possible : avec Fish Audio, ou sinon avec la voix du téléphone (toujours là). */
+    val ready: Boolean get() = _state.value.voiceId.isNotBlank()
+
+    /** La voix Fish Audio réellement utilisée : celle de la mascotte, ou celle choisie à la main. */
+    private fun fishVoice(settings: CompanionState) =
+        if (settings.voiceId == MASCOT_VOICE) mascotVoice(species()).fishId else settings.voiceId
 
     /** Lit [text] si la lecture est activée ([force] : demande explicite) ; coupe ce qui se lisait déjà. */
     fun speak(text: String, force: Boolean = false) {
         val settings = _state.value
-        if (!(settings.speakReplies || force) || !settings.fishKeySaved || settings.voiceId.isBlank()) return
+        if (!(settings.speakReplies || force) || settings.voiceId.isBlank()) return
         val spoken = speakable(text)
         if (spoken.isBlank()) return
         stop()
+        // Sans clé Fish Audio : la voix du téléphone, réglée pour la mascotte (gratuite, hors ligne).
+        if (!settings.fishKeySaved) {
+            _status.value = SpeechStatus(speaking = true)
+            device.speak(spoken, mascotVoice(species())) { if (_status.value.speaking) _status.value = SpeechStatus() }
+            return
+        }
+        val voiceId = fishVoice(settings)
         job = scope.launch(Dispatchers.IO) {
             _status.value = SpeechStatus(speaking = true)
             try {
                 val key = vault.key(FISH_ID) ?: throw ApiException(ApiFailure.MissingKey)
-                val audio = try { synthesize(key, settings.voiceId, spoken, FISH_MODEL) }
+                val audio = try { synthesize(key, voiceId, spoken, FISH_MODEL) }
                     catch (e: ApiException) {
                         // Compte développeur gratuit : le modèle payant répond 402, la variante gratuite existe.
-                        if (e.failure == ApiFailure.Quota) synthesize(key, settings.voiceId, spoken, FISH_FREE_MODEL) else throw e
+                        if (e.failure == ApiFailure.Quota) synthesize(key, voiceId, spoken, FISH_FREE_MODEL) else throw e
                     }
                 withContext(Dispatchers.Main) { play(audio) }
             } catch (e: CancellationException) { throw e }
@@ -192,6 +206,7 @@ class CompanionVoice(
 
     fun stop() {
         job?.cancel(); job = null
+        if (_status.value.speaking) runCatching { device.stop() }
         player?.run { try { stop() } catch (_: IllegalStateException) {}; release() }
         player = null
         if (_status.value.speaking) _status.value = SpeechStatus()

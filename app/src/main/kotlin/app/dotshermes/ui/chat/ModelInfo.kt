@@ -88,15 +88,16 @@ fun AddModelSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Ink.Grouped, dragHandle = { BottomSheetDefaults.DragHandle(color = Ink.Tertiary) }) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp).navigationBarsPadding()) {
-            Text(stringResource(R.string.models_title), style = MaterialTheme.typography.titleLarge, color = Ink.Primary,
+            // Même en-tête que les autres feuilles (Activité, Discussions) : grand titre, une ligne dessous.
+            Text(stringResource(R.string.models_title), style = MaterialTheme.typography.headlineSmall, color = Ink.Primary,
                 modifier = Modifier.padding(start = 4.dp))
             Text(stringResource(R.string.models_subtitle), style = MaterialTheme.typography.bodyMedium, color = Ink.Secondary,
-                modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp))
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
 
             SectionLabel(stringResource(R.string.models_on_phone))
             GroupedCard {
                 LocalModels.CATALOG.forEachIndexed { i, model ->
-                    if (i > 0) Hairline(startIndent = 64.dp)
+                    if (i > 0) Hairline(startIndent = 62.dp)
                     val state = localStates[model.id] ?: LocalModelState.Missing
                     val fits = DeviceTier.fits(context, model)
                     SheetRow(
@@ -134,34 +135,28 @@ fun AddModelSheet(
     }
 }
 
+/** Une ligne compacte : logo, nom (et « Recommandé »), « taille · éditeur », une ligne de note ; le bouton à droite. */
 @Composable
 private fun SheetRow(
     @androidx.annotation.DrawableRes logo: Int, title: String, subtitle: String, note: String,
     recommended: Boolean = false, warning: String? = null,
     trailing: @Composable () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
-        LogoTile(logo, size = 38)
+    Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        LogoTile(logo)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            // Titre et bouton sur la même ligne ; tout le reste prend la largeur entière en dessous.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false))
-                        if (recommended) { Spacer(Modifier.width(8.dp)); RecommendedBadge() }
-                    }
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, maxLines = 1)
-                }
-                Spacer(Modifier.width(8.dp))
-                trailing()
+                Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false))
+                if (recommended) { Spacer(Modifier.width(6.dp)); RecommendedBadge() }
             }
-            Text(note, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, modifier = Modifier.padding(top = 4.dp))
-            warning?.let {
-                Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = Ink.Danger, modifier = Modifier.padding(top = 4.dp))
-            }
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(warning ?: note, style = MaterialTheme.typography.bodySmall, color = if (warning != null) Ink.Danger else Ink.Tertiary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        Spacer(Modifier.width(8.dp))
+        trailing()
     }
 }
 
@@ -176,10 +171,5 @@ private fun SmallButton(text: String, filled: Boolean, enabled: Boolean = true, 
 
 @Composable
 private fun InUse() {
-    val palette = LocalDotPalette.current
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
-        Icon(Icons.Rounded.Check, null, tint = palette.deep, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(stringResource(R.string.local_in_use), style = MaterialTheme.typography.labelLarge, color = palette.deep)
-    }
+    Icon(Icons.Rounded.Check, stringResource(R.string.local_in_use), tint = LocalDotPalette.current.deep, modifier = Modifier.padding(6.dp).size(20.dp))
 }

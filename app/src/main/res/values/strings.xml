@@ -351,7 +351,7 @@ Paste a Groq API key to get started.</string>
     <string name="companion_personality">Personality</string>
     <string name="companion_voice">Voice</string>
     <string name="companion_speak">Read replies aloud</string>
-    <string name="companion_speak_setup">Add a Fish Audio key to hear Claydot.</string>
+    <string name="companion_speak_setup">Uses your mascot\'s phone voice. Add a Fish Audio key for a more natural one.</string>
     <string name="companion_voice_id">Voice ID</string>
     <string name="companion_voice_id_hint">Fish Audio voice ID</string>
     <string name="companion_fish_key">Fish key</string>
@@ -586,20 +586,20 @@ Paste a Groq API key to get started.</string>
         <item>Set up a routine: every day at 19:00, send me the top 5 news headlines for my country.</item>
         <item>Set up a routine: when someone writes my name in my WhatsApp group, reply that I will answer soon. Ask me the group and my name.</item>
     </string-array>
-    <string name="local_note_gemma4">Fastest and smartest on most phones. Good at phone tasks.</string>
-    <string name="local_note_qwen">Many languages. Needs about 6 GB of RAM.</string>
-    <string name="local_note_lfm">Light and quick, for phones with less space.</string>
-    <string name="local_note_qwen08">Small and quick, still uses tools. Good for most phones.</string>
-    <string name="local_note_qwen06">Tiny and fastest. Quick chat only: no phone tasks.</string>
+    <string name="local_note_gemma4">Smartest, best at phone tasks.</string>
+    <string name="local_note_qwen">Many languages, needs 6 GB of RAM.</string>
+    <string name="local_note_lfm">Light and quick.</string>
+    <string name="local_note_qwen08">Small and quick, uses tools.</string>
+    <string name="local_note_qwen06">Fastest, chat only.</string>
     <string name="models_title">Models</string>
-    <string name="models_subtitle">Download a model to use Claydot without internet, or connect Groq.</string>
+    <string name="models_subtitle">On your phone without internet, or online with Groq.</string>
     <string name="models_on_phone">On this phone</string>
     <string name="models_online">Online</string>
     <string name="models_use">Use</string>
     <string name="models_add_key">Add key</string>
     <string name="models_recommended">Recommended</string>
     <string name="models_needs_memory">Needs more memory</string>
-    <string name="models_groq_note">Free key, the smartest and fastest answers.</string>
+    <string name="models_groq_note">Free key, the smartest answers.</string>
     <string name="routines_none">None yet · tap for ideas</string>
     <string name="memory_none">Nothing yet</string>
     <string name="reply_cancel">Cancel reply</string>
@@ -618,4 +618,5 @@ Paste a Groq API key to get started.</string>
     <string name="setting_not_allowed">Not allowed yet</string>
     <string name="open_android_settings">Open Android settings</string>
     <string name="keep_listening_action">Allow in Android settings</string>
+    <string name="companion_voice_mascot">Mascot voice</string>
 </resources>
