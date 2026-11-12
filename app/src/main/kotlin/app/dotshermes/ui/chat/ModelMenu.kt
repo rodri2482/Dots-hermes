@@ -1,5 +1,11 @@
 package app.dotshermes.ui.chat
 
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -75,33 +81,53 @@ fun ModelMenu(
     val palette = LocalDotPalette.current
     var open by remember { mutableStateOf(false) }
     var sheetOpen by remember { mutableStateOf(false) }
-    val deviceOnline = rememberDeviceOnline()
     val local = active.provider == ApiProvider.Local
-    // Hors ligne, un modèle du téléphone marche quand même : son point reste vert.
-    val dot = if (local || deviceOnline) Ink.Success else Ink.Danger
 
-    Box {
+    // Le menu s'ouvre au milieu, sous l'en-tête, sur toute la largeur (marges de 16 dp) ; la flèche se retourne.
+    val shown = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+    shown.targetState = open
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, label = "model-chevron")
+    var anchorHeight by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+    val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.roundToPx() }
+
+    Box(Modifier.onSizeChanged { anchorHeight = it.height }) {
+        // Sous le nom de Claydot, à la place de la ligne d'état : le modèle en petit, et une flèche.
         Row(
-            Modifier.clip(CircleShape).background(Ink.Raised.copy(alpha = 0.85f)).border(0.5.dp, Ink.Separator, CircleShape)
-                .clickable(role = Role.Button) { open = true }
-                .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            Modifier.clip(CircleShape).clickable(role = Role.Button) { open = !open }.padding(start = 8.dp, end = 4.dp, top = 1.dp, bottom = 1.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(7.dp).background(dot, CircleShape))
-            Spacer(Modifier.width(6.dp))
-            Text(shortModelName(active).ifEmpty { stringResource(R.string.conn_online) }, style = MaterialTheme.typography.labelMedium,
-                color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 104.dp))
-            Icon(Icons.Rounded.ExpandMore, stringResource(R.string.model_menu_open), tint = Ink.Secondary, modifier = Modifier.size(16.dp))
+            Text(shortModelName(active).ifEmpty { stringResource(R.string.conn_online) }, style = MaterialTheme.typography.labelSmall,
+                color = Ink.Secondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
+            Icon(Icons.Rounded.ExpandMore, stringResource(R.string.model_menu_open), tint = Ink.Secondary,
+                modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = turn })
         }
-        DropdownMenu(open, onDismissRequest = { open = false }, shape = RoundedCornerShape(20.dp), containerColor = Ink.Raised,
-            modifier = Modifier.widthIn(min = 260.dp, max = 320.dp)) {
+        if (shown.currentState || shown.targetState) androidx.compose.ui.window.Popup(
+            alignment = Alignment.TopCenter,
+            offset = androidx.compose.ui.unit.IntOffset(0, anchorHeight + gap),
+            onDismissRequest = { open = false },
+            properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+        ) {
+            androidx.compose.animation.AnimatedVisibility(shown,
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)) +
+                    androidx.compose.animation.scaleIn(initialScale = 0.94f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120)) +
+                    androidx.compose.animation.scaleOut(targetScale = 0.96f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)),
+            ) {
+            Column(
+                Modifier.width(screenWidth - 32.dp).heightIn(max = screenHeight * 0.7f)
+                    .shadow(16.dp, RoundedCornerShape(24.dp), ambientColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.18f), spotColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.18f))
+                    .clip(RoundedCornerShape(24.dp)).background(Ink.Raised).border(0.5.dp, Ink.Separator, RoundedCornerShape(24.dp))
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 6.dp),
+            ) {
             groqModel?.let { id ->
                 val chosen = active.provider == ApiProvider.Groq
                 ModelRow(Icons.Rounded.Cloud, id.substringAfterLast('/'), "Groq · " + stringResource(R.string.model_online),
                     onClick = { open = false; if (!chosen) onPickGroq(id) }) {
                     if (chosen) Icon(Icons.Rounded.Check, null, tint = palette.deep, modifier = Modifier.size(20.dp))
                 }
-                if (chosen) CapabilityChips(capabilitiesOf(ApiProvider.Groq, id), Modifier.padding(start = 62.dp, end = 16.dp, bottom = 10.dp).widthIn(max = 250.dp))
+                if (chosen) CapabilityLine(capabilitiesOf(ApiProvider.Groq, id), Modifier.padding(start = 62.dp, end = 16.dp, bottom = 10.dp).widthIn(max = 230.dp))
             }
             LocalModels.CATALOG.forEach { model ->
                 val state = localStates[model.id] ?: LocalModelState.Missing
@@ -127,10 +153,12 @@ fun ModelMenu(
                     }
                 }
                 // Ce que sait faire le modèle choisi, juste sous lui.
-                if (chosen) CapabilityChips(capabilitiesOf(ApiProvider.Local, model.id), Modifier.padding(start = 62.dp, end = 16.dp, bottom = 10.dp).widthIn(max = 250.dp))
+                if (chosen) CapabilityLine(capabilitiesOf(ApiProvider.Local, model.id), Modifier.padding(start = 62.dp, end = 16.dp, bottom = 10.dp).widthIn(max = 230.dp))
             }
             HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Ink.Separator)
             ModelRow(Icons.Rounded.Add, stringResource(R.string.model_add), null, onClick = { open = false; sheetOpen = true }, plain = true) {}
+            }
+            }
         }
     }
     if (sheetOpen) {
@@ -142,7 +170,7 @@ fun ModelMenu(
 @Composable
 private fun ModelRow(icon: ImageVector, title: String, subtitle: String?, onClick: () -> Unit, plain: Boolean = false, trailing: @Composable () -> Unit) {
     val palette = LocalDotPalette.current
-    Row(Modifier.clickable(onClick = onClick).padding(start = 14.dp, end = 16.dp, top = 10.dp, bottom = 10.dp).widthIn(min = 236.dp),
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, end = 18.dp, top = 11.dp, bottom = 11.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(if (plain) Ink.Raised else palette.light), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = if (plain) Ink.Primary else palette.deep, modifier = Modifier.size(20.dp))

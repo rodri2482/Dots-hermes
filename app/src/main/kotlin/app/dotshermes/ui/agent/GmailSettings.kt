@@ -1,5 +1,12 @@
 package app.dotshermes.ui.agent
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.TouchApp
+import androidx.compose.material.icons.rounded.AllInclusive
+import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Sms
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -135,108 +142,126 @@ fun GmailSettings(gmail: GmailAccess) {
     }
 }
 
-/** Actions sur le téléphone : un interrupteur ; chaque action reste confirmée au moment voulu. */
+/**
+ * Actions sur le téléphone : une ligne par réglage (icône, nom, état en un mot). Un toucher l'ouvre :
+ * l'explication et le bouton qui va avec (autoriser, réglages Android…). Une seule ouverte à la fois.
+ */
 @Composable
 fun PhoneSettings(actions: app.dotshermes.data.direct.PhoneActions) {
     val enabled by actions.enabled.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    fun toggle(key: String) { open = if (open == key) null else key }
+    // Retour des réglages d'Android : les états (accès aux notifications, batterie, écran…) sont relus.
+    var resumed by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { resumed++; onPauseOrDispose { } }
+    val switchColors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,
+        checkedThumbColor = androidx.compose.ui.graphics.Color.White)
+    fun launch(intent: android.content.Intent) {
+        runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
     Column(Modifier.fillMaxWidth()) {
         SectionLabel(stringResource(R.string.phone_section))
         GroupedCard {
-            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.phone_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                    Text(stringResource(R.string.phone_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
-                }
-                androidx.compose.material3.Switch(checked = enabled, onCheckedChange = actions::setEnabled,
-                    colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,
-                        checkedThumbColor = androidx.compose.ui.graphics.Color.White))
+            CollapsedHeader(Icons.Rounded.PhoneAndroid, stringResource(R.string.phone_title),
+                stringResource(if (enabled) R.string.setting_on else R.string.setting_off), open == "phone", { toggle("phone") }) {
+                androidx.compose.material3.Switch(checked = enabled, onCheckedChange = actions::setEnabled, colors = switchColors)
             }
+            SettingDetail(open == "phone") { SettingHint(stringResource(R.string.phone_hint)) }
             if (enabled) {
-                // Contacts et SMS : demandés une fois, ici, pour que Claydot puisse écrire à quelqu'un (chaque message reste approuvé).
-                val context0 = androidx.compose.ui.platform.LocalContext.current
                 fun textingAllowed() = app.dotshermes.data.direct.MessagingTools.PERMISSIONS.all {
-                    androidx.core.content.ContextCompat.checkSelfPermission(context0, it) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    androidx.core.content.ContextCompat.checkSelfPermission(context, it) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 }
-                var texting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(textingAllowed()) }
+                var texting by remember { mutableStateOf(textingAllowed()) }
+                androidx.compose.runtime.LaunchedEffect(resumed) { texting = textingAllowed() }
                 val ask = androidx.activity.compose.rememberLauncherForActivityResult(
                     androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { texting = textingAllowed() }
-                Hairline()
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Text(stringResource(R.string.texting_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                    Text(stringResource(if (texting) R.string.texting_on else R.string.texting_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                Hairline(startIndent = 60.dp)
+                CollapsedHeader(Icons.Rounded.Sms, stringResource(R.string.texting_title),
+                    stringResource(if (texting) R.string.setting_allowed else R.string.setting_not_allowed), open == "texting", { toggle("texting") })
+                SettingDetail(open == "texting") {
+                    SettingHint(stringResource(if (texting) R.string.texting_on else R.string.texting_hint))
+                    if (!texting) SettingAction(stringResource(R.string.texting_allow)) { ask.launch(app.dotshermes.data.direct.MessagingTools.PERMISSIONS) }
                 }
-                if (!texting) {
-                    Hairline()
-                    Text(stringResource(R.string.texting_allow), style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
-                        modifier = Modifier.fillMaxWidth().clickable { ask.launch(app.dotshermes.data.direct.MessagingTools.PERMISSIONS) }
-                            .padding(horizontal = 16.dp, vertical = 13.dp))
-                }
+
                 // Notifications WhatsApp : pour faire l'appel d'un groupe et répondre téléphone verrouillé.
-                val watching = remember(enabled) { app.dotshermes.data.direct.ChatLog.accessGranted(context0) }
-                Hairline()
-                Column(Modifier.fillMaxWidth().clickable {
-                    runCatching { context0.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                }.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Text(stringResource(R.string.chatwatch_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                    Text(stringResource(if (watching) R.string.chatwatch_on else R.string.chatwatch_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
-                }
-                // Ne jamais mettre Claydot en veille : l'écoute de WhatsApp et les routines tiennent toute la journée.
-                if (watching) {
-                    val awake = remember(enabled) { app.dotshermes.data.direct.ChatLog.neverSleeps(context0) }
-                    Hairline()
-                    Column(Modifier.fillMaxWidth().clickable(enabled = !awake) {
-                        runCatching { context0.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                            android.net.Uri.parse("package:" + context0.packageName)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                    }.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                        Text(stringResource(R.string.keep_listening_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                        Text(stringResource(if (awake) R.string.keep_listening_on else R.string.keep_listening_hint),
-                            style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                val watching = remember(enabled, resumed) { app.dotshermes.data.direct.ChatLog.accessGranted(context) }
+                Hairline(startIndent = 60.dp)
+                CollapsedHeader(Icons.Rounded.Notifications, stringResource(R.string.chatwatch_title),
+                    stringResource(if (watching) R.string.setting_on else R.string.setting_off), open == "watch", { toggle("watch") })
+                SettingDetail(open == "watch") {
+                    SettingHint(stringResource(if (watching) R.string.chatwatch_on else R.string.chatwatch_hint))
+                    SettingAction(stringResource(R.string.open_android_settings)) {
+                        launch(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     }
                 }
-                // Toujours actif (24 h/24) et le guide de la marque du téléphone (dontkillmyapp.com).
+
                 if (watching) {
-                    var alwaysOn by remember { mutableStateOf(app.dotshermes.data.direct.AlwaysOnService.enabled(context0)) }
-                    Hairline()
-                    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.always_on_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                            Text(stringResource(R.string.always_on_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                    // Ne jamais mettre Claydot en veille : l'écoute de WhatsApp et les routines tiennent toute la journée.
+                    val awake = remember(enabled, resumed) { app.dotshermes.data.direct.ChatLog.neverSleeps(context) }
+                    Hairline(startIndent = 60.dp)
+                    CollapsedHeader(Icons.Rounded.BatteryChargingFull, stringResource(R.string.keep_listening_title),
+                        stringResource(if (awake) R.string.setting_on else R.string.setting_off), open == "awake", { toggle("awake") })
+                    SettingDetail(open == "awake") {
+                        SettingHint(stringResource(if (awake) R.string.keep_listening_on else R.string.keep_listening_hint))
+                        if (!awake) SettingAction(stringResource(R.string.keep_listening_action)) {
+                            launch(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                android.net.Uri.parse("package:" + context.packageName)))
                         }
-                        androidx.compose.material3.Switch(checked = alwaysOn, onCheckedChange = {
-                            alwaysOn = it; app.dotshermes.data.direct.AlwaysOnService.set(context0, it)
-                        }, colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = LocalDotPalette.current.base,
-                            checkedThumbColor = androidx.compose.ui.graphics.Color.White))
                     }
-                    Hairline()
-                    Text(stringResource(R.string.always_on_guide, android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() }),
-                        style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
-                        modifier = Modifier.fillMaxWidth().clickable {
-                            runCatching { context0.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse(app.dotshermes.data.direct.AlwaysOnService.guideUrl())).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                        }.padding(horizontal = 16.dp, vertical = 13.dp))
+
+                    // Toujours actif (24 h/24) et le guide de la marque du téléphone (dontkillmyapp.com).
+                    var alwaysOn by remember { mutableStateOf(app.dotshermes.data.direct.AlwaysOnService.enabled(context)) }
+                    Hairline(startIndent = 60.dp)
+                    CollapsedHeader(Icons.Rounded.AllInclusive, stringResource(R.string.always_on_title),
+                        stringResource(if (alwaysOn) R.string.setting_on else R.string.setting_off), open == "always", { toggle("always") }) {
+                        androidx.compose.material3.Switch(checked = alwaysOn, onCheckedChange = {
+                            alwaysOn = it; app.dotshermes.data.direct.AlwaysOnService.set(context, it)
+                        }, colors = switchColors)
+                    }
+                    SettingDetail(open == "always") {
+                        SettingHint(stringResource(R.string.always_on_hint))
+                        SettingAction(stringResource(R.string.always_on_guide, android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() })) {
+                            launch(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(app.dotshermes.data.direct.AlwaysOnService.guideUrl())))
+                        }
+                    }
                 }
+
                 // Contrôle de l'écran : seul Android peut l'activer (Réglages > Accessibilité).
                 val screenOn by app.dotshermes.screen.ClaydotAccessibilityService.running.collectAsStateWithLifecycle()
-                val context = androidx.compose.ui.platform.LocalContext.current
-                Hairline()
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Text(stringResource(R.string.screen_title), style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                    Text(stringResource(if (screenOn) R.string.screen_on_hint else R.string.screen_hint),
-                        style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                Hairline(startIndent = 60.dp)
+                CollapsedHeader(Icons.Rounded.TouchApp, stringResource(R.string.screen_title),
+                    stringResource(if (screenOn) R.string.setting_on else R.string.setting_off), open == "screen", { toggle("screen") })
+                SettingDetail(open == "screen") {
+                    SettingHint(stringResource(if (screenOn) R.string.screen_on_hint else R.string.screen_hint))
+                    SettingAction(stringResource(if (screenOn) R.string.screen_turn_off else R.string.screen_turn_on)) {
+                        launch(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }
                 }
-                Hairline()
-                Text(stringResource(if (screenOn) R.string.screen_turn_off else R.string.screen_turn_on),
-                    style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
-                    modifier = Modifier.fillMaxWidth().clickable {
-                        runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                    }.padding(horizontal = 16.dp, vertical = 13.dp))
             }
         }
     }
+}
+
+/** Le contenu d'une ligne ouverte, aligné sous son titre. */
+@Composable
+private fun SettingDetail(visible: Boolean, content: @Composable () -> Unit) {
+    androidx.compose.animation.AnimatedVisibility(visible) {
+        Column(Modifier.fillMaxWidth().padding(start = 60.dp, end = 16.dp, bottom = 12.dp)) { content() }
+    }
+}
+
+@Composable
+private fun SettingHint(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+}
+
+@Composable
+private fun SettingAction(text: String, onClick: () -> Unit) {
+    Text(text, style = MaterialTheme.typography.labelLarge, color = LocalDotPalette.current.deep,
+        modifier = Modifier.padding(top = 8.dp).clip(androidx.compose.foundation.shape.CircleShape)
+            .background(LocalDotPalette.current.light).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp))
 }
 
 /** Routines du compte : interrupteur et suppression ; on les crée en le demandant à Claydot. */
@@ -251,7 +276,7 @@ fun RoutinesSettings(store: app.dotshermes.data.direct.RoutineStore, accountId: 
         GroupedCard {
             CollapsedHeader(androidx.compose.material.icons.Icons.Rounded.Schedule, stringResource(R.string.routines_section),
                 if (mine.isEmpty()) stringResource(R.string.routines_none)
-                else androidx.compose.ui.res.pluralStringResource(R.plurals.routines_summary, mine.size, mine.size, mine.count { it.enabled }), expanded) { expanded = !expanded }
+                else androidx.compose.ui.res.pluralStringResource(R.plurals.routines_summary, mine.size, mine.size, mine.count { it.enabled }), expanded, onToggle = { expanded = !expanded })
             androidx.compose.animation.AnimatedVisibility(expanded) { Column {
             Hairline()
             // Android 12+ : sans « alarmes et rappels », une routine peut partir quelques minutes en retard.
@@ -316,7 +341,7 @@ fun MemorySettings(repo: app.dotshermes.data.direct.DirectChatRepository) {
         androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
         GroupedCard {
             CollapsedHeader(androidx.compose.material.icons.Icons.Rounded.Psychology, stringResource(R.string.memory_section),
-                if (facts.isEmpty()) stringResource(R.string.memory_none) else androidx.compose.ui.res.pluralStringResource(R.plurals.memory_summary, facts.size, facts.size), expanded) { expanded = !expanded }
+                if (facts.isEmpty()) stringResource(R.string.memory_none) else androidx.compose.ui.res.pluralStringResource(R.plurals.memory_summary, facts.size, facts.size), expanded, onToggle = { expanded = !expanded })
             androidx.compose.animation.AnimatedVisibility(expanded) { Column {
             Hairline()
             if (facts.isEmpty()) {
@@ -341,7 +366,8 @@ fun MemorySettings(repo: app.dotshermes.data.direct.DirectChatRepository) {
 
 /** Une ligne repliée : icône, titre, résumé d'un mot ; la flèche tourne quand la section s'ouvre. */
 @Composable
-private fun CollapsedHeader(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, summary: String, expanded: Boolean, onToggle: () -> Unit) {
+private fun CollapsedHeader(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, summary: String, expanded: Boolean, onToggle: () -> Unit,
+    trailing: (@Composable () -> Unit)? = null) {
     val palette = LocalDotPalette.current
     val turn by androidx.compose.animation.core.animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
     androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = 14.dp, end = 12.dp, top = 11.dp, bottom = 11.dp),
@@ -355,6 +381,7 @@ private fun CollapsedHeader(icon: androidx.compose.ui.graphics.vector.ImageVecto
             Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
             Text(summary, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, maxLines = 1)
         }
+        trailing?.let { it(); androidx.compose.foundation.layout.Spacer(Modifier.size(4.dp)) }
         androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.ExpandMore, null, tint = Ink.Tertiary,
             modifier = Modifier.size(22.dp).graphicsLayer { rotationZ = turn })
     }

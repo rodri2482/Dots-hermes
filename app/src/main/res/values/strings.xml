@@ -621,4 +621,10 @@ Paste a Groq API key to get started.</string>
         <item quantity="one">%1$d thing remembered</item>
         <item quantity="other">%1$d things remembered</item>
     </plurals>
+    <string name="setting_on">On</string>
+    <string name="setting_off">Off</string>
+    <string name="setting_allowed">Allowed</string>
+    <string name="setting_not_allowed">Not allowed yet</string>
+    <string name="open_android_settings">Open Android settings</string>
+    <string name="keep_listening_action">Allow in Android settings</string>
 </resources>

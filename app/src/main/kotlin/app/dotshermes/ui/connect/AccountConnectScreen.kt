@@ -66,8 +66,7 @@ fun AccountConnectScreen(
             otherAgents, onSelectAgent,
             keySaved = editing && initialProvider == provider.id && recoveryFailure == null,
             onBack = onCancelEdit.takeIf { editing },
-            onHermes = null,
-            onOffline = if (!editing) ({ mode = ApiProvider.Local.id }) else null)
+            onHermes = null)
     }
 }
 
@@ -82,7 +81,6 @@ private fun DirectConnectForm(
     keySaved: Boolean = false,
     onBack: (() -> Unit)? = null,
     onHermes: (() -> Unit)? = null,
-    onOffline: (() -> Unit)? = null,
 ) {
     var apiKey by remember { mutableStateOf("") }
     var model by rememberSaveable { mutableStateOf(initialModel) }
@@ -173,8 +171,6 @@ private fun DirectConnectForm(
             // Supprimer le compte vit dans les réglages ; ici seulement si la clé enregistrée est illisible.
             onRemove?.takeIf { recoveryFailure != null }?.let { TextLink(stringResource(R.string.api_delete_account), enabled = !working, color = Ink.Danger, onClick = it) }
         }
-        // Pas de clé d'API : un modèle téléchargé une fois, qui répond sur le téléphone.
-        onOffline?.let { TextLink(stringResource(R.string.local_link), enabled = !working, color = Ink.Secondary, onClick = it) }
         if (otherAgents.isNotEmpty() && onBack == null && onCancel == null) OtherAgentsLink(otherAgents, onSelectAgent)
     }
 }

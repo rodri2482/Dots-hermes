@@ -629,4 +629,10 @@ Colle une clé API Groq pour commencer.</string>
         <item quantity="one">%1$d chose retenue</item>
         <item quantity="other">%1$d choses retenues</item>
     </plurals>
+    <string name="setting_on">Activé</string>
+    <string name="setting_off">Désactivé</string>
+    <string name="setting_allowed">Autorisé</string>
+    <string name="setting_not_allowed">Pas encore autorisé</string>
+    <string name="open_android_settings">Ouvrir les réglages Android</string>
+    <string name="keep_listening_action">Autoriser dans les réglages Android</string>
 </resources>

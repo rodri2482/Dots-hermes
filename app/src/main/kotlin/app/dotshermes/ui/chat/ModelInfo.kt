@@ -6,8 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -86,21 +84,11 @@ fun capabilitiesOf(provider: ApiProvider?, model: String): List<Capability> = wh
     else -> listOf(Capability.Phone, Capability.Messages, Capability.Routines, Capability.Web, Capability.Photos, Capability.Voice)
 }
 
-/** Petites pastilles (icône + mot) : ce que le modèle sait faire. */
-@OptIn(ExperimentalLayoutApi::class)
+/** Ce que sait faire le modèle, en une ligne discrète : « Contrôle du téléphone · Messages · Hors ligne ». */
 @Composable
-fun CapabilityChips(capabilities: List<Capability>, modifier: Modifier = Modifier) {
-    val palette = LocalDotPalette.current
-    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        capabilities.forEach { cap ->
-            Row(Modifier.clip(CircleShape).background(palette.light).padding(start = 7.dp, end = 9.dp, top = 3.dp, bottom = 3.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                Icon(cap.icon, null, tint = palette.deep, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(stringResource(cap.label), style = MaterialTheme.typography.labelSmall, color = palette.deep, maxLines = 1)
-            }
-        }
-    }
+fun CapabilityLine(capabilities: List<Capability>, modifier: Modifier = Modifier) {
+    val words = capabilities.map { stringResource(it.label) }
+    Text(words.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = LocalDotPalette.current.deep, modifier = modifier)
 }
 
 internal fun gigabytes(bytes: Long) = String.format(java.util.Locale.ROOT, "%.1f GB", bytes / 1_000_000_000.0)
@@ -145,7 +133,6 @@ fun AddModelSheet(
                         note = stringResource(model.note),
                         badge = when { !fits -> stringResource(R.string.models_needs_memory); model.id == recommended -> stringResource(R.string.models_recommended); else -> null },
                         badgeWarn = !fits,
-                        capabilities = capabilitiesOf(ApiProvider.Local, model.id),
                     ) {
                         val chosen = active.provider == ApiProvider.Local && active.model == model.id
                         when (state) {
@@ -170,7 +157,6 @@ fun AddModelSheet(
                     icon = Icons.Rounded.Cloud, title = groqModel?.substringAfterLast('/') ?: "Groq",
                     subtitle = "Groq · " + stringResource(R.string.model_online),
                     note = stringResource(R.string.models_groq_note), badge = null, badgeWarn = false,
-                    capabilities = capabilitiesOf(ApiProvider.Groq, groqModel.orEmpty()),
                 ) {
                     when {
                         groqModel == null -> SmallButton(stringResource(R.string.models_add_key), filled = false) { onDismiss(); onAddGroqKey() }
@@ -186,7 +172,7 @@ fun AddModelSheet(
 @Composable
 private fun SheetRow(
     icon: ImageVector, title: String, subtitle: String, note: String, badge: String?, badgeWarn: Boolean,
-    capabilities: List<Capability>, trailing: @Composable () -> Unit,
+    trailing: @Composable () -> Unit,
 ) {
     val palette = LocalDotPalette.current
     Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
@@ -206,13 +192,9 @@ private fun SheetRow(
             }
             Text(note, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, modifier = Modifier.padding(top = 4.dp))
             badge?.let {
-                Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1,
-                    color = if (badgeWarn) Ink.Danger else palette.onBase,
-                    modifier = Modifier.padding(top = 8.dp).clip(CircleShape).background(if (badgeWarn) Ink.Fill else palette.base)
-                        .padding(horizontal = 9.dp, vertical = 3.dp))
+                Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = if (badgeWarn) Ink.Danger else palette.deep,
+                    modifier = Modifier.padding(top = 4.dp))
             }
-            Spacer(Modifier.height(8.dp))
-            CapabilityChips(capabilities)
         }
     }
 }

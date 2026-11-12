@@ -459,8 +459,8 @@ private fun ChatHeader(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Compte direct : rien à surveiller (pas de serveur ni de latence), la pastille ne ferait que du bruit.
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { modelMenu?.invoke() ?: ConnectionPill(connection, gatewayFeatures) }
+        // La pastille d'origine (en ligne / hors ligne) reste à gauche ; le modèle s'affiche sous le nom.
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { ConnectionPill(connection, gatewayFeatures) }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -499,7 +499,9 @@ private fun ChatHeader(
                 transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
                 label = "status",
             ) { label ->
-                app.dotshermes.ui.components.ToolStatusLine(
+                // Au repos, la ligne d'état montre le modèle (un toucher pour en changer) ; au travail, ce qu'il fait.
+                if (label.isEmpty() && modelMenu != null) modelMenu()
+                else app.dotshermes.ui.components.ToolStatusLine(
                     label,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (activity == AgentActivity.Idle || activity == AgentActivity.Reacting) Ink.Secondary else palette.deep,
