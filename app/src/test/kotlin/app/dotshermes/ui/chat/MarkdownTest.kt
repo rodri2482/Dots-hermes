@@ -68,4 +68,13 @@ class MarkdownTest {
         assertEquals(MdBlock.Table(listOf("Nom", "Âge"), listOf(listOf("Rémi", "30"))), blocks[5])
         assertEquals(MdBlock.Rule, blocks[6])
     }
+
+    @Test fun `tables are split from the text around them, not inside code`() {
+        val text = "Intro\n\n| A | B |\n|---|---|\n| Neon Genesis Evangelion (1995) | Cruel Angel's Thesis |\n\nAfter\n```\n| x | y |\n|---|---|\n```"
+        val parts = splitTables(text)
+        assertEquals(listOf(false, true, false), parts.map { it.first })
+        assertEquals("| A | B |\n|---|---|\n| Neon Genesis Evangelion (1995) | Cruel Angel's Thesis |", parts[1].second)
+        assertTrue(parts[2].second.contains("| x | y |"))
+        assertEquals(listOf(false), splitTables("No table | here").map { it.first })
+    }
 }

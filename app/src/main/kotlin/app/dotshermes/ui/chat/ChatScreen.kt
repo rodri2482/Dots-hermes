@@ -468,13 +468,12 @@ private fun ChatHeader(
     Column(
         modifier
             .fillMaxWidth()
-            // Blanc franc sous la barre d'état, qui s'évanouit vers le bas : les messages passent dessous.
-            .background(Brush.verticalGradient(0f to Ink.Surface, 0.7f to Ink.Surface.copy(alpha = 0.92f), 1f to Ink.Surface.copy(alpha = 0f)))
+            // Pas de fond : l'en-tête flotte, les messages défilent dessous (seules les pastilles ont leur fond).
             .statusBarsPadding()
             .padding(top = 4.dp, bottom = 18.dp),
     ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // À gauche, à la place de la pastille « En ligne » : le modèle (un toucher ouvre la liste au milieu).
@@ -484,7 +483,7 @@ private fun ChatHeader(
             modifier = Modifier
                 .clip(RoundedCornerShape(20.dp))
                 .clickable(onClick = onOpenAgent)
-                .padding(horizontal = 12.dp, vertical = 2.dp),
+                .padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
             if (heroDots.size > 1) {
                 HeroDots(heroDots, activeChat, activity.toMood(), 68.dp, onSwitch = onSwitchDot)

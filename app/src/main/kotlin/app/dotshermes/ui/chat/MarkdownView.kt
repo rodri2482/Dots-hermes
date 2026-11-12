@@ -144,17 +144,29 @@ private fun CodeBlock(block: MdBlock.Code, colors: MdColors) {
     }
 }
 
+/** Un tableau markdown seul (texte « | a | b | » + séparateur), dessiné par [TableBlock]. */
+@Composable
+fun MarkdownTable(text: String, ink: Color, link: Color, body: TextStyle) {
+    val table = remember(text) { parseMarkdown(text).firstOrNull() as? MdBlock.Table }
+    val colors = MdColors(ink, link, ink.copy(alpha = 0.09f))
+    if (table != null) TableBlock(table, colors, body) else Text(rememberInline(text, colors), style = body)
+}
+
 /** Tableau : colonnes à largeur fixe (calculée sur le contenu) pour rester alignées, défilement horizontal. */
 @Composable
 private fun TableBlock(table: MdBlock.Table, colors: MdColors, body: TextStyle) {
-    val widths = remember(table) {
-        table.header.indices.map { c ->
-            val longest = (listOf(table.header[c]) + table.rows.map { it[c] }).maxOf { it.length }
-            (longest * 7.5f + 20f).coerceIn(64f, 220f)
-        }
-    }
     val line = colors.ink.copy(alpha = 0.14f)
     val cell = body.copy(fontSize = 14.sp, lineHeight = 19.sp)
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val widths = remember(table, cell, density) {
+        table.header.indices.map { c ->
+            val widest = (listOf(table.header[c]) + table.rows.map { it.getOrElse(c) { "" } }).maxOf { value ->
+                measurer.measure(inlineMarkdown(value, colors), style = cell.copy(fontWeight = FontWeight.SemiBold), maxLines = 1).size.width
+            }
+            (with(density) { widest.toDp().value } + 22f).coerceIn(64f, 220f)
+        }
+    }
     Box(Modifier.horizontalScroll(rememberScrollState())) {
         Column(Modifier.clip(RoundedCornerShape(10.dp)).border(1.dp, line, RoundedCornerShape(10.dp))) {
             (listOf(table.header) + table.rows).forEachIndexed { r, row ->

@@ -5,6 +5,10 @@ import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -23,6 +27,17 @@ import com.mikepenz.markdown.m3.markdownTypography
 fun RichMarkdown(text: String, ink: Color, link: Color, modifier: Modifier = Modifier) {
     val type = MaterialTheme.typography
     val body = type.bodyLarge.copy(color = ink)
+    // Les tableaux sont dessinés à part : la bibliothèque coupe chaque cellule à une ligne (« Neon Genesis … »).
+    val parts = remember(text) { splitTables(text) }
+    if (parts.any { it.first }) {
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            parts.forEach { (table, chunk) ->
+                if (table) MarkdownTable(chunk, ink, link, body)
+                else if (chunk.isNotBlank()) RichMarkdown(chunk.trim('\n'), ink, link)
+            }
+        }
+        return
+    }
     val code = type.bodyMedium.copy(fontFamily = FontFamily.Monospace, color = ink)
     CompositionLocalProvider(LocalTextSelectionColors provides TextSelectionColors(handleColor = link, backgroundColor = ink.copy(alpha = 0.28f))) {
         Markdown(

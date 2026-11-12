@@ -112,6 +112,35 @@ class ImagesTest {
         assertFalse(out.contains(WebTools.IMAGES_KEY))
     }
 
+    /** Un modèle qui répond sans jamais appeler d'outil (cas habituel du modèle du téléphone). */
+    private class Plain : ProviderClient {
+        override suspend fun models(provider: ApiProvider, key: String) = listOf("m")
+        override suspend fun stream(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>, onDelta: (String) -> Unit) = error("unused")
+        override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+            extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit, onDelta: (String) -> Unit): List<ApiToolCall> {
+            onDelta("Naruto is a ninja."); return emptyList()
+        }
+    }
+
+    @Test fun `pictures come even when the model never asks for them`() {
+        answer(Plain(), Pictures(2)) { storage, _, _ ->
+            runBlocking { withTimeout(5_000) { while (storage.transcript.messages.last().images.isEmpty()) delay(20) } }
+            assertEquals(listOf("Naruto 0", "Naruto 1"), storage.transcript.messages.last().images.map { it.caption })
+        }
+    }
+
+    @Test fun `only questions about someone or something look for pictures`() {
+        assertEquals("Naruto", pictureQuery("Who is Naruto?"))
+        assertEquals("Naruto Uzumaki", pictureQuery("who was Naruto Uzumaki"))
+        assertEquals("tour Eiffel", pictureQuery("Montre-moi la tour Eiffel"))
+        assertEquals("a red panda", pictureQuery("show me a picture of a red panda"))
+        assertEquals("Lionel Messi", pictureQuery("Qui est Lionel Messi ?"))
+        assertEquals(null, pictureQuery("Who are you?"))
+        assertEquals(null, pictureQuery("who is calling me"))
+        assertEquals(null, pictureQuery("When is GTA VI releasing?"))
+        assertEquals(null, pictureQuery("Post today's attendance in my WhatsApp group"))
+    }
+
     @Test fun `markdown images written by the model never show`() {
         assertEquals("Hello\n\nthere", withoutMarkdownImages("Hello\n\n![x](https://made.up/x.png)\n\n\nthere"))
         assertEquals("No image here", withoutMarkdownImages("No image here"))

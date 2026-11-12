@@ -95,7 +95,10 @@ class WebTools(private val http: OkHttpClient = defaultClient) : DirectTools {
      * sous la réponse. Le modèle ne reçoit que leurs titres et sources, jamais d'adresse d'image à recopier.
      */
     private fun images(query: String, count: Int): String {
-        val candidates = runCatching { duckImages(query) }.getOrDefault(emptyList()) + listOfNotNull(runCatching { wikiImage(query) }.getOrNull())
+        // Wikipédia d'abord (images exactes : le personnage, la couverture, le lieu), puis Bing en recherche
+        // stricte pour compléter. DuckDuckGo répond désormais aux applications par une vérification anti-robot.
+        val wiki = runCatching { wikiImages(query) }.getOrDefault(emptyList())
+        val candidates = if (wiki.size >= count) wiki else wiki + runCatching { bingImages(query) }.getOrDefault(emptyList())
         val found = JSONArray()
         val seen = HashSet<Int>()
         for ((url, title, page) in candidates.take(8)) {
@@ -116,31 +119,34 @@ class WebTools(private val http: OkHttpClient = defaultClient) : DirectTools {
     private fun noPictures(reason: String) = JSONObject().put("error", reason)
         .put("note", "Pictures could not be retrieved right now. Answer in text and tell the user in a few words that pictures are unavailable.").toString()
 
-    /** (adresse de l'image, titre, page d'origine) ; les vignettes de Bing se téléchargent sans souci. */
-    private fun duckImages(query: String): List<Triple<String, String, String>> {
-        val q = URLEncoder.encode(query, "UTF-8")
-        val page = http.newCall(Request.Builder().url("https://duckduckgo.com/?q=$q&iax=images&ia=images").header("User-Agent", USER_AGENT).build())
-            .execute().use { it.body?.string().orEmpty() }
-        val vqd = Regex("vqd=[\"']?([0-9-]+)").find(page)?.groupValues?.get(1) ?: return emptyList()
-        val json = http.newCall(Request.Builder().url("https://duckduckgo.com/i.js?l=${region()}&o=json&q=$q&vqd=$vqd&f=,,,,,&p=1")
-            .header("User-Agent", USER_AGENT).header("Referer", "https://duckduckgo.com/").build()).execute().use { it.body?.string().orEmpty() }
-        val results = JSONObject(json).optJSONArray("results") ?: return emptyList()
-        return (0 until minOf(results.length(), 4)).mapNotNull { i ->
-            val r = results.optJSONObject(i) ?: return@mapNotNull null
-            val src = r.optString("thumbnail").ifEmpty { r.optString("image") }
-            if (src.startsWith("http")) Triple(src, r.optString("title"), r.optString("url")) else null
-        }
-    }
-
-    private fun wikiImage(query: String): Triple<String, String, String>? {
+    /**
+     * (adresse de l'image, titre, page d'origine) : l'image principale des premiers articles Wikipédia trouvés,
+     * dans l'ordre de la recherche ; toutes licences (l'image d'un personnage ou d'une couverture n'est pas libre),
+     * sans les logos dessinés (SVG).
+     */
+    private fun wikiImages(query: String): List<Triple<String, String, String>> {
         val q = URLEncoder.encode(query, "UTF-8")
         val json = http.newCall(Request.Builder().url("https://en.wikipedia.org/w/api.php?action=query&format=json&generator=search" +
-            "&gsrsearch=$q&gsrlimit=1&prop=pageimages|info&piprop=thumbnail&pithumbsize=1000&inprop=url")
+            "&gsrsearch=$q&gsrlimit=5&prop=pageimages|info&piprop=thumbnail&pithumbsize=800&pilicense=any&inprop=url")
             .header("User-Agent", "Claydot/0.3 (Android app)").build()).execute().use { it.body?.string().orEmpty() }
-        val pages = JSONObject(json).optJSONObject("query")?.optJSONObject("pages") ?: return null
-        val page = pages.keys().asSequence().mapNotNull { pages.optJSONObject(it) }.firstOrNull() ?: return null
-        val src = page.optJSONObject("thumbnail")?.optString("source") ?: return null
-        return Triple(src, page.optString("title"), page.optString("fullurl"))
+        val pages = JSONObject(json).optJSONObject("query")?.optJSONObject("pages") ?: return emptyList()
+        return pages.keys().asSequence().mapNotNull { pages.optJSONObject(it) }.sortedBy { it.optInt("index", 99) }.mapNotNull { page ->
+            val src = page.optJSONObject("thumbnail")?.optString("source")?.takeIf { it.startsWith("https://") } ?: return@mapNotNull null
+            if (src.substringBefore('?').contains(".svg", ignoreCase = true)) return@mapNotNull null
+            Triple(src, page.optString("title"), page.optString("fullurl"))
+        }.toList()
+    }
+
+    /** (vignette Bing, titre, page d'origine) : recherche d'images Bing, filtre adulte strict ; vignettes servies par Bing. */
+    private fun bingImages(query: String): List<Triple<String, String, String>> {
+        val q = URLEncoder.encode(query, "UTF-8")
+        val html = http.newCall(Request.Builder().url("https://www.bing.com/images/search?q=$q&adlt=strict&form=HDRSC2")
+            .header("User-Agent", USER_AGENT).build()).execute().use { it.body?.string().orEmpty() }
+        return Regex(""" m="(\{[^"]*\})"""").findAll(html).take(6).mapNotNull { m ->
+            val r = runCatching { JSONObject(m.groupValues[1].replace("&quot;", "\"").replace("&amp;", "&")) }.getOrNull() ?: return@mapNotNull null
+            val thumb = r.optString("turl").takeIf { it.startsWith("https://") && it.contains(".bing.net/") } ?: return@mapNotNull null
+            Triple(thumb, r.optString("t"), r.optString("purl"))
+        }.toList()
     }
 
     /** Une image de 4 Mo au plus, et une vraie image (pas une page d'erreur). */

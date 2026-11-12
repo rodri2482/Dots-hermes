@@ -36,6 +36,35 @@ private val TaskPrefix = Regex("""^\[([ xX])]\s+(.*)$""")
 private val RuleLine = Regex("""^\s*([-*_])(\s*\1){2,}\s*$""")
 private val TableSeparator = Regex("""^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$""")
 
+/**
+ * Le texte coupé autour de ses tableaux : (true, tableau) ou (false, le reste). Les tableaux dans un bloc de code
+ * restent du code. Sert à dessiner les tableaux à part (cellules sur plusieurs lignes au lieu de « … »).
+ */
+fun splitTables(text: String): List<Pair<Boolean, String>> {
+    val lines = text.lines()
+    val out = ArrayList<Pair<Boolean, String>>()
+    val plain = ArrayList<String>()
+    fun flush() { if (plain.isNotEmpty()) { out += false to plain.joinToString("\n"); plain.clear() } }
+    var fenced = false
+    var i = 0
+    while (i < lines.size) {
+        val line = lines[i]
+        if (line.trimStart().startsWith("```") || line.trimStart().startsWith("~~~")) fenced = !fenced
+        if (!fenced && line.contains('|') && i + 1 < lines.size && TableSeparator.matches(lines[i + 1])) {
+            flush()
+            val table = arrayListOf(line, lines[i + 1])
+            i += 2
+            while (i < lines.size && lines[i].contains('|') && lines[i].isNotBlank()) table += lines[i++]
+            out += true to table.joinToString("\n")
+            continue
+        }
+        plain += line
+        i++
+    }
+    flush()
+    return out
+}
+
 fun parseMarkdown(text: String): List<MdBlock> {
     val lines = text.replace("\r\n", "\n").lines()
     val blocks = ArrayList<MdBlock>()

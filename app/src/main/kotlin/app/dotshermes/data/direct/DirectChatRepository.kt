@@ -312,6 +312,15 @@ class DirectChatRepository(
         var callProvider = provider
         var callKey = ""
         var replyTokens: Long? = null
+        // « Qui est Naruto ? » : les images sont cherchées par l'app, en parallèle de la réponse (un petit modèle
+        // n'appelle presque jamais show_images de lui-même). Posées sous la réponse si le modèle n'en a pas mis.
+        val pictures = text?.takeIf { image == null && provider.hasTools }?.let(::pictureQuery)?.let { query ->
+            toolbox()?.takeIf { tools -> definesTool(tools, "show_images") }?.let { tools ->
+                scope.async(Dispatchers.IO) {
+                    runCatching { tools.run(ApiToolCall("auto-pictures", "show_images", org.json.JSONObject().put("query", query).put("count", 3).toString())) }.getOrNull()
+                }
+            }
+        }
         try {
             turns = synchronized(lock) {
                 if (token != generation) return
@@ -446,7 +455,9 @@ class DirectChatRepository(
             }
             }
             finishAnswer(token, answerId, userId, tag.flush(), replyTokens, turnModel)
+            pictures?.let { found -> attachPictures(found, answerId) }
         } catch (_: CancellationException) {
+            pictures?.cancel()
             // stopTurn/disconnect ont déjà figé le fil et invalidé les callbacks de cette génération.
         } catch (e: Exception) {
             val problem = (e as? ApiException) ?: ApiException(ApiFailure.InvalidResponse)
@@ -938,6 +949,15 @@ class DirectChatRepository(
             "Do not add image links or markdown images; refer to them naturally if useful.").toString()
     }
 
+    /** Les images cherchées par l'app arrivent après la réponse : posées dessous, sauf si le modèle en a déjà montré. */
+    private fun attachPictures(found: Deferred<String?>, answerId: String?) {
+        scope.launch {
+            val result = withTimeoutOrNull(PICTURES_WAIT_MS) { found.await() } ?: return@launch found.cancel()
+            val none = synchronized(lock) { transcript.messages.firstOrNull { it.id == answerId }?.images?.isEmpty() == true }
+            if (none) keepImages(result, answerId)
+        }
+    }
+
     private fun keepScreenshot(result: String, answerId: String?): String {
         if (!result.contains(ScreenTools.SCREENSHOT_KEY)) return result
         val json = try { org.json.JSONObject(result) } catch (_: org.json.JSONException) { return result }
@@ -1290,6 +1310,38 @@ private const val MAX_TOOL_ROUNDS = 30
 private const val LOCAL_TOOL_ROUNDS = 12
 /** Une routine peut travailler jusqu'à 15 minutes (tâches à plusieurs étapes). */
 private const val ROUTINE_TIMEOUT_MS = 15 * 60_000L
+
+/** Délai maximal de la recherche d'images lancée par l'app (après, la réponse reste en texte seul). */
+private const val PICTURES_WAIT_MS = 15_000L
+
+private fun definesTool(tools: DirectTools, name: String): Boolean = runCatching {
+    val all = tools.definitions() ?: return false
+    (0 until all.length()).any { all.optJSONObject(it)?.optJSONObject("function")?.optString("name") == name }
+}.getOrDefault(false)
+
+private val PICTURE_ASKS = listOf(
+    Regex("""^(?:who\s+(?:is|was|are|were)|qui\s+(?:est|était|sont)|qui\s+c'est|quién\s+(?:es|era|fue)|quem\s+(?:é|foi|era)|wer\s+(?:ist|war))\s+(.+)$"""),
+    Regex("""^(?:what\s+(?:does|did|do)\s+(.+?)\s+look\s+like)$"""),
+    Regex("""^(?:show\s+me|montre[- ]moi|muéstrame|mostre[- ]me|zeig\s+mir)\s+(?:(?:a|an|some|the|une?|des|la|le|les)\s+)?(?:(?:picture|photo|image|pic)s?\s+(?:of\s+)?|(?:photo|image)s?\s+(?:de\s+|d')?)?(.+)$"""),
+    Regex("""^(?:(?:a\s+)?(?:picture|photo|image|pic)s?\s+of|(?:une?\s+)?(?:photo|image)s?\s+(?:de|d'))\s*(.+)$"""),
+)
+private val NOT_PICTURES = setOf("you", "u", "your", "yours", "i", "me", "my", "we", "us", "he", "she", "it", "they", "this", "that", "there",
+    "here", "calling", "texting", "online", "tu", "toi", "vous", "moi", "il", "elle", "ça", "ca", "cela", "là", "tú", "usted", "você", "du", "ich")
+
+/**
+ * Ce qu'il faut chercher en images pour une question (« Who is Naruto? » → « Naruto »), ou null : seulement les
+ * questions sur quelqu'un, un lieu, une chose (« qui est… », « montre-moi… », « photo de… »), pas « qui es-tu ».
+ */
+internal fun pictureQuery(question: String): String? {
+    val q = question.trim().trimEnd('?', '!', '.', ' ').replace(Regex("\\s+"), " ")
+    if (q.length > 80 || q.contains('\n')) return null
+    val subject = PICTURE_ASKS.firstNotNullOfOrNull { it.find(q.lowercase())?.groupValues?.get(1) }?.trim() ?: return null
+    val words = subject.split(' ').filter { it.isNotBlank() }
+    if (words.isEmpty() || words.size > 6 || words.first().trim('\'', '’') in NOT_PICTURES) return null
+    // Les mots d'origine (majuscules gardées), au même endroit que dans la version en minuscules.
+    val start = q.lowercase().lastIndexOf(subject)
+    return (if (start >= 0) q.substring(start, start + subject.length) else subject).trim().takeIf { it.length >= 2 }
+}
 
 /** Les outils proposés au modèle du téléphone : l'essentiel pour piloter le téléphone, une invite plus courte. */
 private val LocalToolNames = setOf(

@@ -3,7 +3,6 @@ package app.dotshermes.ui.chat
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,7 +29,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -49,14 +46,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -68,7 +65,6 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import app.dotshermes.R
 import app.dotshermes.data.direct.ApiProvider
-import app.dotshermes.data.direct.DeviceTier
 import app.dotshermes.data.direct.LocalModel
 import app.dotshermes.data.direct.LocalModelState
 import app.dotshermes.data.direct.LocalModels
@@ -102,17 +98,14 @@ fun ModelMenu(
     onAddGroqKey: () -> Unit,
 ) {
     val palette = LocalDotPalette.current
-    val context = LocalContext.current
     var open by remember { mutableStateOf(false) }
     var sheetOpen by remember { mutableStateOf(false) }
     val local = active.provider == ApiProvider.Local
     val deviceOnline = rememberDeviceOnline()
     // Hors ligne, un modèle du téléphone marche quand même : son point reste vert.
     val dot = if (local || deviceOnline) Ink.Success else Ink.Danger
-    val recommended = remember { DeviceTier.recommended(context)?.id }
     val shown = remember { MutableTransitionState(false) }
     shown.targetState = open
-    val turn by animateFloatAsState(if (open) 180f else 0f, label = "model-chevron")
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val gap = with(LocalDensity.current) { 10.dp.roundToPx() }
@@ -121,15 +114,15 @@ fun ModelMenu(
         Row(
             Modifier.clip(CircleShape).background(Ink.Raised.copy(alpha = 0.85f)).border(0.5.dp, Ink.Separator, CircleShape)
                 .clickable(role = Role.Button) { open = !open }
-                .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                .padding(start = 9.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(7.dp).background(dot, CircleShape))
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(5.dp))
+            val openLabel = stringResource(R.string.model_menu_open)
             Text(shortModelName(active).ifEmpty { stringResource(R.string.conn_online) }, style = MaterialTheme.typography.labelMedium,
-                color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 104.dp))
-            Icon(Icons.Rounded.ExpandMore, stringResource(R.string.model_menu_open), tint = Ink.Secondary,
-                modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = turn })
+                color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.semantics { contentDescription = openLabel + ": " + shortModelName(active) })
         }
         if (shown.currentState || shown.targetState) Popup(
             // Centrée sur l'écran (et non sous la pastille), juste sous l'en-tête.
@@ -163,7 +156,6 @@ fun ModelMenu(
                     LocalModels.CATALOG.filter { localStates[it.id] == LocalModelState.Ready }.forEach { model ->
                         val chosen = local && active.model == model.id
                         ModelRow(model.logo, model.name, "${gigabytes(model.sizeBytes)} · ${model.maker}",
-                            recommended = model.id == recommended,
                             onClick = { open = false; if (!chosen) onPickLocal(model.id) }) {
                             if (chosen) Icon(Icons.Rounded.Check, null, tint = palette.deep, modifier = Modifier.size(20.dp))
                         }
@@ -219,18 +211,14 @@ internal fun DownloadProgress(fraction: Float, onCancel: () -> Unit) {
 }
 
 @Composable
-private fun ModelRow(@DrawableRes logo: Int, title: String, subtitle: String, onClick: () -> Unit, recommended: Boolean = false,
+private fun ModelRow(@DrawableRes logo: Int, title: String, subtitle: String, onClick: () -> Unit,
     trailing: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically) {
         LogoTile(logo)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false))
-                if (recommended) { Spacer(Modifier.width(8.dp)); RecommendedBadge() }
-            }
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Ink.Secondary, maxLines = 1)
         }
         Spacer(Modifier.width(8.dp))
