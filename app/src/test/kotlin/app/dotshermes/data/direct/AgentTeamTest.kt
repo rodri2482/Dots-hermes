@@ -108,6 +108,11 @@ class AgentTeamTest {
             val dot = repo.dots.value.single()
             assertEquals(listOf("(From Claydot, the lead dot) Capital of France?", "Paris"), storage.load("a--d${dot.id}").messages.map { it.text })
             assertEquals(listOf("groq:m:fixture-key"), client.used)                   // même modèle que le dot principal
+            // Les actions du fil principal ne s'affichent pas dans le fil du sous-dot, et reviennent avec lui.
+            repo.selectChat(dot.id)
+            assertTrue(repo.tools.value.isEmpty())
+            repo.selectChat(MAIN_CHAT)
+            assertEquals(1, repo.tools.value.size)
             runBlocking { withTimeout(5_000) { while (AgentCalls.active.value.isNotEmpty()) delay(50) } }
         }
     }
@@ -127,6 +132,15 @@ class AgentTeamTest {
             repo.reply(card.id, CardReply.Answer(ChatCards.APPROVE))
             assertEquals(CardStatus.Answered, storage.load("a").messages.mapNotNull { it.card }.single().status)
         }
+    }
+
+    @Test fun `new sub-dots get a personal name and old auto names are replaced`() {
+        assertEquals("Nova", dotPersonalName(emptyList()))
+        assertEquals("Mochi", dotPersonalName(listOf("nova", "Pip")))
+        val old = app.dotshermes.data.model.SubDot("aaaaaaaaaa", "I want to", DotKind.Temporary, "I want to plan my trip to Lagos",
+            "Nuage", "sky", "WingedCap", java.time.Instant.EPOCH, null)
+        val mine = old.copy(id = "bbbbbbbbbb", name = "Travel buddy")
+        assertEquals(listOf("Nova", "Travel buddy"), renameAutoNamed(listOf(old, mine)).map { it.name })
     }
 
     @Test fun `sub-dots get a name from the key words of their mission`() {

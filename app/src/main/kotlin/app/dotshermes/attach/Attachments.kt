@@ -61,12 +61,15 @@ class Attachments(private val context: Context) {
 
     /** Ouvre le fichier dans l'app qui sait le lire (galerie, lecteur PDF…). */
     fun open(file: File, mime: String) {
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+        val uri = try { FileProvider.getUriForFile(context, "${context.packageName}.files", file) }
+            catch (_: IllegalArgumentException) { Toast.makeText(context, R.string.file_no_app, Toast.LENGTH_SHORT).show(); return }
         val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             context.startActivity(Intent.createChooser(intent, file.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: ActivityNotFoundException) {
+            Toast.makeText(context, R.string.file_no_app, Toast.LENGTH_SHORT).show()
+        } catch (e: SecurityException) {
             Toast.makeText(context, R.string.file_no_app, Toast.LENGTH_SHORT).show()
         }
     }

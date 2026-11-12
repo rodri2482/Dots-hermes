@@ -1,5 +1,6 @@
 package app.dotshermes.ui.chat
 
+import app.dotshermes.data.model.ChatImage
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,6 +70,8 @@ fun FileBubble(messageId: String, attachment: MessageContent.File, fromUser: Boo
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(false) }
     var preview by remember(messageId) { mutableStateOf<ImageBitmap?>(null) }
+    // Photo touchée : la visionneuse de Claydot, en plein écran.
+    var viewing by remember(messageId) { mutableStateOf<File?>(null) }
 
     if (attachment.isImage) {
         LaunchedEffect(messageId, attachment.localPath) {
@@ -81,11 +84,12 @@ fun FileBubble(messageId: String, attachment: MessageContent.File, fromUser: Boo
         if (loading) return
         scope.launch {
             loading = true
-            controls.load(messageId)?.let { controls.open(it, attachment.mime) }
+            controls.load(messageId)?.let { file -> if (attachment.isImage) viewing = file else controls.open(file, attachment.mime) }
             loading = false
         }
     }
 
+    viewing?.let { file -> ImageViewer(ChatImage(file.path, "", "")) { viewing = null } }
     Column(horizontalAlignment = if (fromUser) Alignment.End else Alignment.Start) {
         if (attachment.isImage) {
             val image = preview
@@ -98,7 +102,8 @@ fun FileBubble(messageId: String, attachment: MessageContent.File, fromUser: Boo
                 contentAlignment = Alignment.Center,
             ) {
                 if (image != null) {
-                    Image(image, attachment.name, Modifier.width(240.dp).aspectRatio(image.width / image.height.toFloat()), contentScale = ContentScale.Crop)
+                    Image(image, attachment.name, Modifier.width(240.dp).aspectRatio((image.width / image.height.coerceAtLeast(1).toFloat()).coerceIn(0.3f, 3f)),
+                        contentScale = ContentScale.Crop)
                 } else {
                     Box(Modifier.size(200.dp, 150.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(22.dp), color = palette.base, strokeWidth = 2.dp)

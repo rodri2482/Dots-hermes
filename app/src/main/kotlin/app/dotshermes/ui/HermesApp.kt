@@ -235,7 +235,8 @@ fun HermesApp(
                     agentCall = run {
                         val calls by app.dotshermes.data.direct.AgentCalls.active.collectAsStateWithLifecycle()
                         val dots by AppContainer.agents.repo(activeAgent ?: "").dots.collectAsStateWithLifecycle()
-                        calls.firstOrNull { it.from == activeAgent || it.to == activeAgent }?.let { c ->
+                        // Seulement dans le fil concerné : celui qui appelle, ou celui du sous-dot appelé.
+                        calls.firstOrNull { c -> (c.from == activeAgent && (activeChat == c.chat || c.to == "dot:$activeChat")) || c.to == activeAgent }?.let { c ->
                             val peerId = if (c.from == activeAgent) c.to else c.from
                             val dot = peerId.removePrefix("dot:").takeIf { peerId.startsWith("dot:") }?.let { id -> dots.firstOrNull { it.id == id } }
                             if (dot != null) return@let app.dotshermes.ui.chat.AgentCallUi(dot.name,
@@ -428,7 +429,8 @@ fun HermesApp(
                             creatingDot = false
                             editPreview = null
                         }, onDelete = null, onPreview = { editPreview = it },
-                            modelChoices = remember(activeAgent) { activeAgent?.let { AppContainer.agents.modelChoices(it) }.orEmpty() })
+                            modelChoices = remember(activeAgent) { activeAgent?.let { AppContainer.agents.modelChoices(it) }.orEmpty() },
+                            takenNames = activeAgent?.let { AppContainer.agents.repo(it).dots.value.map { d -> d.name } }.orEmpty())
                     }
                     sub != null -> key(sub.id) {
                         DotEditor(existing = sub, theme = appearance, onSave = { draft -> viewModel.updateDot(sub.id, draft) },

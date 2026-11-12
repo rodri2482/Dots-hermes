@@ -311,6 +311,8 @@ fun DotEditor(
     onPreview: (DotAppearance) -> Unit = {},
     /** Les modèles que l'utilisateur a (clés, modèles téléchargés) : celui qui fera tourner ce sous-dot. */
     modelChoices: List<app.dotshermes.data.direct.ModelChoice> = emptyList(),
+    /** Noms déjà pris par les autres sous-dots : le prénom proposé est différent. */
+    takenNames: List<String> = emptyList(),
 ) {
     var kind by rememberSaveable { mutableStateOf(existing?.kind ?: DotKind.Temporary) }
     var name by rememberSaveable { mutableStateOf(existing?.name.orEmpty()) }
@@ -326,11 +328,13 @@ fun DotEditor(
     var modelSpec by rememberSaveable { mutableStateOf(existing?.model) }
     val palette = DotPalettes.all.firstOrNull { it.id == paletteId } ?: DotPalettes.Sky
     val speciesValue = DotSpecies.entries.firstOrNull { it.name == species } ?: DotSpecies.Nuage
-    val canSave = mission.isNotBlank() && (kind == DotKind.Temporary || name.isNotBlank())
+    // Sans nom tapé, le sous-dot reçoit un prénom (Nova, Pip…), montré d'avance dans le champ et l'aperçu.
+    val suggested = remember(takenNames) { existing?.name ?: app.dotshermes.data.direct.dotPersonalName(takenNames) }
+    val canSave = mission.isNotBlank()
     val newLabel = stringResource(R.string.dot_new)
     val missionLabel = stringResource(R.string.dot_mission)
     LaunchedEffect(name, mission, species, paletteId) {
-        onPreview(DotAppearance(name = name.ifBlank { if (mission.isBlank()) newLabel else nameFromMission(mission, missionLabel) },
+        onPreview(DotAppearance(name = name.ifBlank { suggested },
             palette = palette, accessory = DotAccessory.WingedCap, species = speciesValue, theme = theme.theme))
     }
 
@@ -352,10 +356,10 @@ fun DotEditor(
                 )
             }
 
-            SectionLabel(stringResource(if (kind == DotKind.Temporary) R.string.dot_name_optional else R.string.settings_name))
+            SectionLabel(stringResource(R.string.dot_name_optional))
             GroupedCard {
                 Field(value = name, onChange = { name = it.take(AGENT_NAME_MAX) }, minLines = 1,
-                    placeholder = if (kind == DotKind.Temporary) nameFromMission(mission, missionLabel) else stringResource(R.string.dot_name_hint))
+                    placeholder = suggested)
             }
 
             SectionLabel(stringResource(R.string.settings_mascot))
@@ -399,7 +403,7 @@ fun DotEditor(
             PillButton(
                 stringResource(if (existing == null) R.string.dot_create else R.string.dot_save),
                 onClick = {
-                    onSave(SubDotDraft(name.trim().ifBlank { nameFromMission(mission, missionLabel) }, kind, mission.trim(), species, paletteId,
+                    onSave(SubDotDraft(name.trim().ifBlank { suggested }, kind, mission.trim(), species, paletteId,
                         DotAccessory.WingedCap.name, model = modelSpec))
                 },
                 modifier = Modifier.fillMaxWidth(),

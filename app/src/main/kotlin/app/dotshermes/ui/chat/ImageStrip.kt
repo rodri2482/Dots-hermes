@@ -138,7 +138,7 @@ private fun SourceLink(source: String, modifier: Modifier = Modifier, color: Col
 
 /** L'image en grand, sur fond noir : pincer pour zoomer, glisser pour se déplacer ; légende et source en bas. */
 @Composable
-private fun ImageViewer(image: ChatImage, onClose: () -> Unit) {
+internal fun ImageViewer(image: ChatImage, onClose: () -> Unit) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val picture = rememberPicture(image.path, 2048)
         var scale by remember { mutableFloatStateOf(1f) }

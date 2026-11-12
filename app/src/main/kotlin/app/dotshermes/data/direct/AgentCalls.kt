@@ -11,7 +11,9 @@ enum class CallMode { Call, Message }
 
 /** Un échange en cours entre deux agents : [from] appelle ou écrit à [to] ; [connected] dès que [to] répond. */
 data class AgentCall(val id: String, val from: String, val to: String, val mode: CallMode, val connected: Boolean = false,
-    val startedAt: Long = System.currentTimeMillis())
+    val startedAt: Long = System.currentTimeMillis(),
+    /** Conversation de [from] qui a lancé l'échange (MAIN_CHAT : le fil principal). */
+    val chat: String = app.dotshermes.data.model.MAIN_CHAT)
 
 /**
  * Les échanges en cours entre agents, pour l'en-tête (les deux mascottes, l'icône verte au milieu) et la liste
@@ -21,9 +23,9 @@ object AgentCalls {
     private val _active = MutableStateFlow<List<AgentCall>>(emptyList())
     val active: StateFlow<List<AgentCall>> = _active.asStateFlow()
 
-    @Synchronized fun start(from: String, to: String, mode: CallMode): String {
+    @Synchronized fun start(from: String, to: String, mode: CallMode, chat: String = app.dotshermes.data.model.MAIN_CHAT): String {
         val id = UUID.randomUUID().toString()
-        _active.value = _active.value + AgentCall(id, from, to, mode)
+        _active.value = _active.value + AgentCall(id, from, to, mode, chat = chat)
         return id
     }
 

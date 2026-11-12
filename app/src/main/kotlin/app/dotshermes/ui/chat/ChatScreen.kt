@@ -550,14 +550,16 @@ private fun ChatHeader(
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { modelMenu?.invoke() ?: ConnectionPill(connection, gatewayFeatures) }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
+            // Pas de découpe ici : les dots voisins du hero dépassent à gauche et à droite.
             modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
                 .clickable(onClick = onOpenAgent)
                 .padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
             AnimatedContent(
                 targetState = agentCall != null,
-                transitionSpec = { (fadeIn(tween(260)) + scaleIn(initialScale = 0.9f, animationSpec = tween(260))) togetherWith fadeOut(tween(180)) },
+                // Sans découpe : les dots voisins débordent sur les côtés, ils ne doivent jamais être tranchés.
+                transitionSpec = { ((fadeIn(tween(260)) + scaleIn(initialScale = 0.9f, animationSpec = tween(260))) togetherWith fadeOut(tween(180)))
+                    .using(androidx.compose.animation.SizeTransform(clip = false)) },
                 label = "agent-call",
             ) { inCall ->
                 if (inCall && agentCall != null) CallMascots(palette, appearance, agentCall)

@@ -75,21 +75,31 @@ class DirectChatRepository(
     /** Les actions de chaque réponse (recherche, musique, autre agent…), montrées au-dessus d'elle comme dans Dots. */
     private val _toolCalls = MutableStateFlow<List<ToolCall>>(emptyList())
     override val tools = _toolCalls.asStateFlow()
+    /** Les actions de chaque conversation (principale, autres discussions, sous-dots) : chacune ne montre que les siennes. */
+    private val toolsByChat = java.util.concurrent.ConcurrentHashMap<String, List<ToolCall>>()
+
+    /** Met à jour les actions de la conversation [chat] ; l'écran ne montre que celles de la conversation ouverte. */
+    private fun updateTools(chat: String, change: (List<ToolCall>) -> List<ToolCall>) {
+        toolsByChat[chat] = change(toolsByChat[chat].orEmpty()).takeLast(MAX_TOOL_ROWS)
+        if (chat == current) _toolCalls.value = toolsByChat[chat].orEmpty()
+    }
 
     /** Lance [call] en l'inscrivant dans la liste d'actions du tour (au-dessus de la réponse [answerId]). */
     private suspend fun tracked(tools: DirectTools, call: ApiToolCall, turn: String?, answerId: String?): String {
         val id = UUID.randomUUID().toString()
         val at = synchronized(lock) { transcript.messages.firstOrNull { it.id == answerId }?.timestampMs } ?: clockMs()
         val started = System.currentTimeMillis()
-        _toolCalls.value = (_toolCalls.value + ToolCall(id, turn, toolKind(call.name), tools.label(call), toolDetail(call), ToolState.Running,
-            Instant.ofEpochMilli(at - 1), name = call.name)).takeLast(MAX_TOOL_ROWS)
+        // La conversation du tour : si l'utilisateur change de fil pendant l'action, elle reste rangée dans la sienne.
+        val chat = synchronized(lock) { current }
+        updateTools(chat) { it + ToolCall(id, turn, toolKind(call.name), tools.label(call), toolDetail(call), ToolState.Running,
+            Instant.ofEpochMilli(at - 1), name = call.name) }
         var state = ToolState.Done
         try {
             return tools.run(call).also { if (it.contains("\"error\"")) state = ToolState.Error }
         } catch (e: Exception) { state = ToolState.Error; throw e }
         finally {
             val ms = System.currentTimeMillis() - started
-            _toolCalls.value = _toolCalls.value.map { if (it.id == id) it.copy(state = state, durationMs = ms) else it }
+            updateTools(chat) { list -> list.map { if (it.id == id) it.copy(state = state, durationMs = ms) else it } }
         }
     }
     override val screen = MutableStateFlow(ScreenState()).asStateFlow()
@@ -274,7 +284,7 @@ class DirectChatRepository(
             ?: return org.json.JSONObject().put("error", "unknown sub-dot").put("dots", org.json.JSONArray(synchronized(lock) { subDots.map { it.name } })).toString()
         val peer = "dot:" + dot.id
         if (!AgentTalk.start(accountId, peer)) return """{"error":"that sub-dot is already working; answer without it"}"""
-        val call = AgentCalls.start(accountId, peer, mode)
+        val call = AgentCalls.start(accountId, peer, mode, chat = MAIN_CHAT)
         return try {
             val reply = runDotTask(dot, message) { AgentCalls.connect(call) }
             org.json.JSONObject().put("dot", dot.name).put("model", dot.model ?: "same as yours")
@@ -287,7 +297,7 @@ class DirectChatRepository(
         val spec = peers?.modelChoices(accountId).orEmpty().firstOrNull { it.label.equals(modelLabel, ignoreCase = true) }?.spec
         val palettes = listOf("sky", "grape", "lime", "sun", "bubblegum", "tangerine")
         val n = synchronized(lock) { subDots.size }
-        val id = addDot(SubDotDraft(name.ifBlank { dotName(mission) }.take(40), DotKind.Temporary, mission,
+        val id = addDot(SubDotDraft(name.take(40), DotKind.Temporary, mission,
             app.dotshermes.ui.dot.DotSpecies.entries[n % app.dotshermes.ui.dot.DotSpecies.entries.size].name,
             palettes[n % palettes.size], "WingedCap", spec)) ?: return """{"error":"could not create a sub-dot (limit reached)"}"""
         val dot = synchronized(lock) { subDots.first { it.id == id } }
@@ -377,7 +387,9 @@ class DirectChatRepository(
                 val scopeId = quotaScope(provider, model, key)
                 val main = storage.load(accountId)
                 index = main.conversations
-                subDots = main.dots
+                // Anciens noms tirés des premiers mots de la mission (« I want to ») : un prénom à la place.
+                subDots = renameAutoNamed(main.dots)
+                if (subDots != main.dots) storage.save(accountId, main.copy(dots = subDots))
                 _dots.value = subDots
                 _activeChat.value = MAIN_CHAT
                 _room.value = emptyList()
@@ -829,7 +841,7 @@ class DirectChatRepository(
                     else -> it
                 }
             }), persist = clockMs() - lastSaveMs > STREAM_SAVE_MS, publish = clockMs() - lastPublishMs >= STREAM_PUBLISH_MS)
-            _activity.value = if (visible.isEmpty() && reaction != null && transcript.messages.first { it.id == answerId }.text.isEmpty())
+            _activity.value = if (visible.isEmpty() && reaction != null && transcript.messages.firstOrNull { it.id == answerId }?.text.isNullOrEmpty())
                 AgentActivity.Reacting else AgentActivity.Typing
             if (ChatCards.host === this) transcript.messages.firstOrNull { it.id == answerId }?.text?.takeIf { it.isNotBlank() }?.let { said ->
                 ChatCards._live.value = LiveNote(said.takeLast(LIVE_CHARS), null)
@@ -912,7 +924,7 @@ class DirectChatRepository(
         val id = UUID.randomUUID().toString().replace("-", "").take(10)
         synchronized(lock) {
             if (!ready || subDots.size >= MAX_DOTS) return null
-            val name = draft.name.trim().take(40).ifEmpty { if (draft.kind == DotKind.Temporary) "Mission" else "Dot ${subDots.size + 1}" }
+            val name = draft.name.trim().take(40).ifEmpty { dotPersonalName(subDots.map { it.name }) }
             subDots = subDots + SubDot(id, name, draft.kind, draft.mission.trim().take(600), draft.species, draft.palette, draft.accessory,
                 Instant.ofEpochMilli(clockMs()), null, model = draft.model?.takeIf { modelSpecOf(it) != null })
             try { saveDots() } catch (_: Exception) { _failure.value = issue(ApiFailure.Storage); return null }
@@ -1422,6 +1434,7 @@ class DirectChatRepository(
         }
         transcript = value
         memoryCooldownUntilMs = maxOf(memoryCooldownUntilMs, value.cooldownUntilMs)
+        toolsByChat[current].orEmpty().let { if (_toolCalls.value !== it) _toolCalls.value = it }
         if (!publish) return
         lastPublishMs = clockMs()
         _directUsage.value = DirectApiUsage(provider, model, value.limits, value.cooldownUntilMs)
@@ -1937,6 +1950,31 @@ private val ACTION = setOf("plan", "write", "find", "make", "create", "build", "
     "cook", "study", "fix", "track", "get", "do", "start", "help", "manage", "design", "draft", "check", "compare", "translate", "planifier",
     "écrire", "trouver", "faire", "créer", "préparer", "organiser", "apprendre", "réserver")
 private val ARTICLES = setOf("my", "a", "an", "the", "some", "our", "mon", "ma", "mes", "un", "une", "le", "la", "les", "des")
+
+/** Prénoms des sous-dots nommés par l'app : courts, faciles à dire, tous différents. */
+private val DOT_NAMES = listOf("Nova", "Pip", "Mochi", "Kiwi", "Luma", "Bean", "Echo", "Zuri", "Tobi", "Juno", "Pixel", "Olive", "Momo", "Remy",
+    "Sunny", "Ziggy", "Tiko", "Yuki", "Coco", "Indi")
+
+/** Un prénom pour un nouveau sous-dot, différent de ceux déjà pris ([taken]) ; « Dot 21 » si tous le sont. */
+fun dotPersonalName(taken: Collection<String>): String {
+    val used = taken.map { it.lowercase() }.toSet()
+    return DOT_NAMES.firstOrNull { it.lowercase() !in used } ?: "Dot ${taken.size + 1}"
+}
+
+/** Nom fabriqué d'après la mission (les trois premiers mots, ancienne règle, ou ses mots-clés) ou le nom par défaut. */
+internal fun isAutoName(name: String, mission: String): Boolean {
+    val firstWords = mission.trim().split(Regex("\\s+")).take(3).joinToString(" ").replaceFirstChar { it.titlecase() }.take(24)
+    return name == "Mission" || name.isBlank() || (mission.isNotBlank() && (name == firstWords || name == dotName(mission)))
+}
+
+/** Les sous-dots au nom fabriqué reçoivent un prénom ; ceux que l'utilisateur a nommés gardent le leur. */
+internal fun renameAutoNamed(dots: List<SubDot>): List<SubDot> {
+    val names = dots.map { it.name }.toMutableList()
+    return dots.mapIndexed { i, dot ->
+        if (!isAutoName(dot.name, dot.mission)) dot
+        else dotPersonalName(names.filterIndexed { j, _ -> j != i }).let { fresh -> names[i] = fresh; dot.copy(name = fresh) }
+    }
+}
 
 /**
  * Le nom d'un sous-dot d'après sa mission : sans formule (« I want to », « Can you »), sans le premier verbe ni

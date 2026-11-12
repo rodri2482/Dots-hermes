@@ -3,5 +3,6 @@
 <paths>
     <files-path name="attachments" path="attachments/" />
     <files-path name="voice" path="voice/" />
+    <files-path name="direct_images" path="direct-images/" />
     <cache-path name="downloads" path="voice/" />
 </paths>
