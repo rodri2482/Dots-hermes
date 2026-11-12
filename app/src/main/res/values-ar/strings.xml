@@ -600,4 +600,5 @@
     <string name="doing_model">يقترح نموذجًا أفضل…</string>
     <string name="doing_wiki">يقرأ ويكيبيديا…</string>
     <string name="doing_draw">ينشئ صورة…</string>
+    <string name="table_expand">تكبير الجدول</string>
 </resources>

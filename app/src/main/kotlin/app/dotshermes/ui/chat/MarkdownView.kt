@@ -28,6 +28,10 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.rounded.OpenInFull
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -152,11 +156,54 @@ fun MarkdownTable(text: String, ink: Color, link: Color, body: TextStyle) {
     if (table != null) TableBlock(table, colors, body) else Text(rememberInline(text, colors), style = body)
 }
 
-/** Tableau : colonnes à largeur fixe (calculée sur le contenu) pour rester alignées, défilement horizontal. */
+/**
+ * Tableau : colonnes à largeur fixe (calculée sur le contenu) pour rester alignées, défilement horizontal. Un bouton
+ * « Agrandir » au coin ouvre le tableau entier en plein écran, plus grand, comme dans ChatGPT.
+ */
 @Composable
 private fun TableBlock(table: MdBlock.Table, colors: MdColors, body: TextStyle) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TableGrid(table, colors, body, cellSize = 14, maxCell = 220f, modifier = Modifier.padding(top = 30.dp))
+        val label = stringResource(R.string.table_expand)
+        Box(
+            Modifier.align(Alignment.TopEnd).size(30.dp).clip(RoundedCornerShape(9.dp)).background(colors.ink.copy(alpha = 0.07f))
+                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = label) { expanded = true },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(androidx.compose.material.icons.Icons.Rounded.OpenInFull, label, tint = colors.ink.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+        }
+    }
+    if (expanded) TableDialog(table, colors, body) { expanded = false }
+}
+
+/** Le tableau en plein écran : texte plus grand, colonnes plus larges, défilement dans les deux sens. */
+@Composable
+private fun TableDialog(table: MdBlock.Table, colors: MdColors, body: TextStyle, onClose: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().background(app.dotshermes.ui.theme.Ink.Surface).padding(top = 8.dp)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                Box(Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClose), contentAlignment = Alignment.Center) {
+                    Icon(androidx.compose.material.icons.Icons.Rounded.Close, stringResource(R.string.action_close),
+                        tint = app.dotshermes.ui.theme.Ink.Primary, modifier = Modifier.size(24.dp))
+                }
+            }
+            Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+                TableGrid(table, colors.copy(ink = app.dotshermes.ui.theme.Ink.Primary), body.copy(color = app.dotshermes.ui.theme.Ink.Primary),
+                    cellSize = 16, maxCell = 320f)
+            }
+        }
+    }
+}
+
+/** La grille du tableau : en-tête en gras, filets entre les lignes, colonnes mesurées sur leur texte. */
+@Composable
+private fun TableGrid(table: MdBlock.Table, colors: MdColors, body: TextStyle, cellSize: Int, maxCell: Float, modifier: Modifier = Modifier) {
     val line = colors.ink.copy(alpha = 0.14f)
-    val cell = body.copy(fontSize = 14.sp, lineHeight = 19.sp)
+    val cell = body.copy(fontSize = cellSize.sp, lineHeight = (cellSize + 5).sp)
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val widths = remember(table, cell, density) {
@@ -164,10 +211,10 @@ private fun TableBlock(table: MdBlock.Table, colors: MdColors, body: TextStyle) 
             val widest = (listOf(table.header[c]) + table.rows.map { it.getOrElse(c) { "" } }).maxOf { value ->
                 measurer.measure(inlineMarkdown(value, colors), style = cell.copy(fontWeight = FontWeight.SemiBold), maxLines = 1).size.width
             }
-            (with(density) { widest.toDp().value } + 22f).coerceIn(64f, 220f)
+            (with(density) { widest.toDp().value } + 22f).coerceIn(64f, maxCell)
         }
     }
-    Box(Modifier.horizontalScroll(rememberScrollState())) {
+    Box(modifier.horizontalScroll(rememberScrollState())) {
         Column(Modifier.clip(RoundedCornerShape(10.dp)).border(1.dp, line, RoundedCornerShape(10.dp))) {
             (listOf(table.header) + table.rows).forEachIndexed { r, row ->
                 Row(Modifier.background(if (r == 0) colors.ink.copy(alpha = 0.06f) else Color.Transparent)) {

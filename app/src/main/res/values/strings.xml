@@ -604,4 +604,5 @@ Paste a Groq API key to get started.</string>
     <string name="doing_model">Suggesting a better model…</string>
     <string name="doing_wiki">Reading Wikipedia…</string>
     <string name="doing_draw">Creating a picture…</string>
+    <string name="table_expand">Expand table</string>
 </resources>

@@ -552,4 +552,5 @@
     <string name="doing_model">Schlägt ein besseres Modell vor…</string>
     <string name="doing_wiki">Liest Wikipedia…</string>
     <string name="doing_draw">Erstellt ein Bild…</string>
+    <string name="table_expand">Tabelle vergrößern</string>
 </resources>

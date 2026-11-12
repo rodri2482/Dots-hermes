@@ -612,4 +612,5 @@ Colle une clé API Groq pour commencer.</string>
     <string name="doing_model">Propose un meilleur modèle…</string>
     <string name="doing_wiki">Lit Wikipédia…</string>
     <string name="doing_draw">Crée une image…</string>
+    <string name="table_expand">Agrandir le tableau</string>
 </resources>

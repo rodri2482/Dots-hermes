@@ -32,6 +32,15 @@ class MusicRequestTest {
         assertEquals(null, quickToolRequest("what time is it"))
     }
 
+    @Test fun `requests to talk to another agent name it, for models without tools`() {
+        val others = listOf(Triple("g", "Claydot (gpt-oss-120b)", "gpt-oss-120b · Groq"), Triple("p", "Claydot (Gemma 4 E2B)", "Gemma 4 E2B · On this phone"))
+        assertEquals(Triple("Claydot (gpt-oss-120b)", "what time it is in Tokyo", "message"), agentRequest("Ask Groq what time it is in Tokyo", others))
+        assertEquals(Triple("Claydot (Gemma 4 E2B)", "for a fun fact", "call"), agentRequest("Call the phone agent and ask it for a fun fact", others))
+        assertEquals("call", agentRequest("call the other agent", others)?.third)
+        assertEquals(null, agentRequest("Ask me anything", others))
+        assertEquals(null, agentRequest("Ask Groq something", emptyList()))
+    }
+
     @Test fun `open requests name the app`() {
         assertEquals("tiktok", appRequest("open tiktok"))
         assertEquals("WhatsApp", appRequest("Please open the WhatsApp app"))

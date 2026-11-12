@@ -540,4 +540,5 @@
     <string name="doing_model">正在推荐更好的模型…</string>
     <string name="doing_wiki">正在查阅维基百科…</string>
     <string name="doing_draw">正在生成图片…</string>
+    <string name="table_expand">放大表格</string>
 </resources>

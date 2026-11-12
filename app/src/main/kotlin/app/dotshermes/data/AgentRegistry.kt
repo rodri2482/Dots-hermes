@@ -89,7 +89,7 @@ class AgentRegistry(
                 // Deux agents du même nom (« Claydot ») : le modèle les distingue.
                 if (directOthers(self).count { appearance(it.id).state.value.displayName == name } > 1 ||
                     appearance(self).state.value.displayName == name) "$name (${link.model.substringAfterLast('/')})" else name
-            }, link.model.substringAfterLast('/'))
+            }, link.model.substringAfterLast('/').let { m -> (LocalModels.byId(link.model)?.name ?: m) + " · " + link.provider!!.title })
         }
 
         override fun imageKey(): String? = store.agents.value.firstOrNull { it.provider == ApiProvider.OpenAI }
