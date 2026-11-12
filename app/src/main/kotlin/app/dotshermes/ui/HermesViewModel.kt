@@ -107,23 +107,6 @@ class HermesViewModel(
     init {
         // Agents mémorisés : chacun se reconnecte au lancement, en parallèle.
         agents.connectAll()
-        // Compte direct : une réponse terminée sans erreur est lue à voix haute (si la voix est réglée).
-        companion?.let { voice ->
-            viewModelScope.launch {
-                var previous: AgentActivity = AgentActivity.Idle
-                var lastSpoken: String? = repository.messages.value.lastOrNull()?.id
-                repository.activity.collect { now ->
-                    val finished = previous != AgentActivity.Idle && now == AgentActivity.Idle
-                    previous = now
-                    if (!finished || repository.gatewayFeatures.value || repository.requestIssue.value != null) return@collect
-                    val reply = repository.messages.value.lastOrNull() ?: return@collect
-                    val text = (reply.content as? MessageContent.Text)?.text ?: return@collect
-                    if (reply.sender != app.dotshermes.data.model.Sender.Agent || reply.id == lastSpoken) return@collect
-                    lastSpoken = reply.id
-                    voice.speak(text)
-                }
-            }
-        }
     }
 
     // Mains libres : pendant un enregistrement, la fin de la parole envoie le vocal.
@@ -135,7 +118,7 @@ class HermesViewModel(
                 if (state == null) { silence.reset(); lastElapsed = -1; return@collect }
                 if (state.elapsedMs == lastElapsed || state.levels.isEmpty()) return@collect
                 lastElapsed = state.elapsedMs
-                if (companion?.state?.value?.handsFree != false && silence.feed(state.levels.last())) {
+                if (silence.feed(state.levels.last())) {
                     silence.reset()
                     sendRecording()
                 }
@@ -143,23 +126,14 @@ class HermesViewModel(
         }
     }
 
-    // -- Personnalité et voix ------------------------------------------------------------------------
+    // -- Personnalité ---------------------------------------------------------------------------------
     val companionState = companion?.state
-    val speech = companion?.status
     fun setPersonality(value: app.dotshermes.voice.Personality) = companion?.setPersonality(value)
-    fun setSpeakReplies(on: Boolean) = companion?.setSpeakReplies(on)
-    fun setHandsFree(on: Boolean) = companion?.setHandsFree(on)
-    fun setVoiceId(id: String) = companion?.setVoiceId(id)
-    suspend fun saveFishKey(key: String) { companion?.saveFishKey(key) }
-    fun forgetFishKey() { viewModelScope.launch { companion?.forgetFishKey() } }
-    fun stopSpeaking() = companion?.stop()
-    fun listen(text: String) { companion?.speak(text, force = true) }
     val conversations = repository.conversations
-    fun newConversation() { companion?.stop(); val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.newConversation() } }
-    fun openConversation(id: String) { companion?.stop(); val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.openConversation(id) } }
+    fun newConversation() { val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.newConversation() } }
+    fun openConversation(id: String) { val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.openConversation(id) } }
     fun deleteConversation(id: String) { val t = repository.currentTarget(); viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { t.deleteConversation(id) } }
     fun clearConversation() {
-        companion?.stop()
         val target = repository.currentTarget()
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { target.clearHistory() }
     }
@@ -320,20 +294,17 @@ class HermesViewModel(
     } }
 
     fun send(text: String) {
-        companion?.stop()
         if (text.isNotBlank()) repository.send(text.trim())
     }
 
     /** Réponse à un message précis (glisser vers la gauche). */
     fun sendReply(text: String, quote: String) {
-        companion?.stop()
         if (text.isNotBlank()) repository.sendReply(text.trim(), quote)
     }
 
     /** Micro : la permission est demandée par l'écran avant l'appel. */
     fun startRecording(): Boolean {
         player.stop()
-        companion?.stop()
         return recorder.start()
     }
 

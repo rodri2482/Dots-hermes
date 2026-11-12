@@ -349,16 +349,6 @@
 Paste a Groq API key to get started.</string>
     <string name="api_key_hint">Your %s key</string>
     <string name="companion_personality">Personality</string>
-    <string name="companion_voice">Voice</string>
-    <string name="companion_speak">Read replies aloud</string>
-    <string name="companion_speak_setup">Uses your mascot\'s phone voice. Add a Fish Audio key for a more natural one.</string>
-    <string name="companion_voice_id">Voice ID</string>
-    <string name="companion_voice_id_hint">Fish Audio voice ID</string>
-    <string name="companion_fish_key">Fish key</string>
-    <string name="companion_fish_key_hint">Fish Audio API key</string>
-    <string name="companion_fish_key_save">Save Fish Audio key</string>
-    <string name="companion_fish_key_forget">Remove Fish Audio key</string>
-    <string name="companion_fish_get_key">Get a Fish Audio API key</string>
     <string name="personality_calm">Calm</string>
     <string name="personality_playful">Playful</string>
     <string name="personality_cheeky">Cheeky</string>
@@ -373,7 +363,6 @@ Paste a Groq API key to get started.</string>
     <string name="api_key_help_short">Your key stays encrypted on this phone. Usage is billed by %s.</string>
     <string name="api_choose_model">Choose model</string>
     <string name="settings_account">Account</string>
-    <string name="companion_voice_other">Other</string>
     <string name="gmail_section">Gmail</string>
     <string name="gmail_title">Let Claydot read your Gmail</string>
     <string name="gmail_connected">Gmail connected · read-only</string>
@@ -388,8 +377,6 @@ Paste a Groq API key to get started.</string>
     <string name="phone_hint">Music, apps, phone status, alarms, timers and calendar events. Music and opening apps happen straight away; anything else asks you first.</string>
     <string name="phone_confirm_title">Claydot wants to</string>
     <string name="phone_do">Do it</string>
-    <string name="companion_hands_free">Send when I stop talking</string>
-    <string name="companion_hands_free_hint">Tap the mic once and talk: the note goes by itself after a short pause.</string>
     <string name="chats_title">Chats</string>
     <string name="chats_new">New chat</string>
     <string name="chats_untitled">New chat</string>
@@ -618,13 +605,6 @@ Paste a Groq API key to get started.</string>
     <string name="setting_not_allowed">Not allowed yet</string>
     <string name="open_android_settings">Open Android settings</string>
     <string name="keep_listening_action">Allow in Android settings</string>
-    <string name="companion_voice_mascot">Mascot voice</string>
-    <string name="speech_error_missing">To send voice notes offline, download Offline voice typing in Settings › Voice.</string>
-    <string name="speech_voice_title">Natural offline voice</string>
-    <string name="speech_voice_hint">Reads replies aloud in your mascot\'s own voice, without a key or internet.</string>
-    <string name="speech_typing_title">Offline voice typing</string>
-    <string name="speech_typing_hint">Voice notes are written out on your phone: no key, no quota.</string>
-    <string name="speech_delete">Delete</string>
     <string name="autoglm_title">Phone agent (AutoGLM)</string>
     <string name="autoglm_hint">AutoGLM is a vision model trained to use Android apps by looking at the screen. With a key from Z.ai or Novita AI, Claydot hands it long screen tasks. Screenshots go to that service.</string>
     <string name="autoglm_key">API key</string>

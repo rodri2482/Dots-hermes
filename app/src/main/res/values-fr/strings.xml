@@ -356,16 +356,6 @@
 Colle une clé API Groq pour commencer.</string>
     <string name="api_key_hint">Ta clé %s</string>
     <string name="companion_personality">Personnalité</string>
-    <string name="companion_voice">Voix</string>
-    <string name="companion_speak">Lire les réponses à voix haute</string>
-    <string name="companion_speak_setup">Avec la voix du téléphone, propre à votre mascotte. Ajoutez une clé Fish Audio pour une voix plus naturelle.</string>
-    <string name="companion_voice_id">Voix</string>
-    <string name="companion_voice_id_hint">Identifiant de voix Fish Audio</string>
-    <string name="companion_fish_key">Clé Fish</string>
-    <string name="companion_fish_key_hint">Clé API Fish Audio</string>
-    <string name="companion_fish_key_save">Enregistrer la clé Fish Audio</string>
-    <string name="companion_fish_key_forget">Retirer la clé Fish Audio</string>
-    <string name="companion_fish_get_key">Obtenir une clé API Fish Audio</string>
     <string name="personality_calm">Calme</string>
     <string name="personality_playful">Joueur</string>
     <string name="personality_cheeky">Taquin</string>
@@ -380,7 +370,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="api_key_help_short">Ta clé reste chiffrée sur ce téléphone. L\'usage est facturé par %s.</string>
     <string name="api_choose_model">Choisir le modèle</string>
     <string name="settings_account">Compte</string>
-    <string name="companion_voice_other">Autre</string>
     <string name="gmail_section">Gmail</string>
     <string name="gmail_title">Laisser Claydot lire ton Gmail</string>
     <string name="gmail_connected">Gmail connecté · lecture seule</string>
@@ -395,8 +384,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="phone_hint">Musique, apps, état du téléphone, réveils, minuteurs, agenda. La musique et l\'ouverture d\'une app se font tout de suite ; le reste te demande d\'abord.</string>
     <string name="phone_confirm_title">Claydot veut</string>
     <string name="phone_do">Faire</string>
-    <string name="companion_hands_free">Envoyer quand j\'ai fini de parler</string>
-    <string name="companion_hands_free_hint">Touche le micro une fois et parle : le vocal part tout seul après une courte pause.</string>
     <string name="chats_title">Discussions</string>
     <string name="chats_new">Nouvelle discussion</string>
     <string name="chats_untitled">Nouvelle discussion</string>
@@ -626,13 +613,6 @@ Colle une clé API Groq pour commencer.</string>
     <string name="setting_not_allowed">Pas encore autorisé</string>
     <string name="open_android_settings">Ouvrir les réglages Android</string>
     <string name="keep_listening_action">Autoriser dans les réglages Android</string>
-    <string name="companion_voice_mascot">Voix de la mascotte</string>
-    <string name="speech_error_missing">Pour envoyer des vocaux sans Internet, téléchargez la dictée hors ligne dans Réglages › Voix.</string>
-    <string name="speech_voice_title">Voix naturelle hors ligne</string>
-    <string name="speech_voice_hint">Lit les réponses avec la voix de votre mascotte, sans clé ni Internet.</string>
-    <string name="speech_typing_title">Dictée hors ligne</string>
-    <string name="speech_typing_hint">Vos vocaux sont écrits sur le téléphone : ni clé, ni quota.</string>
-    <string name="speech_delete">Supprimer</string>
     <string name="autoglm_title">Agent téléphone (AutoGLM)</string>
     <string name="autoglm_hint">AutoGLM est un modèle de vision entraîné à utiliser les apps Android en regardant l\'écran. Avec une clé Z.ai ou Novita AI, Claydot lui confie les longues tâches d\'écran. Les captures sont envoyées à ce service.</string>
     <string name="autoglm_key">Clé API</string>

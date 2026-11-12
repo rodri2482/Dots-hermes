@@ -29,8 +29,6 @@ enum class ApiFailure {
     Unavailable, Network, Interrupted, InvalidResponse, OutputLimit, ContextLimit, Storage, Cancelled,
     /** Modèle du téléphone : pause pour laisser refroidir, batterie trop basse, mémoire insuffisante. */
     DeviceHot, LowBattery, LowMemory,
-    /** Vocal sans Internet : la dictée hors ligne n'est pas encore téléchargée. */
-    SpeechMissing,
 }
 
 /** Pas de message du fournisseur, corps HTTP, clé, URL ou cause brute dans une erreur d'interface. */

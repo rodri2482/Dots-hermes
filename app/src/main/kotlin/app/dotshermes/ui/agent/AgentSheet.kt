@@ -195,7 +195,7 @@ fun AgentSettings(
 
             // Compte direct (Claydot) : personnalité, voix et outils, sous l'apparence comme dans la fiche d'origine.
             if (!gatewayFeatures) {
-                companion?.let { CompanionSettings(it); OfflineSpeechSettings(app.dotshermes.AppContainer.speech) }
+                companion?.let { CompanionSettings(it) }
                 // Les outils (Gmail) passent par les appels de fonction de Groq.
                 if (connected?.gatewayUrl in setOf(app.dotshermes.data.direct.ApiProvider.Groq.title, app.dotshermes.data.direct.ApiProvider.Local.title)) {
                     GmailSettings(app.dotshermes.AppContainer.gmail)

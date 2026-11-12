@@ -190,6 +190,5 @@ fun apiFailureMessage(failure: ApiFailure): Int = when (failure) {
     ApiFailure.DeviceHot -> R.string.local_error_hot
     ApiFailure.LowBattery -> R.string.local_error_battery
     ApiFailure.LowMemory -> R.string.local_error_memory
-    ApiFailure.SpeechMissing -> R.string.speech_error_missing
     else -> R.string.api_error_response
 }

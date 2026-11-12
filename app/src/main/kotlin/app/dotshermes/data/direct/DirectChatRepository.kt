@@ -35,8 +35,6 @@ class DirectChatRepository(
     private val encodeImage: (File) -> ByteArray? = { null },
     /** Modèle du téléphone prêt (compte Groq) : il répond quand tous les modèles Groq sont à court de quota. */
     private val localFallback: () -> String? = { null },
-    /** Dictée hors ligne (sherpa-onnx) : null si elle n'est pas téléchargée. */
-    private val offlineTranscribe: suspend (File) -> String? = { null },
 ) : ChatRepository {
     private val lock = Any()
     private var transcript = DirectTranscript()
@@ -61,8 +59,8 @@ class DirectChatRepository(
     override val requestIssue get() = failure
     override val gatewayFeatures = MutableStateFlow(false).asStateFlow()
     /** Micro : Groq transcrit les vocaux (Whisper) ; les autres fournisseurs restent en texte. */
-    // Vocaux : transcrits par Groq, ou sur le téléphone (dictée hors ligne) pour un compte « sur ce téléphone ».
-    override val voiceInput = MutableStateFlow(provider == ApiProvider.Groq || provider == ApiProvider.Local).asStateFlow()
+    // Vocaux retirés pour le moment : pas de micro.
+    override val voiceInput = MutableStateFlow(false).asStateFlow()
     /** Photos : les modèles de vision de Groq les lisent. */
     // Photos : Groq (modèle de vision), ou un modèle du téléphone qui voit (Gemma 4, hors ligne).
     override val imageInput = MutableStateFlow(imageDir != null &&
@@ -685,7 +683,7 @@ class DirectChatRepository(
      */
     override fun sendVoice(file: File, durationMs: Long, waveform: List<Float>) {
         synchronized(lock) {
-            if (!ready || busy || (provider != ApiProvider.Groq && provider != ApiProvider.Local)) { file.delete(); return }
+            if (!ready || busy || provider != ApiProvider.Groq) { file.delete(); return }
             if (provider == ApiProvider.Groq && maxOf(transcript.cooldownUntilMs, memoryCooldownUntilMs) > clockMs() && !hasAlternative()) {
                 file.delete()
                 _failure.value = issue(ApiFailure.RateLimited, cooldownOnly = true)
@@ -697,15 +695,8 @@ class DirectChatRepository(
         }
         scope.launch(Dispatchers.IO) {
             val text = try {
-                if (provider == ApiProvider.Local) offlineTranscribe(file) ?: throw ApiException(ApiFailure.SpeechMissing)
-                else try {
-                    val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
-                    client.transcribe(provider, key, file)
-                } catch (e: ApiException) {
-                    // Groq à court de quota ou injoignable : la dictée du téléphone prend le relais si elle est là.
-                    if (e.failure in setOf(ApiFailure.RateLimited, ApiFailure.Quota, ApiFailure.Network, ApiFailure.Unavailable))
-                        offlineTranscribe(file) ?: throw e else throw e
-                }
+                val key = storage.key(accountId) ?: throw ApiException(ApiFailure.MissingKey)
+                client.transcribe(provider, key, file)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 val failure = (e as? ApiException)?.failure ?: ApiFailure.Network

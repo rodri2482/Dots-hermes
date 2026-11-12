@@ -1,6 +1,3 @@
-import java.net.URI
-import java.security.MessageDigest
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -107,22 +104,6 @@ val verifyReleaseSigning by tasks.registering {
 tasks.matching { it.name in setOf("assembleRelease", "bundleRelease", "packageRelease", "packageReleaseBundle", "signReleaseBundle", "validateSigningRelease") }
     .configureEach { dependsOn(verifyReleaseSigning) }
 
-// sherpa-onnx (k2-fsa, Apache-2.0) : voix et dictée hors ligne. La bibliothèque Android n'est publiée que
-// sur les releases GitHub du projet : téléchargée une fois (dossier ignoré par git), empreinte vérifiée.
-// 1.13.8 : la dernière version qui inclut espeak-ng (prononciation des voix Kitten) ; la 2.x l'a retiré.
-val sherpaVersion = "1.13.8"
-val sherpaSha256 = "b22c3fc1b6a45666d28892bb2f7694beeb77a8362d7ebd77c1a5431ec9435471"
-val sherpaAar = file("libs-download/sherpa-onnx-static-link-onnxruntime-$sherpaVersion.aar")
-fun sha256Of(f: File): String = MessageDigest.getInstance("SHA-256").digest(f.readBytes()).joinToString("") { "%02x".format(it) }
-if (!sherpaAar.isFile || sha256Of(sherpaAar) != sherpaSha256) {
-    sherpaAar.parentFile.mkdirs()
-    val temp = File(sherpaAar.path + ".part")
-    URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/v$sherpaVersion/sherpa-onnx-static-link-onnxruntime-$sherpaVersion.aar")
-        .toURL().openStream().use { input -> temp.outputStream().use { input.copyTo(it) } }
-    check(sha256Of(temp) == sherpaSha256) { "sherpa-onnx download does not match its checksum" }
-    temp.renameTo(sherpaAar)
-}
-
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -152,9 +133,6 @@ dependencies {
     // Photos envoyées aux modèles de vision : remises droites selon l'EXIF avant compression.
     implementation(libs.androidx.exifinterface)
     implementation(libs.litertlm)
-    implementation(files(sherpaAar))
-    // Archives tar.bz2 des voix hors ligne (Apache-2.0).
-    implementation("org.apache.commons:commons-compress:1.27.1")
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

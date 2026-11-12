@@ -63,7 +63,6 @@ fun HermesApp(
     val voiceInput by viewModel.voiceInput.collectAsStateWithLifecycle()
     val imageInput by viewModel.imageInput.collectAsStateWithLifecycle()
     val companion by AppContainer.companion.state.collectAsStateWithLifecycle()
-    val speech by AppContainer.companion.status.collectAsStateWithLifecycle()
     val requestIssue by viewModel.requestIssue.collectAsStateWithLifecycle()
     val accountFailure by viewModel.accountFailure.collectAsStateWithLifecycle()
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
@@ -164,8 +163,8 @@ fun HermesApp(
                 key(activeAgent, activeChat) {
                 ChatScreen(
                     state = chat,
-                    gatewayFeatures = gatewayFeatures, voiceInput = voiceInput, imageInput = imageInput, requestIssue = requestIssue,
-                    speaking = speech.speaking, onStopSpeaking = viewModel::stopSpeaking,
+                    gatewayFeatures = gatewayFeatures, voiceInput = false, imageInput = imageInput, requestIssue = requestIssue,
+                    speaking = false, onStopSpeaking = {},
                     onNewChat = if (!gatewayFeatures) viewModel::newConversation else null,
                     onOpenChats = if (!gatewayFeatures) ({ chatsOpen = true }) else null,
                     modelMenu = if (gatewayFeatures) null else ({
@@ -181,7 +180,6 @@ fun HermesApp(
                             onAddGroqKey = viewModel::addAgent,
                         )
                     }),
-                    onListen = if (!gatewayFeatures && companion.voiceId.isNotBlank()) viewModel::listen else null,
                     onRetryRequest = viewModel::retryRequest, onStopRequest = viewModel::stopTurn,
                     connection = connection as? ConnectionState.Connected,
                     appearance = look.appearance,
@@ -382,11 +380,8 @@ fun HermesApp(
                         onClearConversation = if (!gatewayFeatures) ({ clearingChat = true }) else null,
                         onOpenChats = if (!gatewayFeatures) ({ agentSheetOpen = false; chatsOpen = true }) else null,
                         companion = app.dotshermes.ui.agent.CompanionControls(
-                            state = companion, status = speech,
-                            onPersonality = { viewModel.setPersonality(it) }, onSpeak = { viewModel.setSpeakReplies(it) },
-                            onHandsFree = { viewModel.setHandsFree(it) },
-                            onVoiceId = { viewModel.setVoiceId(it) }, onFishKey = viewModel::saveFishKey,
-                            onForgetFishKey = viewModel::forgetFishKey,
+                            state = companion,
+                            onPersonality = { viewModel.setPersonality(it) },
                         ),
                         profile = profile,
                         connection = connection,
