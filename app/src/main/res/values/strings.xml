@@ -631,4 +631,12 @@ Paste a Groq API key to get started.</string>
     <string name="autoglm_save">Save key</string>
     <string name="autoglm_remove">Remove key</string>
     <string name="autoglm_get_key">Get a %1$s key</string>
+    <string name="gmail_error_blocked">Google did not let Claydot in (this sign-in is still waiting for Google\'s review). Connect with an app password below instead: it works for every Gmail account.</string>
+    <string name="gmail_password_way">Connect with an app password</string>
+    <string name="gmail_password_hint">Works with any Gmail account that has 2-Step Verification. Create an app password on Google, paste it here with your address. Claydot only reads; the password stays encrypted on this phone.</string>
+    <string name="gmail_email">Gmail address</string>
+    <string name="gmail_app_password">App password</string>
+    <string name="gmail_password_create">Create an app password on Google</string>
+    <string name="gmail_error_password">Google refused this address or app password. Check both, and that 2-Step Verification is on.</string>
+    <string name="gmail_connected_as">Connected as %1$s, read-only.</string>
 </resources>

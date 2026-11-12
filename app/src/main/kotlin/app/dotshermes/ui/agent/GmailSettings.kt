@@ -57,6 +57,11 @@ fun GmailSettings(gmail: GmailAccess) {
     val connected by gmail.connected.collectAsStateWithLifecycle()
     var problem by remember { mutableStateOf<Int?>(null) }
     var working by remember { mutableStateOf(false) }
+    // Mot de passe d'application (IMAP) : l'autre façon de brancher Gmail, qui marche pour tous les comptes.
+    var showPassword by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var appPassword by remember { mutableStateOf("") }
+    val imapEmail by gmail.imapEmail.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     // Écran de Google préparé à l'avance : le toucher sur « Connecter » l'ouvre sans attente.
@@ -64,7 +69,8 @@ fun GmailSettings(gmail: GmailAccess) {
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         working = false
         prepared = null
-        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        // Écran Google fermé sans accord : souvent « Accès bloqué » (app pas encore vérifiée par Google pour Gmail).
+        if (result.resultCode != Activity.RESULT_OK) { problem = R.string.gmail_error_blocked; showPassword = true; return@rememberLauncherForActivityResult }
         try {
             val token = gmail.resultFrom(result.data).accessToken
             if (token != null) gmail.markConnected(true, token) else problem = R.string.gmail_error
@@ -74,6 +80,7 @@ fun GmailSettings(gmail: GmailAccess) {
     fun failure(e: Exception) {
         // 10 (DEVELOPER_ERROR) : pas de client OAuth Android pour ce paquet et cette signature.
         problem = if (e is com.google.android.gms.common.api.ApiException && e.statusCode == 10) R.string.gmail_error_setup else R.string.gmail_error
+        showPassword = true
     }
 
     androidx.compose.runtime.LaunchedEffect(connected) {
@@ -110,7 +117,8 @@ fun GmailSettings(gmail: GmailAccess) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Text(stringResource(if (connected) R.string.gmail_connected else R.string.gmail_title),
                     style = MaterialTheme.typography.bodyLarge, color = Ink.Primary)
-                Text(stringResource(R.string.gmail_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
+                Text(imapEmail?.let { stringResource(R.string.gmail_connected_as, it) } ?: stringResource(R.string.gmail_hint),
+                    style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
             }
             Hairline()
             androidx.compose.foundation.layout.Row(
@@ -127,6 +135,48 @@ fun GmailSettings(gmail: GmailAccess) {
                 )
                 if (working) androidx.compose.material3.CircularProgressIndicator(Modifier.padding(start = 8.dp).size(18.dp),
                     color = LocalDotPalette.current.base, strokeWidth = 2.dp)
+            }
+        }
+        // L'autre voie : adresse Gmail et mot de passe d'application (16 lettres), vérifiés chez Gmail.
+        if (!connected) {
+            androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
+            GroupedCard {
+                Text(stringResource(R.string.gmail_password_way), style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
+                    modifier = Modifier.fillMaxWidth().clickable { showPassword = !showPassword }.padding(horizontal = 16.dp, vertical = 13.dp))
+                androidx.compose.animation.AnimatedVisibility(showPassword) {
+                    Column {
+                        Text(stringResource(R.string.gmail_password_hint), style = MaterialTheme.typography.bodySmall, color = Ink.Secondary,
+                            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp))
+                        Hairline()
+                        app.dotshermes.ui.connect.FieldRow(stringResource(R.string.gmail_email), email, { email = it; problem = null }, enabled = !working,
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Email, placeholder = "you@gmail.com")
+                        Hairline()
+                        app.dotshermes.ui.connect.FieldRow(stringResource(R.string.gmail_app_password), appPassword, { appPassword = it; problem = null },
+                            enabled = !working, secret = true, placeholder = "abcd efgh ijkl mnop")
+                        Hairline()
+                        if (email.contains('@') && appPassword.replace(" ", "").length >= 16) {
+                            Text(stringResource(if (working) R.string.gmail_opening else R.string.gmail_connect), style = MaterialTheme.typography.bodyLarge,
+                                color = LocalDotPalette.current.deep, modifier = Modifier.fillMaxWidth().clickable(enabled = !working) {
+                                    working = true; problem = null
+                                    scope.launch {
+                                        try { gmail.connectWithAppPassword(email, appPassword); appPassword = "" }
+                                        catch (e: CancellationException) { throw e }
+                                        catch (e: app.dotshermes.data.gmail.GmailException) {
+                                            problem = if (e.reason == app.dotshermes.data.gmail.GmailException.Reason.NeedsConsent) R.string.gmail_error_password else R.string.gmail_error
+                                        }
+                                        catch (_: Exception) { problem = R.string.gmail_error }
+                                        working = false
+                                    }
+                                }.padding(horizontal = 16.dp, vertical = 13.dp))
+                        } else {
+                            Text(stringResource(R.string.gmail_password_create), style = MaterialTheme.typography.bodyLarge, color = LocalDotPalette.current.deep,
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(GmailAccess.APP_PASSWORDS_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                                }.padding(horizontal = 16.dp, vertical = 13.dp))
+                        }
+                    }
+                }
             }
         }
         problem?.let {

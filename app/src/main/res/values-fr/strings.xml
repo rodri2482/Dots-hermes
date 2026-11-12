@@ -639,4 +639,12 @@ Colle une clé API Groq pour commencer.</string>
     <string name="autoglm_save">Enregistrer la clé</string>
     <string name="autoglm_remove">Retirer la clé</string>
     <string name="autoglm_get_key">Obtenir une clé %1$s</string>
+    <string name="gmail_error_blocked">Google n\'a pas laissé entrer Claydot (cette connexion attend encore l\'examen de Google). Connectez-vous plutôt avec un mot de passe d\'application ci-dessous : ça marche pour tous les comptes Gmail.</string>
+    <string name="gmail_password_way">Se connecter avec un mot de passe d\'application</string>
+    <string name="gmail_password_hint">Marche avec tout compte Gmail qui a la validation en deux étapes. Créez un mot de passe d\'application chez Google, collez-le ici avec votre adresse. Claydot ne fait que lire ; le mot de passe reste chiffré sur ce téléphone.</string>
+    <string name="gmail_email">Adresse Gmail</string>
+    <string name="gmail_app_password">Mot de passe d\'application</string>
+    <string name="gmail_password_create">Créer un mot de passe d\'application chez Google</string>
+    <string name="gmail_error_password">Google a refusé cette adresse ou ce mot de passe d\'application. Vérifiez-les, et que la validation en deux étapes est activée.</string>
+    <string name="gmail_connected_as">Connecté en tant que %1$s, en lecture seule.</string>
 </resources>

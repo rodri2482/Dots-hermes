@@ -69,6 +69,8 @@ class PhoneActions(
             "Play a song, artist, album or playlist in a music app on the user's phone; it starts playing right away. " +
                 "Use it whenever the user asks to play or put on music.",
             props("query" to str("What to play, with the artist when known, e.g. 'Unavailable Davido' or 'Davido'"),
+                "title" to str("Song title alone when known, e.g. 'Unavailable'"),
+                "artist" to str("Artist alone when known, e.g. 'Davido'"),
                 "app" to str("Optional app the user named: ${MUSIC_APPS.joinToString { it.name }}")), "query"))
         .put(function("media_control", "Control what is playing on the phone (any music or video app): pause, resume, skip, volume.",
             props("action" to JSONObject().put("type", "string")
@@ -94,7 +96,9 @@ class PhoneActions(
     override suspend fun run(call: ApiToolCall): String {
         val args = try { JSONObject(call.arguments.ifBlank { "{}" }) } catch (_: JSONException) { JSONObject() }
         // La musique part tout de suite (comme un assistant vocal) : rien d'irréversible, on l'arrête d'un geste.
-        if (call.name == "play_music") return withContext(Dispatchers.Main) { playMusic(args.optString("query").trim(), args.optString("app").trim()) }
+        if (call.name == "play_music") return withContext(Dispatchers.Main) {
+            playMusic(args.optString("query").trim(), args.optString("app").trim(), args.optString("title").trim(), args.optString("artist").trim())
+        }
         if (call.name == "media_control") return withContext(Dispatchers.Main) { mediaControl(args.optString("action")) }
         if (call.name == "phone_info") return withContext(Dispatchers.IO) { phoneInfo() }
         // Ouvrir une app ne change rien : elle s'ouvre tout de suite, sans fenêtre d'accord.
@@ -171,29 +175,35 @@ class PhoneActions(
      * résultats : si rien ne joue au bout de quelques secondes et que l'écran est accessible, Claydot
      * touche lui-même la chanson, puis « Lecture » — dans cette app seulement, c'est la demande de l'utilisateur.
      */
-    private suspend fun playMusic(query: String, requested: String): String {
+    private suspend fun playMusic(query: String, requested: String, title: String = "", artist: String = ""): String {
         if (query.isEmpty()) return result("invalid", "query is required")
         val pm = context.packageManager
         val installed = MUSIC_APPS.filter { pm.getLaunchIntentForPackage(it.packageName) != null }
         val app = chooseMusicApp(installed, requested, prefs.getString("music_app", null))
             ?: return result("unavailable", "No music app is installed (Spotify, YouTube Music, Boomplay, Audiomack, YouTube…).")
         if (requested.isNotEmpty()) prefs.edit { putString("music_app", app.packageName) }
-        // « Lire depuis une recherche » : l'intention des assistants vocaux, la lecture démarre seule.
-        val play = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).setPackage(app.packageName)
-            .putExtra(SearchManager.QUERY, query).putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
-        val search = app.searchUrl?.let { Intent(Intent.ACTION_VIEW, (it + Uri.encode(query)).toUri()).setPackage(app.packageName) }
+        val extras = searchExtras(query, title, artist)
         val others = installed.filter { it != app }.joinToString { it.name }
         val audio = context.getSystemService(AudioManager::class.java)
+        fun answer(status: String, detail: String) = JSONObject().put("status", status).put("app", app.name).put("query", query)
+            .put("detail", detail).put("other_music_apps", others).toString()
+        // 1. L'app tourne déjà : on demande la lecture à sa session média (comme Android Auto ou l'Assistant),
+        //    sans quitter Claydot ni toucher l'écran.
+        if (playFromSession(app.packageName, query, extras, audio, waitForSession = false)) return answer("playing", "Playback started in ${app.name}, in the background.")
+        // 2. Sinon on l'ouvre avec « lire depuis une recherche » (titre et artiste à part : les apps choisissent mieux).
+        val play = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).setPackage(app.packageName).putExtras(extras)
+        val search = app.searchUrl?.let { Intent(Intent.ACTION_VIEW, (it + Uri.encode(query)).toUri()).setPackage(app.packageName) }
         val launched = listOfNotNull(play, search).firstOrNull { intent ->
             intent.resolveActivity(pm) != null && runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
         } ?: return result("unavailable", "${app.name} could not open.")
-        fun answer(status: String, detail: String) = JSONObject().put("status", status).put("app", app.name).put("query", query)
-            .put("detail", detail).put("other_music_apps", others).toString()
-        // La lecture a-t-elle démarré toute seule ?
-        if (launched === play && waitForMusic(audio, 4_000)) return answer("playing", "Playback started in ${app.name}.")
+        // La lecture a-t-elle démarré toute seule ? Une app froide (Spotify) met plusieurs secondes à démarrer.
+        if (launched === play && waitForMusic(audio, 6_000)) { backToClaydot(); return answer("playing", "Playback started in ${app.name}.") }
+        // 3. L'app est ouverte mais ne joue pas (simple page de résultats) : sa session média existe maintenant.
+        if (playFromSession(app.packageName, query, extras, audio)) { backToClaydot(); return answer("playing", "Playback started in ${app.name}.") }
         val driver = screen()?.takeIf { it.connected() }
             ?: return answer("opened_not_playing", "${app.name} opened on '$query' but did not start playing by itself. " +
-                "Tell the user to tap the song, and that turning on 'Let Claydot use your screen' in Claydot's settings lets you tap it for them next time.")
+                "Tell the user to tap the song, and that turning on notification access ('Read WhatsApp notifications') or 'Let Claydot use your screen' " +
+                "in Claydot's settings lets you start it for them next time.")
         // Rien ne joue : on touche le bon résultat (ou « Lecture » sur la page ouverte), trois essais au plus.
         var tappedRow = false
         repeat(4) {
@@ -203,7 +213,7 @@ class PhoneActions(
             val target = pickPlayTarget(shot.elements, query, preferPlayButton = tappedRow) ?: return@repeat
             if (!driver.tap(target.id)) return@repeat
             tappedRow = tappedRow || !isPlayButton(target.text)
-            if (waitForMusic(audio, 2_500)) return answer("playing", "Playback started in ${app.name} (Claydot tapped '${target.text.take(60)}').")
+            if (waitForMusic(audio, 2_500)) { backToClaydot(); return answer("playing", "Playback started in ${app.name} (Claydot tapped '${target.text.take(60)}').") }
         }
         return answer("opened_not_playing", "${app.name} shows '$query' but playback did not start. Ask the user to tap the song.")
     }
@@ -240,6 +250,54 @@ class PhoneActions(
     }
 
     /** Attend qu'une app joue de la musique (true) ou [timeoutMs]. */
+    /** Les données d'une recherche musicale : requête, et titre / artiste à part quand on les connaît. */
+    private fun searchExtras(query: String, title: String, artist: String) = android.os.Bundle().apply {
+        putString(SearchManager.QUERY, query)
+        putString(MediaStore.EXTRA_MEDIA_FOCUS, when {
+            title.isNotEmpty() -> MediaStore.Audio.Media.ENTRY_CONTENT_TYPE
+            artist.isNotEmpty() -> MediaStore.Audio.Artists.ENTRY_CONTENT_TYPE
+            else -> "vnd.android.cursor.item/*"
+        })
+        if (title.isNotEmpty()) putString(MediaStore.EXTRA_MEDIA_TITLE, title)
+        if (artist.isNotEmpty()) putString(MediaStore.EXTRA_MEDIA_ARTIST, artist)
+    }
+
+    /**
+     * La session média de l'app (visible grâce à l'accès aux notifications de Claydot) : « jouer cette
+     * recherche » lui est envoyé directement. Attend un peu que la session apparaisse après l'ouverture.
+     */
+    private suspend fun playFromSession(pkg: String, query: String, extras: android.os.Bundle, audio: AudioManager?, waitForSession: Boolean = true): Boolean {
+        if (!ChatLog.accessGranted(context)) return false
+        val sessions = context.getSystemService(android.media.session.MediaSessionManager::class.java) ?: return false
+        val listener = android.content.ComponentName(context, ChatNotificationListener::class.java)
+        var controller: android.media.session.MediaController? = null
+        for (i in 0 until if (waitForSession) 10 else 1) {
+            controller = runCatching { sessions.getActiveSessions(listener) }.getOrNull()?.firstOrNull { it.packageName == pkg }
+            if (controller != null) break
+            kotlinx.coroutines.delay(300)
+        }
+        val c = controller ?: return false
+        val actions = c.playbackState?.actions ?: 0L
+        // Session qui n'annonce rien (fréquent) : on essaie quand même ; elle ignore la demande au pire.
+        if (actions != 0L && actions and android.media.session.PlaybackState.ACTION_PLAY_FROM_SEARCH == 0L) return false
+        runCatching { c.transportControls.playFromSearch(query, extras) }.onFailure { return false }
+        var waited = 0L
+        while (waited < 7_000) {
+            kotlinx.coroutines.delay(300); waited += 300
+            if (c.playbackState?.state == android.media.session.PlaybackState.STATE_PLAYING || audio?.isMusicActive == true) return true
+        }
+        return false
+    }
+
+    /** La musique joue : on revient à la conversation au lieu de rester dans l'app de musique. */
+    private fun backToClaydot() {
+        runCatching {
+            context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
+                context.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+            }
+        }
+    }
+
     private suspend fun waitForMusic(audio: AudioManager?, timeoutMs: Long): Boolean {
         if (audio == null) return false
         var waited = 0L

@@ -44,6 +44,27 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
     private val http = client.newBuilder().followRedirects(false)
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
 
+    /** Connexion par mot de passe d'application (IMAP) : marche pour tous, sans la vérification Google d'OAuth. */
+    private val imap = GmailImap()
+    private val vault by lazy { app.dotshermes.data.direct.androidApiVault(context) }
+    // Deux enregistrements chiffrés : l'adresse et le mot de passe d'application.
+    private fun imapLogin(): Pair<String, String>? = runCatching {
+        val email = vault.key(IMAP_EMAIL_ID); val password = vault.key(IMAP_ID)
+        if (email.isNullOrBlank() || password.isNullOrBlank()) null else email to password
+    }.getOrNull()
+    private val _imapEmail = MutableStateFlow(imapLogin()?.first)
+    /** L'adresse branchée par mot de passe d'application ; null sinon. */
+    val imapEmail: StateFlow<String?> = _imapEmail.asStateFlow()
+
+    /** Vérifie l'adresse et le mot de passe d'application chez Gmail, puis les garde chiffrés. */
+    suspend fun connectWithAppPassword(email: String, password: String) = withContext(Dispatchers.IO) {
+        imap.check(email, password)
+        vault.saveKey(IMAP_EMAIL_ID, email.trim())
+        vault.saveKey(IMAP_ID, password.replace(" ", ""))
+        _imapEmail.value = email.trim()
+        markConnected(true)
+    }
+
     private val _connected = MutableStateFlow(prefs.getBoolean("connected", false))
     /** L'utilisateur a branché Gmail (il peut encore falloir redonner l'accord à Google). */
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
@@ -77,6 +98,10 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
 
     /** Débranche aussitôt ici ; l'accès est révoqué chez Google (au mieux) en arrière-plan. */
     suspend fun disconnect() = withContext(Dispatchers.IO) {
+        if (_imapEmail.value != null) {
+            runCatching { vault.remove(IMAP_ID) }; runCatching { vault.remove(IMAP_EMAIL_ID) }
+            _imapEmail.value = null; markConnected(false); return@withContext
+        }
         val token = cached?.first ?: try { silentToken() } catch (_: Exception) { null }
         markConnected(false)
         if (token != null) {
@@ -102,6 +127,7 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
 
     /** Recherche Gmail (syntaxe de la barre de recherche) : expéditeur, objet, date et aperçu de chaque message. */
     suspend fun search(query: String, max: Int): JSONArray = withContext(Dispatchers.IO) {
+        imapLogin()?.let { (email, password) -> return@withContext imap.search(email, password, query, max) }
         val list = get("messages", mapOf("q" to query, "maxResults" to max.coerceIn(1, 10).toString()))
         val ids = list.optJSONArray("messages") ?: JSONArray()
         val wanted = (0 until ids.length()).mapNotNull { ids.optJSONObject(it)?.optString("id")?.takeIf(String::isNotBlank) }
@@ -121,6 +147,7 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
 
     /** Un message : en-têtes et texte brut (le HTML est réduit à son texte), tronqué. */
     suspend fun read(id: String): JSONObject = withContext(Dispatchers.IO) {
+        imapLogin()?.let { (email, password) -> return@withContext imap.read(email, password, id) }
         if (!id.matches(Regex("[A-Za-z0-9_-]{1,64}"))) throw GmailException(GmailException.Reason.NotFound)
         val full = get("messages/$id", mapOf("format" to "full"))
         val payload = full.optJSONObject("payload") ?: JSONObject()
@@ -157,6 +184,10 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
 
     companion object {
         const val GMAIL_READONLY = "https://www.googleapis.com/auth/gmail.readonly"
+        private const val IMAP_ID = "gmail-imap"
+        private const val IMAP_EMAIL_ID = "gmail-imap-address"
+        /** Page Google où l'on crée un mot de passe d'application (validation en deux étapes requise). */
+        const val APP_PASSWORDS_URL = "https://myaccount.google.com/apppasswords"
         private const val TOKEN_LIFE_MS = 50 * 60_000L
 
         /** Empreinte SHA-1 de la clé qui signe cette app : celle à déclarer dans Google Cloud. */
