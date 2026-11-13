@@ -20,7 +20,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
@@ -92,7 +91,9 @@ class AppUpdater(
         if (force) _state.value = UpdateState.Checking
         val release = try {
             withContext(Dispatchers.IO) { fetchLatest() }
-        } catch (e: IOException) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+        } catch (e: Exception) {
+            // Réseau, réponse GitHub illisible… : jamais un plantage, seulement « vérification impossible ».
             Log.w(TAG, "Vérification impossible", e)
             if (force) _state.value = UpdateState.Failed(null, context.getString(R.string.update_error_check))
             return null
@@ -133,9 +134,14 @@ class AppUpdater(
             val apk = withContext(Dispatchers.IO) { download(release) }
             _state.value = UpdateState.Installing(release)
             withContext(Dispatchers.IO) { commit(apk) }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
         } catch (e: IOException) {
             Log.w(TAG, "Mise à jour impossible", e)
             _state.value = UpdateState.Failed(release, e.message ?: context.getString(R.string.update_error_download))
+        } catch (e: Exception) {
+            // PackageInstaller (SecurityException, IllegalStateException…) : un échec affiché, réessayable.
+            Log.w(TAG, "Installation impossible", e)
+            _state.value = UpdateState.Failed(release, context.getString(R.string.update_error_install))
         } finally {
             busy.unlock()
         }
@@ -167,22 +173,17 @@ class AppUpdater(
         client.newCall(request).execute().use { response ->
             if (response.code == 404) return null // pas encore de release
             if (!response.isSuccessful) throw IOException("GitHub HTTP ${response.code}")
-            val json = JSONObject(response.body?.string().orEmpty())
-            val assets = json.optJSONArray("assets") ?: return null
-            val all = List(assets.length()) { assets.getJSONObject(it) }
-            val apk = all.firstOrNull { it.optString("name").endsWith(".apk") } ?: return null
-            val apkName = apk.optString("name")
-            return Release(
-                version = json.optString("tag_name").removePrefix("v"),
-                apkUrl = apk.optString("browser_download_url"),
-                apkSize = apk.optLong("size"),
-                sha256Url = all.firstOrNull { it.optString("name") == "$apkName.sha256" }?.optString("browser_download_url"),
-                pageUrl = json.optString("html_url"),
-            )
+            return parseLatestRelease(response.body?.string().orEmpty())
         }
     }
 
     private fun download(release: Release): File {
+        // Sans empreinte publiée, rien n'est installé : un APK incomplet ou altéré ne doit jamais arriver à Android.
+        val shaUrl = release.sha256Url ?: throw IOException(context.getString(R.string.update_error_checksum))
+        val expected = client.newCall(Request.Builder().url(shaUrl).build()).execute().use { response ->
+            if (!response.isSuccessful) throw IOException(context.getString(R.string.update_error_download))
+            sha256Of(response.body?.string().orEmpty())
+        } ?: throw IOException(context.getString(R.string.update_error_checksum))
         val dir = File(context.cacheDir, "updates").apply { deleteRecursively(); mkdirs() }
         val target = File(dir, "claydot-${release.version}.apk")
         val digest = MessageDigest.getInstance("SHA-256")
@@ -205,15 +206,10 @@ class AppUpdater(
                 }
             }
         }
-        release.sha256Url?.let { url ->
-            // Fichier `sha256sum` : « <empreinte>  <nom> ».
-            val expected = client.newCall(Request.Builder().url(url).build()).execute().use { it.body?.string().orEmpty() }
-                .trim().substringBefore(' ').lowercase()
-            val actual = digest.digest().joinToString("") { "%02x".format(it) }
-            if (expected.isNotEmpty() && expected != actual) {
-                target.delete()
-                throw IOException(context.getString(R.string.update_error_checksum))
-            }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        if (expected != actual) {
+            target.delete()
+            throw IOException(context.getString(R.string.update_error_checksum))
         }
         return target
     }

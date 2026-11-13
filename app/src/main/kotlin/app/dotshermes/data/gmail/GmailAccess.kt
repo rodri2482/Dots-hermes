@@ -75,6 +75,19 @@ class GmailAccess(private val context: Context, client: OkHttpClient = OkHttpCli
     /** Première étape du branchement : soit un jeton tout de suite, soit l'écran d'accord de Google à lancer. */
     suspend fun authorize(): AuthorizationResult = Identity.getAuthorizationClient(context).authorize(request).await()
 
+    /** Contrôle explicite et silencieux : aucun écran d'accord, aucune lecture de message, aucun jeton conservé. */
+    suspend fun diagnose(): app.dotshermes.data.direct.GmailDiagnostic {
+        if (!_connected.value) return app.dotshermes.data.direct.GmailDiagnostic.NotConnected
+        if (_imapEmail.value != null) return app.dotshermes.data.direct.GmailDiagnostic.AppPasswordConfigured
+        return try {
+            val result = authorize()
+            app.dotshermes.data.direct.gmailDiagnostic(_connected.value, result.accessToken != null, result.hasResolution())
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: com.google.android.gms.common.api.ApiException) {
+            app.dotshermes.data.direct.gmailDiagnostic(_connected.value, error = e.statusCode)
+        } catch (_: Exception) { app.dotshermes.data.direct.GmailDiagnostic.Unavailable }
+    }
+
     /** Résultat de l'écran d'accord de Google. */
     fun resultFrom(data: android.content.Intent?): AuthorizationResult =
         Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(data)

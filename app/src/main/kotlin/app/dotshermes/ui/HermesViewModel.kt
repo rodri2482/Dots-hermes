@@ -85,6 +85,10 @@ class HermesViewModel(
     val activitySnapshot: StateFlow<ActivitySnapshot?> = repository.activitySnapshot
     val usage: StateFlow<UsageWindow?> = repository.usage
     val directUsage = repository.directUsage
+    val teamProgress = repository.teamProgress
+    val teamEffort = repository.teamEffort
+    fun setTeamEffort(effort: app.dotshermes.data.direct.TeamEffort) = repository.setTeamEffort(effort)
+    suspend fun checkModel() = repository.checkModel()
 
     /** Les derniers échanges et le travail qu'ils ont déclenché, pour la vue Activité. */
     val turns: StateFlow<List<TurnSummary>> = combine(repository.messages, repository.tools, agents.hiddenTurns, agents.activeId) { messages, tools, hidden, active ->

@@ -75,6 +75,8 @@ fun HermesApp(
     val snapshot by viewModel.activitySnapshot.collectAsStateWithLifecycle()
     val usage by viewModel.usage.collectAsStateWithLifecycle()
     val directUsage by viewModel.directUsage.collectAsStateWithLifecycle()
+    val teamProgress by viewModel.teamProgress.collectAsStateWithLifecycle()
+    val teamEffort by viewModel.teamEffort.collectAsStateWithLifecycle()
     val turns by viewModel.turns.collectAsStateWithLifecycle()
     val liveTools by viewModel.liveTools.collectAsStateWithLifecycle()
     val browsing by viewModel.browsing.collectAsStateWithLifecycle()
@@ -208,6 +210,7 @@ fun HermesApp(
                 key(activeAgent, activeChat) {
                 ChatScreen(
                     state = chat,
+                    teamProgress = teamProgress,
                     gatewayFeatures = gatewayFeatures, voiceInput = false, imageInput = imageInput, requestIssue = requestIssue,
                     speaking = false, onStopSpeaking = {},
                     onNewChat = if (!gatewayFeatures) viewModel::newConversation else null,
@@ -442,6 +445,9 @@ fun HermesApp(
                             modelChoices = remember(activeAgent) { activeAgent?.let { AppContainer.agents.modelChoices(it) }.orEmpty() })
                     }
                     else -> AgentSettings(
+                        requestFailure = requestIssue?.failure,
+                        diagnosticAccount = activeAgent.orEmpty(), onCheckModel = viewModel::checkModel,
+                        teamEffort = teamEffort, onTeamEffort = viewModel::setTeamEffort,
                         gatewayFeatures = gatewayFeatures,
                         onEditDirect = { agentSheetOpen = false; viewModel.editDirectAccount() },
                         onClearConversation = if (!gatewayFeatures) ({ clearingChat = true }) else null,
@@ -516,7 +522,9 @@ private enum class RootScreen { Chat, Launch, Connect }
 @Composable
 private fun SystemBarsFor(dark: Boolean) {
     val activity = androidx.activity.compose.LocalActivity.current as? ComponentActivity ?: return
-    LaunchedEffect(dark) {
+    // Une feuille ou un menu peut rendre le focus en rétablissant le style système.
+    val focused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(dark, activity, focused) {
         val style = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
         else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
         activity.enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)

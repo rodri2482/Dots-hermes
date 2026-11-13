@@ -19,6 +19,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,7 +27,7 @@ import org.junit.Test
 class AgentTeamTest {
     /** Un enregistrement par conversation (le fil principal et celui de chaque sous-dot). */
     private class Storage : DirectAccountStorage {
-        val records = HashMap<String, DirectTranscript>()
+        val records = java.util.concurrent.ConcurrentHashMap<String, DirectTranscript>()
         override fun key(accountId: String) = "fixture-key"
         override fun saveKey(accountId: String, key: String) {}
         override fun load(accountId: String) = records[accountId] ?: DirectTranscript()
@@ -89,7 +90,7 @@ class AgentTeamTest {
     }
 
     /** Une séance d'équipe complète : plan, travail, discussion, contrôle qui signale, correction, validation, réponse. */
-    private class Session : ProviderClient {
+    private class Session(val alwaysReject: Boolean = false) : ProviderClient {
         var checks = 0
         var fixes = 0
         override suspend fun models(provider: ApiProvider, key: String) = listOf("m")
@@ -102,7 +103,7 @@ class AgentTeamTest {
                 system.contains("split a task") -> onDelta("""{"tasks":[{"dot":"Researcher","task":"find the facts"},{"dot":"Analyst","task":"make the plan"}]}""")
                 system.contains("one of Claydot's sub-dots") -> onDelta(synchronized(this) {
                     when {
-                        ask.contains("team's checker") -> { checks++; if (checks == 1) "- FIX Researcher: no source given" else "APPROVED: sourced and complete" }
+                        ask.contains("team's checker") -> { checks++; if (checks == 1 || alwaysReject) "- FIX Researcher: no source given" else "APPROVED: sourced and complete" }
                         ask.contains("teammates' work") -> "Looks fine to me, but the dates need a source."
                         ask.contains("checker found problems") -> { fixes++; "Fixed part with a source" }
                         else -> "My part: " + system.substringAfter("You are ").substringBefore(",")
@@ -182,6 +183,169 @@ class AgentTeamTest {
             assertTrue(client.lastAsk.contains("Your team could not work on this right now"))
             assertFalse(client.lastAsk.contains("Checker:"))
         }
+    }
+
+    @Test fun `unresolved checker work is kept but never labelled approved`() {
+        turn(ApiProvider.Groq, Session(alwaysReject = true), "Research this with your team", dotModel = "none") { storage, repo ->
+            assertEquals(TeamVerification.NeedsReview, repo.teamProgress.value?.verification)
+            assertEquals(TeamVerification.NeedsReview, storage.load("a").messages.last().teamReport?.verification)
+            assertTrue(repo.teamProgress.value!!.calls <= repo.teamProgress.value!!.limit)
+        }
+    }
+
+    @Test fun `stop prevents a cancellation resistant worker from saving a late reply`() = runBlocking {
+        val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val base = Session()
+        val slow = object : ProviderClient by base {
+            override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+                extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit,
+                onDelta: (String) -> Unit): List<ApiToolCall> {
+                if (turns.last().text == "New task") { onDelta("NEW ANSWER"); return emptyList() }
+                if (turns.first().text.contains("one of Claydot's sub-dots")) {
+                    started.complete(Unit)
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { delay(150); onDelta("LATE REPLY") }
+                    return emptyList()
+                }
+                return base.streamTools(provider, key, model, turns, extra, tools, onLimits, onTokens, onDelta)
+            }
+        }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "m", scope, storage, slow, peers = Peers())
+            repo.restore(); repo.send("Work together")
+            withTimeout(5000) { started.await() }
+            repo.stopTurn()
+            assertEquals(TeamStage.Stopped, repo.teamProgress.value?.stage)
+            repo.send("New task")
+            delay(350)
+            assertNull(repo.teamProgress.value)
+            assertEquals("NEW ANSWER", storage.load("a").messages.last().text)
+            assertFalse(storage.records.values.flatMap { it.messages }.any { it.text.contains("LATE REPLY") })
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `quick team counts all continuations and shows only retrieved source links`() = runBlocking {
+        val teamCalls = java.util.concurrent.atomic.AtomicInteger()
+        val base = Session()
+        val evidenceClient = object : ProviderClient by base {
+            override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+                extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit,
+                onDelta: (String) -> Unit): List<ApiToolCall> {
+                val system = turns.first().text
+                if (system.contains("split a task")) teamCalls.incrementAndGet()
+                if (system.contains("one of Claydot's sub-dots")) {
+                    teamCalls.incrementAndGet()
+                    if (tools != null) return listOf(ApiToolCall("read", "read_webpage", """{"url":"https://example.com/evidence"}"""))
+                    onDelta(if (turns.last().text.contains("team's checker")) "APPROVED: supported by the retrieved page" else "Sourced findings")
+                    return emptyList()
+                }
+                return base.streamTools(provider, key, model, turns, extra, tools, onLimits, onTokens, onDelta)
+            }
+        }
+        val research = object : DirectTools {
+            override fun definitions() = JSONArray().put(JSONObject().put("type", "function").put("function", JSONObject().put("name", "read_webpage")))
+            override fun label(call: ApiToolCall) = "Research"
+            override suspend fun run(call: ApiToolCall) = """{"url":"https://example.com/evidence","title":"Evidence","text":"A source actually returned by a fake tool"}"""
+        }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "m", scope, storage, evidenceClient, peers = Peers(), researchTools = { research })
+            repo.restore(); repo.setTeamEffort(TeamEffort.Quick); repo.send("Work together")
+            withTimeout(5000) { while (repo.teamProgress.value?.stage != TeamStage.Done || repo.activity.value != AgentActivity.Idle) delay(10) }
+            val report = repo.teamProgress.value!!
+            assertEquals(teamCalls.get(), report.calls)
+            assertEquals(11, report.calls)
+            assertEquals(TeamVerification.Verified, report.verification)
+            assertEquals(listOf("https://example.com/evidence"), report.sources.map { it.url })
+            assertEquals(report, repo.messages.value.last().teamReport)
+            assertEquals(report, storage.load("a").messages.last().teamReport)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `a full roster without a checker produces a persisted needs review report`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "m", scope, storage, Session(), peers = Peers())
+            repo.restore()
+            repeat(20) { n ->
+                repo.createDot(SubDotDraft("Helper $n", DotKind.Temporary, "research", "Nuage", "sky", "WingedCap"))
+            }
+            repo.selectChat(MAIN_CHAT); repo.send("Work together")
+            withTimeout(5000) { while (repo.activity.value != AgentActivity.Idle || storage.load("a").messages.isEmpty()) delay(10) }
+            assertEquals(TeamVerification.NeedsReview, repo.teamProgress.value?.verification)
+            assertEquals(repo.teamProgress.value, storage.load("a").messages.last().teamReport)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `an unfinished checker tool round cannot approve the team`() = runBlocking {
+        val base = Session()
+        val client = object : ProviderClient by base {
+            override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+                extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit,
+                onDelta: (String) -> Unit): List<ApiToolCall> {
+                if (turns.first().text.contains("one of Claydot's sub-dots") && turns.last().text.contains("team's checker")) {
+                    onDelta("APPROVED: I will check the page next")
+                    return listOf(ApiToolCall("unfinished", "read_webpage", """{"url":"https://example.com"}"""))
+                }
+                return base.streamTools(provider, key, model, turns, extra, tools, onLimits, onTokens, onDelta)
+            }
+        }
+        val research = object : DirectTools {
+            override fun definitions() = JSONArray().put(JSONObject().put("function", JSONObject().put("name", "read_webpage")))
+            override fun label(call: ApiToolCall) = "Research"
+            override suspend fun run(call: ApiToolCall) = """{"url":"https://example.com","text":"Retrieved evidence"}"""
+        }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "m", scope, storage, client, peers = Peers(), researchTools = { research })
+            repo.restore(); repo.setTeamEffort(TeamEffort.Quick); repo.send("Work together")
+            withTimeout(5000) { while (repo.teamProgress.value?.stage != TeamStage.Done || repo.activity.value != AgentActivity.Idle) delay(10) }
+            assertEquals(TeamVerification.NeedsReview, repo.teamProgress.value?.verification)
+            assertEquals("", repo.teamProgress.value?.checker)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `connection check uses only model metadata and never generates a response`() = runBlocking {
+        val base = Session()
+        var metadataCalls = 0
+        var listed = true
+        var problem: ApiFailure? = null
+        val client = object : ProviderClient by base {
+            override suspend fun models(provider: ApiProvider, key: String): List<String> {
+                metadataCalls++
+                problem?.let { throw ApiException(it) }
+                return if (listed) listOf("m") else emptyList()
+            }
+            override suspend fun streamTools(provider: ApiProvider, key: String, model: String, turns: List<ApiTurn>,
+                extra: List<JSONObject>, tools: JSONArray?, onLimits: (ProviderLimits) -> Unit, onTokens: (Long) -> Unit,
+                onDelta: (String) -> Unit): List<ApiToolCall> = error("Diagnostics must not generate a response")
+        }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val storage = Storage()
+            val repo = DirectChatRepository("a", ApiProvider.Groq, "m", scope, storage, client)
+            assertEquals(DiagnosticState.Verified, repo.checkModel().state)
+            assertEquals(1, metadataCalls)
+            listed = false
+            assertEquals(false, repo.checkModel().listed)
+            assertEquals(DiagnosticState.Configured, repo.checkModel().state)
+            val local = DirectChatRepository("local", ApiProvider.Local, "m", scope, storage, client)
+            assertEquals(DiagnosticState.NeedsAttention, local.checkModel().state)
+            problem = ApiFailure.InvalidKey
+            assertEquals(ApiFailure.InvalidKey, repo.checkModel().failure)
+            assertEquals(DiagnosticState.NeedsAttention, repo.checkModel().state)
+            problem = ApiFailure.Network
+            assertEquals(DiagnosticState.UnableToCheck, repo.checkModel().state)
+            val missingStorage = object : DirectAccountStorage by storage { override fun key(accountId: String): String? = null }
+            val missing = DirectChatRepository("missing", ApiProvider.Groq, "m", scope, missingStorage, client)
+            val before = metadataCalls
+            assertEquals(DiagnosticState.Missing, missing.checkModel().state)
+            assertEquals(before, metadataCalls)
+        } finally { scope.cancel() }
     }
 
     @Test fun `agents cannot loop but one agent can ask several at once`() {

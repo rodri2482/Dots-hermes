@@ -90,6 +90,14 @@ fun AgentSettings(
     onOpenChats: (() -> Unit)? = null,
     /** Modèle de routine touché dans les réglages : la demande part dans la conversation. */
     onRoutineTemplate: (String) -> Unit = {},
+    requestFailure: app.dotshermes.data.direct.ApiFailure? = null,
+    diagnosticAccount: String = "",
+    onCheckModel: suspend () -> app.dotshermes.data.direct.ModelDiagnosticResult = {
+        app.dotshermes.data.direct.ModelDiagnosticResult(app.dotshermes.data.direct.DiagnosticState.UnableToCheck)
+    },
+    /** Compte direct : Rapide ou Approfondi pour les séances d'équipe ; null = section masquée. */
+    teamEffort: app.dotshermes.data.direct.TeamEffort? = null,
+    onTeamEffort: (app.dotshermes.data.direct.TeamEffort) -> Unit = {},
 ) {
     val palette = LocalDotPalette.current
     val connected = connection as? ConnectionState.Connected
@@ -199,9 +207,13 @@ fun AgentSettings(
 
             // Compte direct : Gmail et l'accès au téléphone. Le ton suit l'utilisateur ; mémoire, routines et accès
             // se règlent dans la conversation (l'IA demande ce qu'il lui faut par une carte).
+            if (!gatewayFeatures && teamEffort != null) TeamEffortSettings(teamEffort, onTeamEffort)
             if (!gatewayFeatures && connected?.gatewayUrl in setOf(app.dotshermes.data.direct.ApiProvider.Groq.title, app.dotshermes.data.direct.ApiProvider.Local.title)) {
                 GmailSettings(app.dotshermes.AppContainer.gmail)
                 PhoneSettings(app.dotshermes.AppContainer.phoneActions)
+            }
+            if (!gatewayFeatures) androidx.compose.runtime.key(diagnosticAccount, profile.tagline) {
+                ConnectionChecks(connection, requestFailure, profile.tagline, onEditDirect, onCheckModel)
             }
 
             SectionLabel(stringResource(R.string.settings_app))
@@ -347,6 +359,25 @@ private fun ThemePicker(selected: ThemeMode, onSelect: (ThemeMode) -> Unit) {
                     .clickable { onSelect(mode) }
                     .padding(vertical = 8.dp),
             )
+        }
+    }
+}
+
+/** Rapide ou Approfondi : borne les séances d'équipe (aides, contrôles, appels, durée) ; se choisit avant la demande. */
+@Composable
+private fun TeamEffortSettings(effort: app.dotshermes.data.direct.TeamEffort, onEffort: (app.dotshermes.data.direct.TeamEffort) -> Unit) {
+    SectionLabel(stringResource(R.string.team_title))
+    GroupedCard {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                app.dotshermes.data.direct.TeamEffort.entries.forEach { choice ->
+                    androidx.compose.material3.FilterChip(selected = choice == effort, onClick = { onEffort(choice) }, label = {
+                        Text(stringResource(if (choice == app.dotshermes.data.direct.TeamEffort.Quick) R.string.team_quick else R.string.team_deep))
+                    })
+                }
+            }
+            Text(stringResource(R.string.team_limits, effort.calls, effort.timeoutMs / 1000),
+                style = MaterialTheme.typography.bodySmall, color = Ink.Secondary)
         }
     }
 }

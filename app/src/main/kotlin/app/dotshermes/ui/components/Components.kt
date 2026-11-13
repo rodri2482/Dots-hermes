@@ -2,14 +2,18 @@ package app.dotshermes.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +34,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.dotshermes.ui.theme.Ink
+import app.dotshermes.ui.theme.DotsDimensions
+import app.dotshermes.ui.theme.DotsMotion
 
 /** Carte de liste groupée iOS (fond uni, coins arrondis, lignes séparées par [Hairline]). */
 @Composable
@@ -38,7 +44,7 @@ fun GroupedCard(
     color: Color = Ink.Raised,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(color), content = content)
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(DotsDimensions.CardRadius)).background(color), content = content)
 }
 
 @Composable
@@ -64,7 +70,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 fun Modifier.pressScale(interaction: MutableInteractionSource): Modifier {
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f,
-        if (pressed) androidx.compose.animation.core.tween(70) else androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+        if (pressed) androidx.compose.animation.core.tween(DotsMotion.Press) else androidx.compose.animation.core.tween(DotsMotion.Release, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
         label = "press")
     return graphicsLayer { scaleX = scale; scaleY = scale }
 }
@@ -84,13 +90,13 @@ fun PillButton(
     Box(
         modifier = modifier
             .pressScale(interaction)
-            .height(height)
+            .heightIn(min = height)
             .clip(CircleShape)
             .background(if (enabled) container else container.copy(alpha = 0.45f))
             .clickable(interactionSource = interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = MaterialTheme.typography.labelLarge, color = content)
+        Text(text, style = MaterialTheme.typography.labelLarge, color = content, modifier = Modifier.padding(vertical = 12.dp))
     }
 }
 
@@ -100,16 +106,23 @@ fun CircleIconButton(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: Dp = 38.dp,
+    size: Dp = DotsDimensions.IconButton,
     container: Color = Ink.Fill,
     tint: Color = Ink.Primary,
+    enabled: Boolean = true,
+    iconSize: Dp = size * 0.5f,
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
     Box(
-        modifier = modifier.pressScale(interaction).size(size).clip(CircleShape).background(container)
-            .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = onClick),
+        modifier = modifier.sizeIn(minWidth = DotsDimensions.TouchTarget, minHeight = DotsDimensions.TouchTarget)
+            .graphicsLayer { alpha = if (enabled) 1f else 0.35f }
+            .clickable(interactionSource = interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(size * 0.5f))
+        Box(Modifier.pressScale(interaction).size(size).clip(CircleShape).background(container)
+            .then(if (focused) Modifier.border(1.dp, Ink.Secondary, CircleShape) else Modifier), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(iconSize))
+        }
     }
 }

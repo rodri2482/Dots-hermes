@@ -19,7 +19,7 @@ val LocalDotPalette = compositionLocalOf { DotPalettes.Tangerine }
 fun DotsTheme(palette: DotPalette, dark: Boolean = false, content: @Composable () -> Unit) {
     // Avant le contenu : chaque couleur Ink lue pendant cette composition est déjà la bonne.
     Ink.dark = dark
-    val spec = tween<Color>(durationMillis = 450)
+    val spec = tween<Color>(durationMillis = DotsMotion.Palette)
     val base by animateColorAsState(palette.base, spec, label = "base")
     // En sombre, le pastel devient une teinte profonde de la couleur, et l'accent s'éclaircit pour rester lisible.
     val deep by animateColorAsState(if (dark) lerp(palette.base, Color.White, 0.3f) else palette.deep, spec, label = "deep")
@@ -31,16 +31,38 @@ fun DotsTheme(palette: DotPalette, dark: Boolean = false, content: @Composable (
         primary = base,
         onPrimary = onBase,
         primaryContainer = light,
+        onPrimaryContainer = Ink.Primary,
+        inversePrimary = deep,
         secondary = deep,
+        onSecondary = Ink.Surface,
+        secondaryContainer = light,
+        onSecondaryContainer = Ink.Primary,
+        tertiary = deep,
+        onTertiary = Ink.Surface,
+        tertiaryContainer = light,
+        onTertiaryContainer = Ink.Primary,
         background = Ink.Surface,
         onBackground = Ink.Primary,
         surface = Ink.Raised,
+        surfaceTint = Color.Transparent,
         onSurface = Ink.Primary,
         surfaceVariant = Ink.Fill,
         onSurfaceVariant = Ink.Secondary,
         outline = Ink.Separator,
         outlineVariant = Ink.Separator,
+        surfaceDim = Ink.Grouped,
+        surfaceBright = Ink.Raised,
+        surfaceContainerLowest = Ink.Surface,
         surfaceContainerLow = Ink.Grouped,
+        surfaceContainer = Ink.Raised,
+        surfaceContainerHigh = Ink.Fill,
+        surfaceContainerHighest = Ink.AgentBubble,
+        inverseSurface = if (dark) Color(0xFFF2F2F7) else Color(0xFF1C1C20),
+        inverseOnSurface = if (dark) Color(0xFF111114) else Color(0xFFF2F2F7),
+        error = Ink.Danger,
+        onError = Color(0xFF111114),
+        errorContainer = lerp(Ink.Raised, Ink.Danger, 0.12f),
+        onErrorContainer = Ink.Primary,
     )
 
     CompositionLocalProvider(LocalDotPalette provides animated) {

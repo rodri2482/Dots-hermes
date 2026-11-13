@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,7 +111,7 @@ fun ModelMenu(
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val gap = with(LocalDensity.current) { 10.dp.roundToPx() }
 
-    Box {
+    Box(Modifier.widthIn(max = 160.dp)) {
         Row(
             Modifier.clip(CircleShape).background(Ink.Raised.copy(alpha = 0.85f)).border(0.5.dp, Ink.Separator, CircleShape)
                 .clickable(role = Role.Button) { open = !open }
@@ -122,7 +123,7 @@ fun ModelMenu(
             val openLabel = stringResource(R.string.model_menu_open)
             Text(shortModelName(active).ifEmpty { stringResource(R.string.conn_online) }, style = MaterialTheme.typography.labelMedium,
                 color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.semantics { contentDescription = openLabel + ": " + shortModelName(active) })
+                modifier = Modifier.weight(1f, fill = false).semantics { contentDescription = openLabel + ": " + shortModelName(active) })
         }
         if (shown.currentState || shown.targetState) Popup(
             // Centrée sur l'écran (et non sous la pastille), juste sous l'en-tête.

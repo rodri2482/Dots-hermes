@@ -43,6 +43,10 @@ class RoutingChatRepository(
     override val imageInput = follow(scope) { it.imageInput }
     override val directUsage = follow(scope) { it.directUsage }
     override val requestIssue = follow(scope) { it.requestIssue }
+    override val teamProgress = follow(scope) { it.teamProgress }
+    override val teamEffort = follow(scope) { it.teamEffort }
+    override fun setTeamEffort(effort: app.dotshermes.data.direct.TeamEffort) = active.value.setTeamEffort(effort)
+    override suspend fun checkModel() = active.value.checkModel()
     override fun retryRequest() = active.value.retryRequest()
     override fun clearHistory() = active.value.clearHistory()
     override val conversations = follow(scope) { it.conversations }

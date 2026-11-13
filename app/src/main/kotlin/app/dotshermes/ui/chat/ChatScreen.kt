@@ -26,6 +26,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -40,6 +41,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.displayCutout
@@ -77,6 +79,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -84,6 +90,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.dotshermes.data.model.AgentActivity
 import app.dotshermes.data.model.ConnectionState
@@ -95,6 +102,10 @@ import app.dotshermes.ui.dot.ClayDot
 import app.dotshermes.ui.dot.DotMood
 import app.dotshermes.ui.theme.Ink
 import app.dotshermes.ui.theme.LocalDotPalette
+import app.dotshermes.ui.theme.DotsDimensions
+import app.dotshermes.ui.theme.DotsMotion
+import app.dotshermes.ui.theme.LocalChatBubbleMaxWidth
+import app.dotshermes.ui.theme.chatBubbleMaxWidth
 import app.dotshermes.voice.Playback
 import app.dotshermes.data.model.MAIN_CHAT
 import app.dotshermes.ui.dots.HeroDot
@@ -163,6 +174,8 @@ fun ChatScreen(
     connection: ConnectionState.Connected?,
     appearance: DotAppearance,
     onSend: (String) -> Unit,
+    /** Séance d'équipe en cours : une carte au bas du fil (étape, équipiers, appels, Arrêter). */
+    teamProgress: app.dotshermes.data.direct.TeamProgress? = null,
     /** Message trouvé par la recherche : le fil défile jusqu'à lui, une fois. */
     scrollTarget: String? = null,
     onScrolled: () -> Unit = {},
@@ -308,8 +321,9 @@ fun ChatScreen(
 
     // Dans le fil, l'accent est le bleu commun ; la mascotte de l'en-tête garde sa couleur.
     androidx.compose.runtime.CompositionLocalProvider(LocalDotPalette provides app.dotshermes.ui.theme.chatAccent(Ink.dark)) {
-    Box(Modifier.fillMaxSize().background(Ink.Surface)
+    BoxWithConstraints(Modifier.fillMaxSize().background(Ink.Surface)
         .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.displayCutout.only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal))) {
+      androidx.compose.runtime.CompositionLocalProvider(LocalChatBubbleMaxWidth provides chatBubbleMaxWidth(maxWidth)) {
         Box(Modifier.fillMaxWidth().height(320.dp).background(Brush.verticalGradient(listOf(palette.light, Ink.Surface))))
         Column(Modifier.fillMaxSize().imePadding()) {
           Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -317,12 +331,12 @@ fun ChatScreen(
                 state = listState,
                 reverseLayout = true,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = headerHeight, bottom = listBottom),
+                contentPadding = PaddingValues(start = DotsDimensions.ThreadMargin, end = DotsDimensions.ThreadMargin, top = headerHeight, bottom = listBottom),
             ) {
                 items(state.rows, key = { it.key }, contentType = { it::class }) { row ->
                     // Pendant qu'une réponse grandit, pas d'animation de position : les bulles au-dessus
                     // suivaient chaque nouveau mot avec un ressort, d'où un texte qui tremblait.
-                    Box(Modifier.animateItem(fadeInSpec = tween(220), fadeOutSpec = tween(150),
+                    Box(Modifier.animateItem(fadeInSpec = tween(DotsMotion.MessageEnter), fadeOutSpec = tween(DotsMotion.MessageExit),
                         placementSpec = if (streamingReply) null else spring(stiffness = Spring.StiffnessMediumLow, visibilityThreshold = IntOffset.VisibilityThreshold)).fillMaxWidth()) {
                         when (row) {
                             is ChatRow.Day -> DaySeparator(dayLabel(row))
@@ -334,7 +348,7 @@ fun ChatScreen(
                                         runCatching { focusComposer.requestFocus() }
                                     }
                                 },
-                            ) { MessageRow(
+                            ) { Column { MessageRow(
                                 row = row,
                                 reactionsEnabled = true,
                                 speakerLook = if (row.showSpeaker) lookFor(row.message) else null,
@@ -352,7 +366,12 @@ fun ChatScreen(
                                         runCatching { focusComposer.requestFocus() }
                                     } } },
                                 onListen = onListen?.let { listen -> (row.message.content as? app.dotshermes.data.model.MessageContent.Text)?.let { { listen(it.text) } } },
-                            ) }
+                            )
+                                // Le rapport d'équipe reste sous sa réponse (statut du contrôle, sources, notes), même dans l'historique.
+                                row.message.teamReport?.let { report ->
+                                    TeamStatusCard(report, report.effort, false, {}, {}, showEffort = false)
+                                }
+                            } }
                             is ChatRow.Tools -> ToolTrail(
                                 row,
                                 screen = screen.takeIf { row.key == newestToolsKey && row.calls.any { it.kind == ToolKind.Web } },
@@ -362,6 +381,9 @@ fun ChatScreen(
                             is ChatRow.Older -> OlderMessages(row.hasMore, state.messageCount, onLoadOlder)
                         }
                     }
+                }
+                if (!gatewayFeatures && activeChat == MAIN_CHAT) teamProgress?.takeIf { it.running }?.let { live ->
+                    item(key = "team-live") { TeamStatusCard(live, live.effort, true, {}, onStopRequest, showEffort = false) }
                 }
             }
             // L'en-tête garde la couleur de la mascotte (ligne d'état, menu des modèles) ; le fil, l'accent bleu.
@@ -457,6 +479,7 @@ fun ChatScreen(
         }
     }
     }
+    }
     if (roomSheetOpen) {
         RoomSheet(
             candidates = state.roomCandidates,
@@ -497,8 +520,10 @@ private fun CallMascots(palette: app.dotshermes.ui.theme.DotPalette, me: DotAppe
     )
     val peerAlpha by androidx.compose.animation.core.animateFloatAsState(if (call.connected) 1f else 0.45f, tween(350), label = "peer-alpha")
     val talking = app.dotshermes.ui.dot.DotMood.Talking
+    BoxWithConstraints(Modifier.widthIn(max = 152.dp)) {
+    val mascotSize = ((maxWidth - 44.dp) / 2).coerceIn(0.dp, 54.dp)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        ClayDot(palette, Modifier.size(54.dp), mood = if (call.connected) talking else app.dotshermes.ui.dot.DotMood.Thinking,
+        ClayDot(palette, Modifier.size(mascotSize), mood = if (call.connected) talking else app.dotshermes.ui.dot.DotMood.Thinking,
             accessory = me.accessory, species = me.species, showShadow = false)
         Box(
             Modifier.graphicsLayer { val s = if (call.connected) 1f else beat; scaleX = s; scaleY = s }
@@ -508,8 +533,9 @@ private fun CallMascots(palette: app.dotshermes.ui.theme.DotPalette, me: DotAppe
             Icon(if (call.mode == app.dotshermes.data.direct.CallMode.Call) Icons.Rounded.Call else Icons.Rounded.ChatBubble,
                 null, tint = Color.White, modifier = Modifier.size(17.dp))
         }
-        ClayDot(call.peer.palette, Modifier.size(54.dp).graphicsLayer { alpha = peerAlpha }, mood = if (call.connected) talking else app.dotshermes.ui.dot.DotMood.Idle,
+        ClayDot(call.peer.palette, Modifier.size(mascotSize).graphicsLayer { alpha = peerAlpha }, mood = if (call.connected) talking else app.dotshermes.ui.dot.DotMood.Idle,
             accessory = call.peer.accessory, species = call.peer.species, showShadow = false)
+    }
     }
 }
 
@@ -535,6 +561,9 @@ private fun ChatHeader(
     agentCall: AgentCallUi? = null,
 ) {
     val palette = LocalDotPalette.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val identityWidth = (maxWidth - 20.dp - DotsDimensions.HeaderSideMin * 2)
+        .coerceIn(DotsDimensions.HeaderMascot, DotsDimensions.HeaderIdentityMax)
     Column(
         modifier
             .fillMaxWidth()
@@ -553,6 +582,7 @@ private fun ChatHeader(
             horizontalAlignment = Alignment.CenterHorizontally,
             // Pas de découpe ici : les dots voisins du hero dépassent à gauche et à droite.
             modifier = Modifier
+                .widthIn(max = identityWidth)
                 .clickable(onClick = onOpenAgent)
                 .padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
@@ -564,11 +594,11 @@ private fun ChatHeader(
                 label = "agent-call",
             ) { inCall ->
                 if (inCall && agentCall != null) CallMascots(palette, appearance, agentCall)
-                else if (heroDots.size > 1) HeroDots(heroDots, activeChat, activity.toMood(), 68.dp, onSwitch = onSwitchDot)
-                else ClayDot(palette, Modifier.mascotElement().size(68.dp), mood = activity.toMood(), accessory = appearance.accessory, species = appearance.species)
+                else if (heroDots.size > 1) HeroDots(heroDots, activeChat, activity.toMood(), DotsDimensions.HeaderMascot, onSwitch = onSwitchDot)
+                else ClayDot(palette, Modifier.mascotElement().size(DotsDimensions.HeaderMascot), mood = activity.toMood(), accessory = appearance.accessory, species = appearance.species)
             }
             if (onOpenAgents == null) {
-                Text(name, style = MaterialTheme.typography.titleSmall, color = Ink.Primary)
+                Text(name, style = MaterialTheme.typography.titleSmall, color = Ink.Primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             } else {
                 // Changer d'agent (un autre profil Hermes) : par le nom, à part de la mascotte et du « … »,
                 // qui restent ceux des dots de l'agent affiché.
@@ -580,7 +610,8 @@ private fun ChatHeader(
                         .clickable(onClickLabel = switchLabel, onClick = onOpenAgents)
                         .padding(start = 8.dp, end = 2.dp),
                 ) {
-                    Text(name, style = MaterialTheme.typography.titleSmall, color = Ink.Primary)
+                    Text(name, style = MaterialTheme.typography.titleSmall, color = Ink.Primary, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     Icon(Icons.Rounded.ExpandMore, switchLabel, tint = Ink.Secondary, modifier = Modifier.size(18.dp))
                     if (otherAgentsUnread > 0) {
                         Box(Modifier.size(8.dp).background(Ink.Danger, CircleShape))
@@ -590,7 +621,7 @@ private fun ChatHeader(
             AnimatedContent(
                 // En plein débat, l'en-tête annonce qui a la parole ; le dot de la conversation reste au centre.
                 targetState = agentCall?.let { callLabel(it) } ?: speakingName?.let { stringResource(R.string.room_speaking, it) } ?: activity.statusLabel(),
-                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
+                transitionSpec = { fadeIn(tween(DotsMotion.StatusEnter)) togetherWith fadeOut(tween(DotsMotion.StatusExit)) },
                 label = "status",
             ) { label ->
                 app.dotshermes.ui.components.ToolStatusLine(
@@ -600,7 +631,7 @@ private fun ChatHeader(
                 )
             }
         }
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
             CircleIconButton(Icons.Rounded.Insights, stringResource(R.string.activity_title), onOpenActivity, container = Ink.Raised.copy(alpha = 0.85f))
             Box {
                 CircleIconButton(Icons.Rounded.MoreHoriz, stringResource(R.string.cd_my_dots), onOpenAgent, container = Ink.Raised.copy(alpha = 0.85f))
@@ -609,6 +640,7 @@ private fun ChatHeader(
                 }
             }
         }
+    }
     }
     }
 }
@@ -753,25 +785,29 @@ private fun Composer(
             attachment?.let { AttachmentPreview(it, onRemoveAttachment) }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             CircleIconButton(
                 icon = Icons.Rounded.Add,
                 contentDescription = stringResource(R.string.cd_suggestions),
                 onClick = onToggleSuggestions,
-                size = 40.dp,
+                size = DotsDimensions.ComposerHeight,
                 modifier = Modifier.graphicsLayer { rotationZ = plusRotation },
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(4.dp))
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Ink.Fill)
+                    .heightIn(min = DotsDimensions.TouchTarget)
+                    // Cible de 48 dp, mais silhouette de 40 dp comme dans la référence.
+                    .drawBehind {
+                        val inset = 4.dp.toPx()
+                        val radius = DotsDimensions.ComposerRadius.toPx()
+                        drawRoundRect(Ink.Fill, Offset(0f, inset), Size(size.width, size.height - inset * 2), CornerRadius(radius, radius))
+                    }
                     .padding(start = 16.dp, end = 4.dp),
-                verticalAlignment = Alignment.Bottom,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(1f).padding(vertical = 9.dp)) {
                     if (draft.isEmpty()) {
@@ -782,6 +818,7 @@ private fun Composer(
                                 else -> stringResource(R.string.room_placeholder)
                             },
                             style = MaterialTheme.typography.bodyLarge, color = Ink.Secondary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
                     // Texte posé par l'app (Modifier un message, une suggestion) : le curseur va à la fin, pas au début.
@@ -802,7 +839,7 @@ private fun Composer(
                     voiceEnabled && sendingEnabled -> ComposerAction.Mic
                     else -> ComposerAction.Idle
                 }
-                Box(Modifier.padding(bottom = 4.dp).size(32.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.align(Alignment.Bottom).size(DotsDimensions.TouchTarget), contentAlignment = Alignment.Center) {
                 AnimatedContent(
                     targetState = action,
                     transitionSpec = { (scaleIn(initialScale = 0.6f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.6f) + fadeOut()) },
@@ -824,18 +861,14 @@ private fun Composer(
 
 private enum class ComposerAction { Send, Mic, Idle }
 
-/** Bouton rond de 32 dp dans le champ de saisie, comme dans l'app d'origine (envoi plein, micro nu). */
+/** Dessin de 32 dp et cible indépendante de 48 dp : pas de chevauchement avec le texte. */
 @Composable
 private fun ComposerButton(icon: ImageVector, label: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val palette = LocalDotPalette.current
-    Box(
-        Modifier.size(32.dp).clip(CircleShape).graphicsLayer { alpha = if (enabled) 1f else 0.35f }
-            .then(if (filled) Modifier.background(palette.base) else Modifier)
-            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, label, tint = if (filled) palette.onBase else palette.deep, modifier = Modifier.size(if (filled) 18.dp else 22.dp))
-    }
+    CircleIconButton(icon, label, onClick, size = DotsDimensions.ComposerAction,
+        container = if (filled) palette.base else Color.Transparent,
+        tint = if (filled) palette.onBase else palette.deep, enabled = enabled,
+        iconSize = if (filled) 18.dp else 22.dp)
 }
 
 /** Enregistrement en cours : corbeille, point rouge et chrono, onde en direct, envoi. */

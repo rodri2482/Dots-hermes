@@ -72,7 +72,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
@@ -86,6 +85,8 @@ import app.dotshermes.data.model.MessageContent
 import app.dotshermes.data.model.Sender
 import app.dotshermes.ui.theme.Ink
 import app.dotshermes.ui.theme.LocalDotPalette
+import app.dotshermes.ui.theme.DotsDimensions
+import app.dotshermes.ui.theme.LocalChatBubbleMaxWidth
 import app.dotshermes.voice.Playback
 import androidx.compose.ui.res.stringResource
 import app.dotshermes.R
@@ -206,8 +207,8 @@ private fun TextBubble(
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
-    val round = 20.dp
-    val tight = 6.dp
+    val round = DotsDimensions.BubbleRadius
+    val tight = DotsDimensions.GroupedBubbleRadius
     val shape = if (fromUser) {
         RoundedCornerShape(topStart = round, topEnd = if (groupedWithPrev) tight else round, bottomEnd = if (groupedWithNext) tight else round, bottomStart = round)
     } else {
@@ -215,13 +216,8 @@ private fun TextBubble(
     }
     val reactions = if (reactionsEnabled) message.reactions.values.distinct() else emptyList()
 
-    // Largeur de la bulle : 296.dp sur téléphone, mais on laisse respirer les grands
-    // écrans (tablette, paysage) au lieu de garder une colonne étroite au milieu.
-    // LocalConfiguration plutôt que BoxWithConstraints : ici on veut la largeur de l'écran,
-    // pas la largeur de la bulle, et surtout ne pas toucher à l'alignement Start/End
-    // de la Column parente (une bulle fillMaxWidth() casserait l'alignement à droite).
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
-    val bubbleMaxWidth = if (screenWidthDp < 600.dp) 296.dp else (screenWidthDp * 0.72f).coerceIn(296.dp, 720.dp)
+    // La limite vient du conteneur du fil, en conservant l'alignement naturel des bulles.
+    val bubbleMaxWidth = LocalChatBubbleMaxWidth.current
 
     // Appui long n'importe où sur la bulle : le menu (réactions, Copier, Modifier, Sélectionner le texte),
     // jamais une sélection de texte d'emblée. Double toucher : ❤️.
@@ -245,7 +241,7 @@ private fun TextBubble(
                     onClick = {},
                     onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true },
                 )
-                .padding(horizontal = 14.dp, vertical = 9.dp),
+                .padding(horizontal = DotsDimensions.BubbleHorizontalPadding, vertical = DotsDimensions.BubbleVerticalPadding),
         ) {
             val ink = if (fromUser) palette.onBase else Ink.Primary
             Column {

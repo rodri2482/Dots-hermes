@@ -21,7 +21,9 @@ class EncryptedAccountStorageTest {
             store.saveKey("account-a", "fixture-private-key")
             val history = DirectTranscript(listOf(
                 DirectEntry("u1", "user", "private prompt", 1000, DirectEntryState.Complete),
-                DirectEntry("a1", "assistant", "partial reply", 1001, DirectEntryState.Failed, "u1"),
+                DirectEntry("a1", "assistant", "partial reply", 1001, DirectEntryState.Failed, "u1",
+                    teamReport = TeamProgress(stage = TeamStage.Done, verification = TeamVerification.NeedsReview,
+                        sources = listOf(TeamSource("Retrieved page", "https://example.com/evidence", true)), checker = "Missing a source")),
             ), "u1", ApiFailure.Network, ProviderLimits(1000, 1000, 999, 2000, 8000, 0, 2000), 2000, quotaScope(ApiProvider.Groq, "chosen", "fixture-key"))
             store.save("account-a", history)
             val restored = EncryptedAccountStorage(EncryptedRecords(root, keys))
@@ -58,6 +60,40 @@ class EncryptedAccountStorageTest {
     @Test fun `invalid roles cannot enter provider conversation context`() {
         assertThrows(IllegalArgumentException::class.java) {
             DirectEntry("entry", "system", "untrusted role", 1, DirectEntryState.Complete)
+        }
+    }
+
+    /** Mise à jour depuis 0.3.0.8 : ses conversations n'ont pas de « team_report » ; un rapport abîmé n'efface rien. */
+    @Test fun `history saved by 0_3_0_8 and damaged team reports still load`() {
+        val root = Files.createTempDirectory("claydot-account-").toFile()
+        val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+        val keys = object : RecordKeys {
+            override fun get(accountId: String, create: Boolean): SecretKey? = key
+            override fun remove(accountId: String) {}
+        }
+        try {
+            val records = EncryptedRecords(root, keys)
+            val store = EncryptedAccountStorage(records)
+            // Enregistrement au format exact de 0.3.0.8 (même schéma, sans le champ ajouté depuis).
+            records.write("a", AccountRecord.History, """{"version":1,"retry_user_id":null,"failure":null,"messages":[
+                {"id":"u1","role":"user","text":"Plan a weekend","timestamp_ms":1000,"state":"Complete","reply_to":null},
+                {"id":"d1","role":"assistant","text":"My part","timestamp_ms":1001,"state":"Complete","reply_to":null,"speaker":"abc123","speaker_name":"Nova"},
+                {"id":"a1","role":"assistant","text":"Final answer","timestamp_ms":1002,"state":"Complete","reply_to":"u1","model":"gpt-oss-120b","duration_ms":900,"tokens":120,"reaction":"👍"}]}""".toByteArray())
+            val old = store.load("a")
+            assertEquals(listOf("Plan a weekend", "My part", "Final answer"), old.messages.map { it.text })
+            assertEquals("Nova", old.messages[1].speakerName)
+            assertEquals(120L, old.messages[2].tokens)
+            assertTrue(old.messages.all { it.teamReport == null })
+            // Un rapport d'équipe illisible (version future, données abîmées) est ignoré, la conversation reste.
+            records.write("a", AccountRecord.History, """{"version":1,"retry_user_id":null,"failure":null,"messages":[
+                {"id":"a1","role":"assistant","text":"Answer","timestamp_ms":1,"state":"Complete","reply_to":null,
+                 "team_report":{"stage":"Teleporting","effort":"Ultra","sources":"nope"}}]}""".toByteArray())
+            val damaged = store.load("a")
+            assertEquals("Answer", damaged.messages.single().text)
+            assertNull(damaged.messages.single().teamReport)
+        } finally {
+            check(root.name.startsWith("claydot-account-"))
+            root.deleteRecursively()
         }
     }
 }

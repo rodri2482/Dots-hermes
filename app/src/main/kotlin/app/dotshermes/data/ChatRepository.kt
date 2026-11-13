@@ -39,6 +39,11 @@ interface ChatRepository {
     val directUsage: StateFlow<app.dotshermes.data.direct.DirectApiUsage?> get() = NoDirectUsage
     val requestIssue: StateFlow<app.dotshermes.data.direct.DirectRequestIssue?> get() = NoRequestIssue
     fun retryRequest() {}
+    val teamProgress: StateFlow<app.dotshermes.data.direct.TeamProgress?> get() = NoTeamProgress
+    val teamEffort: StateFlow<app.dotshermes.data.direct.TeamEffort> get() = DefaultTeamEffort
+    fun setTeamEffort(effort: app.dotshermes.data.direct.TeamEffort) {}
+    suspend fun checkModel(): app.dotshermes.data.direct.ModelDiagnosticResult =
+        app.dotshermes.data.direct.ModelDiagnosticResult(app.dotshermes.data.direct.DiagnosticState.Missing)
     /** Efface le fil enregistré sur le téléphone (comptes directs) ; sans effet ailleurs. */
     fun clearHistory() {}
     /** Comptes directs : plusieurs conversations ; ailleurs, liste vide et actions sans effet. */
@@ -151,3 +156,5 @@ private val NoConversations = MutableStateFlow<List<app.dotshermes.data.model.Co
 private val NoRequestIssue = MutableStateFlow<app.dotshermes.data.direct.DirectRequestIssue?>(null).asStateFlow()
 
 private val NoDirectUsage = MutableStateFlow<app.dotshermes.data.direct.DirectApiUsage?>(null).asStateFlow()
+private val NoTeamProgress = MutableStateFlow<app.dotshermes.data.direct.TeamProgress?>(null).asStateFlow()
+private val DefaultTeamEffort = MutableStateFlow(app.dotshermes.data.direct.TeamEffort.Deep).asStateFlow()

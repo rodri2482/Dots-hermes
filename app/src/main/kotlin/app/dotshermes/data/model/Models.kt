@@ -143,6 +143,8 @@ data class ChatMessage(
     val streaming: Boolean = false,
     /** Message auquel celui-ci répond (citation courte) ; null = message normal. */
     val quote: String? = null,
+    /** Rapport d'équipe attaché à sa réponse, conservé avec l'historique chiffré. */
+    val teamReport: app.dotshermes.data.direct.TeamProgress? = null,
 )
 
 enum class ToolState { Running, Done, Error }
